@@ -1,0 +1,24 @@
+{
+  "id": "execution-feedback",
+  "version": "1.0.0",
+  "description": "Closed-loop execution feedback — the chain of record: PROPOSAL → DECISION → COMMITMENT (PO) → RECEIPT. Reconciliation of transfer plans against ingested goods-in/out (RECONCILED | MISMATCH), lead-time learning, supplier scorecards, realized savings, double-order guard. Ported verbatim; golden-guarded.",
+  "purity": "no-db, no-react, no-framework, no-io",
+  "dependencies": ["planning-engine"],
+  "permissionScopes": ["feedback:read", "feedback:reconcile"],
+  "ingestionKinds": ["open_pos", "inventory_all_dimensions", "grn_facts", "transfers_goods_in_out"],
+  "uiSurfacePoints": [
+    "screen:8 Purchase Orders",
+    "screen:12 Savings",
+    "screen:15 Transfers & Staging",
+    "screen:24 Supplier Scorecards"
+  ],
+  "ledgerEventTypes": [
+    "PLAN_RECONCILED",
+    "PLAN_MISMATCH",
+    "LEADTIME_OBSERVED",
+    "SCORECARD_REBUILT",
+    "SAVINGS_REALIZED",
+    "DOUBLE_ORDER_BLOCKED"
+  ],
+  "goldenTests": { "suite": "test/feedback.test.js", "count": 31 }
+}

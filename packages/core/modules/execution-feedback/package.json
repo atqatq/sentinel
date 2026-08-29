@@ -1,0 +1,10 @@
+{
+  "name": "@sentinel/module-execution-feedback",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sentinel module: closed-loop execution feedback (golden-guarded, pure)",
+  "main": "src/feedback.js",
+  "scripts": {
+    "test": "node test/feedback.test.js"
+  }
+}

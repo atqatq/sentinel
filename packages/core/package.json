@@ -1,0 +1,9 @@
+{
+  "name": "@sentinel/core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pure domain core — planning engine and execution feedback. No DB, no React, no framework, no IO.",
+  "scripts": {
+    "test": "node modules/planning-engine/test/engine.test.js && node modules/execution-feedback/test/feedback.test.js"
+  }
+}
