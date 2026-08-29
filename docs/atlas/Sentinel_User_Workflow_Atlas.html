@@ -553,6 +553,8 @@ td.lc { font-size: 11.5px; }
           <div class="dp-h">PART I · APPENDICES</div>
           <a class="dp-link" href="#ax-a" data-short="ROLES MATRIX">Appendix A · Role matrix</a>
           <a class="dp-link" href="#ax-b" data-short="STATUS LANGUAGE">Appendix B · Status language</a>
+          <a class="dp-link" href="#ax-kpi" data-short="KPI CATALOG">Appendix C · KPI catalog</a>
+          <a class="dp-link" href="#ax-kpi" data-short="KPI CATALOG">Appendix C · KPI catalog</a>
         </div>
         <div>
           <div class="dp-h">PART I · WORKFLOWS</div>
@@ -571,6 +573,8 @@ td.lc { font-size: 11.5px; }
           <a class="dp-link" href="#w13" data-short="W13 · SRM">W13 · SRM &amp; lead times</a>
           <a class="dp-link" href="#w14" data-short="W14 · TIME MACHINE">W14 · Audit &amp; time machine</a>
           <a class="dp-link" href="#w15" data-short="W15 · MODULES">W15 · Module management</a>
+          <a class="dp-link" href="#w16" data-short="W16 · KPI REVIEW">W16 · Weekly KPI review</a>
+          <a class="dp-link" href="#w16" data-short="W16 · KPI REVIEW">W16 · Weekly KPI review</a>
         </div>
         <div>
           <div class="dp-h">PART II · MASTER GLOSSARY</div>
@@ -2336,6 +2340,70 @@ td.lc { font-size: 11.5px; }
   </div>
 </section>
 
+<!-- ============================ W16 · WEEKLY KPI REVIEW ============================ -->
+<section class="wf" id="w16">
+  <div class="wf-head">
+    <div class="kicker">
+      <span class="pc foundation">OPS · CADENCE · SCREEN 34</span>
+      <span class="mile">M4</span>
+      <span class="actor">ACTORS · DTA (PREPARES) · SCM (CHAIRS) · KPI OWNERS · ORIGIN (ESCALATION)</span>
+    </div>
+    <h2><span class="wnum">W16</span>Weekly KPI Review — the catalog on screen 34 meets its owners</h2>
+    <p class="wf-desc">
+      Every KPI in build spec §16 has a <b>definition, formula, source dataset, owner role, refresh
+      cadence and target band</b> — and a meeting that reads them. The weekly KPI review is the human
+      half of the catalog: <b>DTA</b> confirms every group's freshness stamp is green (a KPI fed by an
+      unsealed ingest renders an explicit <i>stale</i> state — it never guesses), owners walk their own
+      groups, <b>SCM</b> chairs, and every red carries a written reason and an action with an owner.
+      The review reads screen 34 top-to-bottom: Sourcing, Inventory, Data Health, Team Productivity,
+      Project Milestones, Food Philosophy &amp; Production Adherence, then the inventory-value charts
+      per tenant and tenant warehouse.
+    </p>
+    <div class="wf-src">SOURCE · BUILD SPEC §16 KPI CATALOG · SCREEN 34 · DELIVERY SPEC A14.3 · ATLAS APPENDIX C</div>
+  </div>
+  <div class="notes">
+    <span class="nt">GUARDRAILS</span>
+    A KPI red for <b>two consecutive reviews</b> auto-creates a task for its owner and escalates to
+    Origin — slippage is a ledger event, not a mood. Targets are <b>tenant-scoped configuration</b>:
+    bands change per tenant without code change, and every change is ledgered with actor and reason.
+    Formula changes are spec amendments plus a <code>kpi-catalog</code> module version bump through the
+    §14.15 upgrade gates — never a quiet edit. The review never re-baselines a number: if the data is
+    wrong, the fix is upstream in ingestion (W3), not in the metric.
+  </div>
+</section>
+
+<!-- ============================ W16 · WEEKLY KPI REVIEW ============================ -->
+<section class="wf" id="w16">
+  <div class="wf-head">
+    <div class="kicker">
+      <span class="pc foundation">OPS · CADENCE · SCREEN 34</span>
+      <span class="mile">M4</span>
+      <span class="actor">ACTORS · DTA (PREPARES) · SCM (CHAIRS) · KPI OWNERS · ORIGIN (ESCALATION)</span>
+    </div>
+    <h2><span class="wnum">W16</span>Weekly KPI Review — the catalog on screen 34 meets its owners</h2>
+    <p class="wf-desc">
+      Every KPI in build spec §16 has a <b>definition, formula, source dataset, owner role, refresh
+      cadence and target band</b> — and a meeting that reads them. The weekly KPI review is the human
+      half of the catalog: <b>DTA</b> confirms every group's freshness stamp is green (a KPI fed by an
+      unsealed ingest renders an explicit <i>stale</i> state — it never guesses), owners walk their own
+      groups, <b>SCM</b> chairs, and every red carries a written reason and an action with an owner.
+      The review reads screen 34 top-to-bottom: Sourcing, Inventory, Data Health, Team Productivity,
+      Project Milestones, Food Philosophy &amp; Production Adherence, then the inventory-value charts
+      per tenant and tenant warehouse.
+    </p>
+    <div class="wf-src">SOURCE · BUILD SPEC §16 KPI CATALOG · SCREEN 34 · DELIVERY SPEC A14.3 · ATLAS APPENDIX C</div>
+  </div>
+  <div class="notes">
+    <span class="nt">GUARDRAILS</span>
+    A KPI red for <b>two consecutive reviews</b> auto-creates a task for its owner and escalates to
+    Origin — slippage is a ledger event, not a mood. Targets are <b>tenant-scoped configuration</b>:
+    bands change per tenant without code change, and every change is ledgered with actor and reason.
+    Formula changes are spec amendments plus a <code>kpi-catalog</code> module version bump through the
+    §14.15 upgrade gates — never a quiet edit. The review never re-baselines a number: if the data is
+    wrong, the fix is upstream in ingestion (W3), not in the metric.
+  </div>
+</section>
+
 
 <!-- ============================ APPENDIX A · ROLES ============================ -->
 <section class="wf" id="ax-a">
@@ -2481,6 +2549,60 @@ td.lc { font-size: 11.5px; }
   </div>
 </section>
 
+<!-- ============================ APPENDIX C · KPI CATALOG ============================ -->
+<section class="wf axk" id="ax-kpi">
+  <div class="wf-head">
+    <div class="kicker">
+      <span class="pc foundation">APPENDIX C</span>
+      <span class="actor">DEFINITION · FORMULA · SOURCE · OWNER · CADENCE · TARGET — FOR EVERY KPI ON SCREEN 34</span>
+    </div>
+    <h2>KPI catalog — the metric vocabulary of the weekly review (W16)</h2>
+    <p class="wf-desc">
+      The human-readable mirror of <b>build spec §16</b>. Definitions live as data in the
+      <code>kpi-catalog</code> module; this appendix is how people read them. Owners are accountable for
+      the number; DTA owns the plumbing; the review cadence is W16. A KPI whose feeding ingest is not
+      sealed renders an explicit <i>stale</i> state — the catalog never guesses.
+    </p>
+    <div class="wf-src">SOURCE · BUILD SPEC §16 · SCREEN 34 · DELIVERY SPEC A14.3 · WORKFLOW W16</div>
+  </div>
+  <div class="body"><style>
+.axk table { width: 100%; border-collapse: collapse; margin: 10px 0 4px; font-size: 11.5px; }
+.axk th { text-align: left; font-size: 10px; letter-spacing: .08em; color: var(--text-3);
+          border-bottom: 1px solid var(--line); padding: 6px 8px; }
+.axk td { border-bottom: 1px solid var(--line); padding: 6px 8px; vertical-align: top; color: var(--text-2); }
+.axk td.id { color: var(--brand); font-family: var(--mono); white-space: nowrap; font-size: 10.5px; }
+.axk td.kpi { color: var(--text); font-weight: 600; }
+.axk h4 { margin: 18px 0 2px; }
+</style><h4>SRC — Sourcing</h4><p>Sourcing: is the supply base delivering on time, in full, at the agreed price?</p><table><tr><th>ID</th><th>KPI</th><th>FORMULA</th><th>OWNER</th><th>CADENCE</th><th>TARGET</th></tr><tr><td class='id'>SRC-01</td><td class='kpi'>Supplier OTIF %</td><td>on-time-in-full receipt lines ÷ PO lines due × 100</td><td>SBR</td><td>daily</td><td>≥ 95%</td></tr><tr><td class='id'>SRC-02</td><td class='kpi'>Fill rate %</td><td>complete lines ÷ ordered lines × 100</td><td>SBR</td><td>daily</td><td>≥ 97%</td></tr><tr><td class='id'>SRC-03</td><td class='kpi'>Lead-time drift (days)</td><td>realized P50 lead days − agreed</td><td>SBR</td><td>weekly</td><td>≤ +1d amber</td></tr><tr><td class='id'>SRC-04</td><td class='kpi'>Price variance %</td><td>(PO price − baseline) ÷ baseline × 100</td><td>BYR</td><td>daily</td><td>±3%</td></tr><tr><td class='id'>SRC-05</td><td class='kpi'>Single-source exposure</td><td>single-source categories ÷ active × 100</td><td>SBR</td><td>weekly</td><td>≤ 15%</td></tr><tr><td class='id'>SRC-06</td><td class='kpi'>Top-5 spend concentration</td><td>top-5 supplier spend ÷ total × 100</td><td>SBR / SCM</td><td>monthly</td><td>trend</td></tr><tr><td class='id'>SRC-07</td><td class='kpi'>Realized savings %</td><td>realized savings ÷ addressable spend × 100</td><td>SCM</td><td>monthly</td><td>> 2% YTD</td></tr></table><h4>INV — Inventory</h4><p>Inventory: is the stock accurate, covering, and turning?</p><table><tr><th>ID</th><th>KPI</th><th>FORMULA</th><th>OWNER</th><th>CADENCE</th><th>TARGET</th></tr><tr><td class='id'>INV-01</td><td class='kpi'>IRA %</td><td>1 − (variance lines ÷ counted lines) × 100</td><td>DTA / WH owner</td><td>weekly</td><td>≥ 98%</td></tr><tr><td class='id'>INV-02</td><td class='kpi'>DIO (days)</td><td>avg inventory value ÷ daily COGS</td><td>SCM</td><td>daily</td><td>tenant band</td></tr><tr><td class='id'>INV-03</td><td class='kpi'>Reorder-breach count</td><td>SKUs below reorder at recompute</td><td>SCM / BYR</td><td>every recompute</td><td>auto-tasks</td></tr><tr><td class='id'>INV-04</td><td class='kpi'>Service level %</td><td>shortage-free SKU-days ÷ total × 100</td><td>SCM</td><td>daily</td><td>≥ 97%</td></tr><tr><td class='id'>INV-05</td><td class='kpi'>Dead stock %</td><td>no-movement-60d value ÷ total × 100</td><td>SCM</td><td>weekly</td><td>≤ 5%</td></tr><tr><td class='id'>INV-06</td><td class='kpi'>Expiry-risk value</td><td>Σ value expiring ≤ 7d</td><td>SCM</td><td>daily</td><td>≤ cap</td></tr><tr><td class='id'>INV-07</td><td class='kpi'>Transfer reconcile rate %</td><td>RECONCILED ÷ (RECONCILED + MISMATCH) × 100</td><td>SCM</td><td>daily</td><td>≥ 95%</td></tr><tr><td class='id'>INV-08</td><td class='kpi'>Quarantine aging (qty-days)</td><td>Σ open qty × days open</td><td>WH owner</td><td>daily</td><td>downward</td></tr></table><h4>DAT — Data Health</h4><p>Data Health: can the numbers be trusted at all?</p><table><tr><th>ID</th><th>KPI</th><th>FORMULA</th><th>OWNER</th><th>CADENCE</th><th>TARGET</th></tr><tr><td class='id'>DAT-01</td><td class='kpi'>Ingestion freshness (h)</td><td>now − last sealed ingest (worst file type)</td><td>DTA</td><td>hourly</td><td>≤ 26h</td></tr><tr><td class='id'>DAT-02</td><td class='kpi'>First-pass acceptance %</td><td>clean files ÷ received × 100</td><td>DTA</td><td>daily</td><td>≥ 90%</td></tr><tr><td class='id'>DAT-03</td><td class='kpi'>Rejected-row rate %</td><td>rejected rows ÷ ingested rows × 100</td><td>DTA</td><td>daily</td><td>≤ 1%</td></tr><tr><td class='id'>DAT-04</td><td class='kpi'>Duplicate-hit rate %</td><td>duplicate keys ÷ ingested keys × 100</td><td>DTA</td><td>daily</td><td>informational</td></tr><tr><td class='id'>DAT-05</td><td class='kpi'>Master-data completeness %</td><td>complete records ÷ population × 100</td><td>DTA</td><td>weekly</td><td>≥ 95%</td></tr><tr><td class='id'>DAT-06</td><td class='kpi'>FX pin coverage %</td><td>pinned lines ÷ total lines × 100</td><td>DTA</td><td>daily</td><td>100%</td></tr></table><h4>TM — Team productivity</h4><p>Team productivity: how fast does a plan become an executed fact?</p><table><tr><th>ID</th><th>KPI</th><th>FORMULA</th><th>OWNER</th><th>CADENCE</th><th>TARGET</th></tr><tr><td class='id'>TM-01</td><td class='kpi'>Plan-to-execute latency (h)</td><td>median hours APPROVED → matching Precoro action</td><td>SCM</td><td>daily</td><td>≤ 48h</td></tr><tr><td class='id'>TM-02</td><td class='kpi'>Reconciliation auto-rate %</td><td>auto-RECONCILED ÷ total reconciled × 100</td><td>SCM</td><td>daily</td><td>≥ 90%</td></tr><tr><td class='id'>TM-03</td><td class='kpi'>Exception backlog & age</td><td>open MISMATCH / quarantine / recounts + age</td><td>SCM</td><td>daily</td><td>none > 7d</td></tr><tr><td class='id'>TM-04</td><td class='kpi'>Approval SLA (h)</td><td>median queue time by approval type</td><td>O / SCM</td><td>daily</td><td>≤ 24h</td></tr><tr><td class='id'>TM-05</td><td class='kpi'>Weekly active users</td><td>distinct users by tenant × role</td><td>O</td><td>weekly</td><td>adoption</td></tr></table><h4>PM — Project milestones</h4><p>Project milestones: is the build and cutover itself on track?</p><table><tr><th>ID</th><th>KPI</th><th>FORMULA</th><th>OWNER</th><th>CADENCE</th><th>TARGET</th></tr><tr><td class='id'>PM-01</td><td class='kpi'>Cutover readiness %</td><td>done ÷ total cutover checklist items × 100</td><td>O</td><td>weekly</td><td>on-plan</td></tr><tr><td class='id'>PM-02</td><td class='kpi'>Data-readiness gates passed</td><td>tenants × file types passing all gates</td><td>DTA</td><td>weekly</td><td>all by cutover</td></tr><tr><td class='id'>PM-03</td><td class='kpi'>Milestone RAG index</td><td>RAG per delivery-spec milestone</td><td>O</td><td>weekly</td><td>green</td></tr><tr><td class='id'>PM-04</td><td class='kpi'>Open defect aging</td><td>open defects by severity + age buckets</td><td>SCM / O</td><td>daily</td><td>no sev-1 > 48h</td></tr></table><h4>FP — Food philosophy & production adherence</h4><p>Food philosophy: does production follow the spec, the nutrition and the rules?</p><table><tr><th>ID</th><th>KPI</th><th>FORMULA</th><th>OWNER</th><th>CADENCE</th><th>TARGET</th></tr><tr><td class='id'>FP-01</td><td class='kpi'>Spec adherence %</td><td>compliant batches ÷ batches produced × 100</td><td>O / SCM</td><td>daily</td><td>≥ 98%</td></tr><tr><td class='id'>FP-02</td><td class='kpi'>Nutrition adherence %</td><td>meals in kcal/macro band ÷ produced × 100</td><td>O</td><td>daily</td><td>≥ 97%</td></tr><tr><td class='id'>FP-03</td><td class='kpi'>Unapproved substitution rate %</td><td>unapproved ÷ substitutions × 100</td><td>O</td><td>weekly</td><td>≤ 1%</td></tr><tr><td class='id'>FP-04</td><td class='kpi'>Allergen segregation %</td><td>compliant checks ÷ checks × 100</td><td>O / DTA</td><td>weekly</td><td>100%</td></tr><tr><td class='id'>FP-05</td><td class='kpi'>FIFO / shelf-life compliance %</td><td>FEFO issues ÷ sampled issues × 100</td><td>SCM</td><td>weekly</td><td>≥ 98%</td></tr><tr><td class='id'>FP-06</td><td class='kpi'>Menu coverage at cutoff %</td><td>covered ingredients ÷ menu ingredients × 100</td><td>SCM</td><td>daily</td><td>≥ 99%</td></tr></table><h4>CH — Inventory value charts</h4><p>Inventory value, by tenant and by tenant warehouse (screen 34 charts)</p><table><tr><th>ID</th><th>KPI</th><th>FORMULA</th><th>OWNER</th><th>CADENCE</th><th>TARGET</th></tr><tr><td class='id'>CH-01</td><td class='kpi'>Value trend by tenant</td><td>daily sealed inventory value per tenant</td><td>DTA / VWR</td><td>daily</td><td>chart</td></tr><tr><td class='id'>CH-02</td><td class='kpi'>Value by warehouse</td><td>stacked by Warehouse Kind; quarantine/staging excluded from Available</td><td>VWR</td><td>daily</td><td>chart</td></tr><tr><td class='id'>CH-03</td><td class='kpi'>Value mix by category</td><td>category share of inventory value</td><td>SCM</td><td>weekly</td><td>chart</td></tr><tr><td class='id'>CH-04</td><td class='kpi'>Value at risk</td><td>value expiring ≤ 7d by warehouse</td><td>SCM</td><td>daily</td><td>chart</td></tr></table></div>
+</section>
+
+<!-- ============================ APPENDIX C · KPI CATALOG ============================ -->
+<section class="wf axk" id="ax-kpi">
+  <div class="wf-head">
+    <div class="kicker">
+      <span class="pc foundation">APPENDIX C</span>
+      <span class="actor">DEFINITION · FORMULA · SOURCE · OWNER · CADENCE · TARGET — FOR EVERY KPI ON SCREEN 34</span>
+    </div>
+    <h2>KPI catalog — the metric vocabulary of the weekly review (W16)</h2>
+    <p class="wf-desc">
+      The human-readable mirror of <b>build spec §16</b>. Definitions live as data in the
+      <code>kpi-catalog</code> module; this appendix is how people read them. Owners are accountable for
+      the number; DTA owns the plumbing; the review cadence is W16. A KPI whose feeding ingest is not
+      sealed renders an explicit <i>stale</i> state — the catalog never guesses.
+    </p>
+    <div class="wf-src">SOURCE · BUILD SPEC §16 · SCREEN 34 · DELIVERY SPEC A14.3 · WORKFLOW W16</div>
+  </div>
+  <div class="body"><style>
+.axk table { width: 100%; border-collapse: collapse; margin: 10px 0 4px; font-size: 11.5px; }
+.axk th { text-align: left; font-size: 10px; letter-spacing: .08em; color: var(--text-3);
+          border-bottom: 1px solid var(--line); padding: 6px 8px; }
+.axk td { border-bottom: 1px solid var(--line); padding: 6px 8px; vertical-align: top; color: var(--text-2); }
+.axk td.id { color: var(--brand); font-family: var(--mono); white-space: nowrap; font-size: 10.5px; }
+.axk td.kpi { color: var(--text); font-weight: 600; }
+.axk h4 { margin: 18px 0 2px; }
+</style><h4>SRC — Sourcing</h4><p>Sourcing: is the supply base delivering on time, in full, at the agreed price?</p><table><tr><th>ID</th><th>KPI</th><th>FORMULA</th><th>OWNER</th><th>CADENCE</th><th>TARGET</th></tr><tr><td class='id'>SRC-01</td><td class='kpi'>Supplier OTIF %</td><td>on-time-in-full receipt lines ÷ PO lines due × 100</td><td>SBR</td><td>daily</td><td>≥ 95%</td></tr><tr><td class='id'>SRC-02</td><td class='kpi'>Fill rate %</td><td>complete lines ÷ ordered lines × 100</td><td>SBR</td><td>daily</td><td>≥ 97%</td></tr><tr><td class='id'>SRC-03</td><td class='kpi'>Lead-time drift (days)</td><td>realized P50 lead days − agreed</td><td>SBR</td><td>weekly</td><td>≤ +1d amber</td></tr><tr><td class='id'>SRC-04</td><td class='kpi'>Price variance %</td><td>(PO price − baseline) ÷ baseline × 100</td><td>BYR</td><td>daily</td><td>±3%</td></tr><tr><td class='id'>SRC-05</td><td class='kpi'>Single-source exposure</td><td>single-source categories ÷ active × 100</td><td>SBR</td><td>weekly</td><td>≤ 15%</td></tr><tr><td class='id'>SRC-06</td><td class='kpi'>Top-5 spend concentration</td><td>top-5 supplier spend ÷ total × 100</td><td>SBR / SCM</td><td>monthly</td><td>trend</td></tr><tr><td class='id'>SRC-07</td><td class='kpi'>Realized savings %</td><td>realized savings ÷ addressable spend × 100</td><td>SCM</td><td>monthly</td><td>> 2% YTD</td></tr></table><h4>INV — Inventory</h4><p>Inventory: is the stock accurate, covering, and turning?</p><table><tr><th>ID</th><th>KPI</th><th>FORMULA</th><th>OWNER</th><th>CADENCE</th><th>TARGET</th></tr><tr><td class='id'>INV-01</td><td class='kpi'>IRA %</td><td>1 − (variance lines ÷ counted lines) × 100</td><td>DTA / WH owner</td><td>weekly</td><td>≥ 98%</td></tr><tr><td class='id'>INV-02</td><td class='kpi'>DIO (days)</td><td>avg inventory value ÷ daily COGS</td><td>SCM</td><td>daily</td><td>tenant band</td></tr><tr><td class='id'>INV-03</td><td class='kpi'>Reorder-breach count</td><td>SKUs below reorder at recompute</td><td>SCM / BYR</td><td>every recompute</td><td>auto-tasks</td></tr><tr><td class='id'>INV-04</td><td class='kpi'>Service level %</td><td>shortage-free SKU-days ÷ total × 100</td><td>SCM</td><td>daily</td><td>≥ 97%</td></tr><tr><td class='id'>INV-05</td><td class='kpi'>Dead stock %</td><td>no-movement-60d value ÷ total × 100</td><td>SCM</td><td>weekly</td><td>≤ 5%</td></tr><tr><td class='id'>INV-06</td><td class='kpi'>Expiry-risk value</td><td>Σ value expiring ≤ 7d</td><td>SCM</td><td>daily</td><td>≤ cap</td></tr><tr><td class='id'>INV-07</td><td class='kpi'>Transfer reconcile rate %</td><td>RECONCILED ÷ (RECONCILED + MISMATCH) × 100</td><td>SCM</td><td>daily</td><td>≥ 95%</td></tr><tr><td class='id'>INV-08</td><td class='kpi'>Quarantine aging (qty-days)</td><td>Σ open qty × days open</td><td>WH owner</td><td>daily</td><td>downward</td></tr></table><h4>DAT — Data Health</h4><p>Data Health: can the numbers be trusted at all?</p><table><tr><th>ID</th><th>KPI</th><th>FORMULA</th><th>OWNER</th><th>CADENCE</th><th>TARGET</th></tr><tr><td class='id'>DAT-01</td><td class='kpi'>Ingestion freshness (h)</td><td>now − last sealed ingest (worst file type)</td><td>DTA</td><td>hourly</td><td>≤ 26h</td></tr><tr><td class='id'>DAT-02</td><td class='kpi'>First-pass acceptance %</td><td>clean files ÷ received × 100</td><td>DTA</td><td>daily</td><td>≥ 90%</td></tr><tr><td class='id'>DAT-03</td><td class='kpi'>Rejected-row rate %</td><td>rejected rows ÷ ingested rows × 100</td><td>DTA</td><td>daily</td><td>≤ 1%</td></tr><tr><td class='id'>DAT-04</td><td class='kpi'>Duplicate-hit rate %</td><td>duplicate keys ÷ ingested keys × 100</td><td>DTA</td><td>daily</td><td>informational</td></tr><tr><td class='id'>DAT-05</td><td class='kpi'>Master-data completeness %</td><td>complete records ÷ population × 100</td><td>DTA</td><td>weekly</td><td>≥ 95%</td></tr><tr><td class='id'>DAT-06</td><td class='kpi'>FX pin coverage %</td><td>pinned lines ÷ total lines × 100</td><td>DTA</td><td>daily</td><td>100%</td></tr></table><h4>TM — Team productivity</h4><p>Team productivity: how fast does a plan become an executed fact?</p><table><tr><th>ID</th><th>KPI</th><th>FORMULA</th><th>OWNER</th><th>CADENCE</th><th>TARGET</th></tr><tr><td class='id'>TM-01</td><td class='kpi'>Plan-to-execute latency (h)</td><td>median hours APPROVED → matching Precoro action</td><td>SCM</td><td>daily</td><td>≤ 48h</td></tr><tr><td class='id'>TM-02</td><td class='kpi'>Reconciliation auto-rate %</td><td>auto-RECONCILED ÷ total reconciled × 100</td><td>SCM</td><td>daily</td><td>≥ 90%</td></tr><tr><td class='id'>TM-03</td><td class='kpi'>Exception backlog & age</td><td>open MISMATCH / quarantine / recounts + age</td><td>SCM</td><td>daily</td><td>none > 7d</td></tr><tr><td class='id'>TM-04</td><td class='kpi'>Approval SLA (h)</td><td>median queue time by approval type</td><td>O / SCM</td><td>daily</td><td>≤ 24h</td></tr><tr><td class='id'>TM-05</td><td class='kpi'>Weekly active users</td><td>distinct users by tenant × role</td><td>O</td><td>weekly</td><td>adoption</td></tr></table><h4>PM — Project milestones</h4><p>Project milestones: is the build and cutover itself on track?</p><table><tr><th>ID</th><th>KPI</th><th>FORMULA</th><th>OWNER</th><th>CADENCE</th><th>TARGET</th></tr><tr><td class='id'>PM-01</td><td class='kpi'>Cutover readiness %</td><td>done ÷ total cutover checklist items × 100</td><td>O</td><td>weekly</td><td>on-plan</td></tr><tr><td class='id'>PM-02</td><td class='kpi'>Data-readiness gates passed</td><td>tenants × file types passing all gates</td><td>DTA</td><td>weekly</td><td>all by cutover</td></tr><tr><td class='id'>PM-03</td><td class='kpi'>Milestone RAG index</td><td>RAG per delivery-spec milestone</td><td>O</td><td>weekly</td><td>green</td></tr><tr><td class='id'>PM-04</td><td class='kpi'>Open defect aging</td><td>open defects by severity + age buckets</td><td>SCM / O</td><td>daily</td><td>no sev-1 > 48h</td></tr></table><h4>FP — Food philosophy & production adherence</h4><p>Food philosophy: does production follow the spec, the nutrition and the rules?</p><table><tr><th>ID</th><th>KPI</th><th>FORMULA</th><th>OWNER</th><th>CADENCE</th><th>TARGET</th></tr><tr><td class='id'>FP-01</td><td class='kpi'>Spec adherence %</td><td>compliant batches ÷ batches produced × 100</td><td>O / SCM</td><td>daily</td><td>≥ 98%</td></tr><tr><td class='id'>FP-02</td><td class='kpi'>Nutrition adherence %</td><td>meals in kcal/macro band ÷ produced × 100</td><td>O</td><td>daily</td><td>≥ 97%</td></tr><tr><td class='id'>FP-03</td><td class='kpi'>Unapproved substitution rate %</td><td>unapproved ÷ substitutions × 100</td><td>O</td><td>weekly</td><td>≤ 1%</td></tr><tr><td class='id'>FP-04</td><td class='kpi'>Allergen segregation %</td><td>compliant checks ÷ checks × 100</td><td>O / DTA</td><td>weekly</td><td>100%</td></tr><tr><td class='id'>FP-05</td><td class='kpi'>FIFO / shelf-life compliance %</td><td>FEFO issues ÷ sampled issues × 100</td><td>SCM</td><td>weekly</td><td>≥ 98%</td></tr><tr><td class='id'>FP-06</td><td class='kpi'>Menu coverage at cutoff %</td><td>covered ingredients ÷ menu ingredients × 100</td><td>SCM</td><td>daily</td><td>≥ 99%</td></tr></table><h4>CH — Inventory value charts</h4><p>Inventory value, by tenant and by tenant warehouse (screen 34 charts)</p><table><tr><th>ID</th><th>KPI</th><th>FORMULA</th><th>OWNER</th><th>CADENCE</th><th>TARGET</th></tr><tr><td class='id'>CH-01</td><td class='kpi'>Value trend by tenant</td><td>daily sealed inventory value per tenant</td><td>DTA / VWR</td><td>daily</td><td>chart</td></tr><tr><td class='id'>CH-02</td><td class='kpi'>Value by warehouse</td><td>stacked by Warehouse Kind; quarantine/staging excluded from Available</td><td>VWR</td><td>daily</td><td>chart</td></tr><tr><td class='id'>CH-03</td><td class='kpi'>Value mix by category</td><td>category share of inventory value</td><td>SCM</td><td>weekly</td><td>chart</td></tr><tr><td class='id'>CH-04</td><td class='kpi'>Value at risk</td><td>value expiring ≤ 7d by warehouse</td><td>SCM</td><td>daily</td><td>chart</td></tr></table></div>
+</section>
+
 
 
 
@@ -2491,7 +2613,7 @@ td.lc { font-size: 11.5px; }
   <p class="pd-sub">Every term, screen, signal and workflow in Sentinel — 155 cards, each answering the same
   five questions in plain English.</p>
   <div class="pd-stats mono">
-    <span><b>15</b> SECTIONS</span><span><b>155</b> TERM CARDS</span><span><b>5</b> QUESTIONS EACH</span><span><b>W-01–W-15</b> LINKED</span>
+    <span><b>15</b> SECTIONS</span><span><b>155</b> TERM CARDS</span><span><b>5</b> QUESTIONS EACH</span><span><b>W-01–W-16</b> LINKED</span>
   </div>
 </section>
 
@@ -2517,7 +2639,7 @@ td.lc { font-size: 11.5px; }
       (the engine, the feedback loop, ingestion, the ledger), and the platform itself. Every card carries a
       stable identifier such as <code>ENG-07</code> so screens, specs and chat discussions can point at a term
       unambiguously, and the coloured left rule on every card repeats the plane colour coding as you scroll.
-      The <span class="mono">SEE</span> row points at related cards and at the workflows W-01–W-15 in Part I
+      The <span class="mono">SEE</span> row points at related cards and at the workflows W-01–W-16 in Part I
       of this page.
     </p>
   </div>
@@ -2536,7 +2658,7 @@ td.lc { font-size: 11.5px; }
         <div class="gf"><dt>HOW</dt><dd><b>How it works.</b> The mechanics: who does what, what the system does
         in response, and any rules, thresholds or formulas that govern the behaviour.</dd></div>
         <div class="gf"><dt>SEE</dt><dd class="mono">pointers to related cards (by ID) and, where relevant, the
-        workflow number W-01–W-15 in Part I of this page.</dd></div>
+        workflow number W-01–W-16 in Part I of this page.</dd></div>
       </dl>
     </article>
   </div>
@@ -4165,7 +4287,7 @@ jobs — and dependents degrade visibly, never silently.</dd></div><div class="g
     </div>
 
     <div class="gtable-wrap">
-      <h3 class="gt-title mono">A5 · WORKFLOW MAP <span>W-01–W-15, matching Part I of this page</span></h3>
+      <h3 class="gt-title mono">A5 · WORKFLOW MAP <span>W-01–W-16, matching Part I of this page</span></h3>
       <table class="gtable">
         <thead><tr><th>ID</th><th style="width:24ch;">WORKFLOW</th><th>WHAT IT COVERS</th></tr></thead>
         <tbody>
