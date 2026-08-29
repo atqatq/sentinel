@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  guard:
+    name: Policy guards (forbidden terms & secrets)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Forbidden terms & secret scan
+        run: bash scripts/guards/forbidden-terms.sh
+
+  golden-tests:
+    name: Golden tests (117)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Engine golden suite (86)
+        run: node packages/core/modules/planning-engine/test/engine.test.js
+      - name: Feedback suite (31)
+        run: node packages/core/modules/execution-feedback/test/feedback.test.js
