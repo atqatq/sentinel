@@ -1,0 +1,16 @@
+{
+  "name": "sentinel",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Multi-tenant supply-chain planning, sourcing and intelligence layer over Precoro",
+  "packageManager": "pnpm@9.12.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "guard": "bash scripts/guards/forbidden-terms.sh",
+    "test": "npm run test:engine && npm run test:feedback",
+    "test:engine": "node packages/core/modules/planning-engine/test/engine.test.js",
+    "test:feedback": "node packages/core/modules/execution-feedback/test/feedback.test.js"
+  }
+}

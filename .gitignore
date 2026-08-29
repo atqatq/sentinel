@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+
+# Test & coverage
+coverage/
+.vitest/
+test-results/
+playwright-report/
+
+# Environment & secrets — NEVER commit credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Tooling caches
+.turbo/
+.eslintcache
+.vite/
+
+# OS & editor
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+
+# Logs
+*.log
+dev.log
+
+# Local scratch
+tmp/

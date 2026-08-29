@@ -1,0 +1,11 @@
+# Micro-commit convention (see CONTRIBUTING.md)
+# <type>(<scope>): <what changed, in plain english, <= 72 chars>
+#
+# Examples:
+#   feat(core): add MOQ guard to order proposal sizing
+#   docs(spec): define OTIF formula and owner in KPI catalog
+#   fix(engine): correct shelf-life cap floor in cover calc
+#   test(core): golden cases for rate invalidation
+#   chore: add .gitignore and editor config
+#
+# One logical change per commit. Say what was written, deleted or improved.

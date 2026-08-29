@@ -1,0 +1,16 @@
+Copyright (c) 2026 Sentinel Project. All rights reserved.
+
+PROPRIETARY AND CONFIDENTIAL
+
+This software and its accompanying documentation are the private property of
+the Sentinel Project owners. Unauthorised use, reproduction, distribution or
+disclosure of any part of this repository — including specification documents,
+design assets, source code and test fixtures — is strictly prohibited.
+
+No client-identifying information, production data from third-party systems,
+or credential material may be introduced into this repository. All fixtures
+must be synthetic or explicitly redacted under docs/spec data-governance rules.
+
+THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY.
