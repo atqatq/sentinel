@@ -1,5 +1,12 @@
 # Contributing to Sentinel
 
+## Access policy (read first)
+
+This repository has **no open collaborators**. Push access, branch rights and any form of
+contribution require an explicit, individual invitation from the repository owner
+(`atqatq`). Unsolicited PRs from forks are not reviewed. If you believe you should have
+access, contact the owner directly — do not ask in issues.
+
 ## The micro-commit convention (mandatory)
 
 Every commit is **one logical change**, described in **plain english** so that anyone — engineer,
