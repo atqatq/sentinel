@@ -1,0 +1,25 @@
+{
+  "id": "planning-engine",
+  "version": "1.0.0",
+  "description": "Verified MRP planning engine — deliveries are the only raw demand primitive; consumption, cover, run-out, reorder, EOQ and max derive from the per-SKU consumption-per-delivery rate. Ported verbatim from the company workbook; formulas are golden-guarded and never re-derived.",
+  "purity": "no-db, no-react, no-framework, no-io",
+  "dependencies": [],
+  "permissionScopes": ["plan:read", "plan:recompute", "proposal:create"],
+  "ingestionKinds": ["items", "suppliers", "inventory_all_dimensions", "open_pos", "deliveries"],
+  "uiSurfacePoints": [
+    "screen:2 MRP Board",
+    "screen:3 MRP Future",
+    "screen:4 Planning Profiles",
+    "screen:5 Parameter Optimization",
+    "screen:6 Demand & Forecast",
+    "screen:7 Order Proposals"
+  ],
+  "ledgerEventTypes": [
+    "PROPOSAL_CREATED",
+    "PROPOSAL_APPROVED",
+    "PROPOSAL_DISMISSED",
+    "PROPOSAL_CONVERTED",
+    "RECOMPUTE_RUN"
+  ],
+  "goldenTests": { "suite": "test/engine.test.js", "count": 86 }
+}

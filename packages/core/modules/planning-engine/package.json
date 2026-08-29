@@ -1,0 +1,10 @@
+{
+  "name": "@sentinel/module-planning-engine",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sentinel module: verified MRP planning engine (golden-guarded, pure)",
+  "main": "src/engine.js",
+  "scripts": {
+    "test": "node test/engine.test.js"
+  }
+}
