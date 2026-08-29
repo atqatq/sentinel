@@ -189,6 +189,16 @@ Top bar: page title + subtitle · global search · **⌘K command palette** · *
     `REGISTERED · ENABLED · PAUSED · DISABLED · FAULTED`, health/last-fault, pinned version, dependency
     map, add / enable / pause / upgrade / disable / remove flow, per-module ledger history (§14.15). The
     architectural control surface for the modular platform.
+34. **Tenant KPI Dashboard** — per-tenant, grant-scoped. Seven KPI groups (Sourcing · Inventory ·
+    Data Health · Team Productivity · Project Milestones · Food Philosophy & Production Adherence ·
+    Inventory Value charts); every KPI card shows value, delta vs target band, sparkline, owner
+    role, source dataset and a **freshness stamp** from the last sealed ingest feeding it; tenant
+    scope switcher limited to the viewer's grants; warehouse-level inventory-value charts exclude
+    quarantine/staging from the Available overlay (§14.2); each card drills into its underlying
+    screen; CSV/PDF export. Catalog, formulas, owners and cadence are defined in §16 and rendered
+    by the `kpi-catalog` module; review cadence is W-16 in the Atlas. Refresh: post-seal daily
+    plus on every recompute; a KPI without fresh sealed data renders an explicit *stale* state —
+    it never guesses.
 
 ---
 
@@ -881,3 +891,104 @@ safely** and never fabricates a plan from absent data.
 **The single most dangerous mapping:** `openPO` arrives in *purchase* units and must pass through
 `toPlanningUnits()` before the engine sees it (§15.1 C1). A missed conversion is an order-of-magnitude
 error in either direction — suppressed proposals or duplicate ordering — and both look plausible.
+
+---
+
+## 16. Per-tenant KPI dashboard (screen 34) — the KPI catalog
+
+Every KPI is **defined once, as data**: definition, formula, source dataset, owner role, refresh
+cadence and target band live with the `kpi-catalog` module (§14.15) and are rendered by screen 34.
+The catalog below is the contract; changing a formula is a spec amendment **plus** a module
+version bump through the §14.15 upgrade gates. Owners are accountable for the number; the data
+steward (DTA) owns the plumbing behind it. Every KPI carries a freshness stamp from the last
+sealed ingest that feeds it — a KPI computed on stale data renders an explicit *stale* state,
+never a silent number. Targets are tenant-scoped and amendable per tenant without code change.
+A KPI red for two consecutive reviews auto-creates a task for its owner and escalates to the
+weekly KPI review (Atlas W-16; the human-readable glossary mirror lives in the Atlas KPI appendix).
+
+### 16.1 Sourcing (SRC) — owner: SBR unless noted
+
+| ID | KPI | Definition | Formula | Source | Owner | Cadence | Target / alert |
+|---|---|---|---|---|---|---|---|
+| SRC-01 | Supplier OTIF % | Receipts that are on-time **and** in-full vs PO lines due in the window | on-time-in-full receipt lines ÷ PO lines due × 100 | R1 POs + R2 receipts (receipt dates, received qty) | SBR | daily | ≥ 95%; < 90% red |
+| SRC-02 | Fill rate % | Lines received complete vs lines ordered | complete lines ÷ ordered lines × 100 | R1 + R2 | SBR | daily | ≥ 97% |
+| SRC-03 | Lead-time drift (days) | Realized P50 lead days minus agreed lead days, per supplier × category | P50(realized) − agreed | R1 promised vs actual + learning loop | SBR | weekly | ≤ +1d amber; +3d red |
+| SRC-04 | Price variance % | PO unit price vs agreed baseline price | (PO price − baseline) ÷ baseline × 100 | R1 + price baselines | BYR | daily | within ±3% |
+| SRC-05 | Single-source exposure | Share of active categories with exactly one approved supplier | single-source categories ÷ active categories × 100 | supplier coverage (screen 25) | SBR | weekly | ≤ 15% |
+| SRC-06 | Top-5 spend concentration | Share of spend held by the five largest suppliers | top-5 supplier spend ÷ total spend × 100 | R1 spend | SBR / SCM | monthly | trend-monitored |
+| SRC-07 | Realized savings % | Verified savings against the four baselines (screen 12) | realized savings ÷ addressable spend × 100 | execution-feedback module | SCM | monthly | > 2% YTD |
+
+### 16.2 Inventory (INV) — owner: SCM unless noted
+
+| ID | KPI | Definition | Formula | Source | Owner | Cadence | Target / alert |
+|---|---|---|---|---|---|---|---|
+| INV-01 | IRA % | Inventory record accuracy from ingested count adjustments (§14.12 measure-only) | 1 − (lines with variance beyond tolerance ÷ counted lines) × 100 | count sessions + ingested adjustments | DTA / warehouse owner | weekly per session | ≥ 98% |
+| INV-02 | DIO (days) | Days of inventory outstanding | average inventory value ÷ daily COGS | inventory value + consumption | SCM | daily | tenant target band |
+| INV-03 | Reorder-breach count | SKUs below reorder point at each recompute | count of status-below-reorder SKUs | engine output (screen 2) | SCM / BYR | every recompute | trend; auto-tasks |
+| INV-04 | Service level % | Shortage-free SKU-days share | shortage-free SKU-days ÷ total SKU-days × 100 | engine run-outs | SCM | daily | ≥ 97% |
+| INV-05 | Dead stock % | Value with no movement in 60 days | dead-stock value ÷ total value × 100 | movement ledger (ingested) | SCM | weekly | ≤ 5% |
+| INV-06 | Expiry-risk value | Value expiring within 7 days | Σ value(expiry ≤ 7d) | shelf-life + FEFO data | SCM | daily | ≤ agreed cap |
+| INV-07 | Transfer reconcile rate % | Approved transfer plans verified against ingested movement (§14.7) | RECONCILED ÷ (RECONCILED + MISMATCH) × 100 | transfer plans + goods-in/out aggregates | SCM | daily | ≥ 95%; MISMATCH > 7d escalates |
+| INV-08 | Quarantine aging (qty-days) | Open quarantine exposure over time | Σ(open quarantine qty × days open) | warehouse-kind reads (ingested, read-only) | warehouse owner | daily | downward trend |
+
+### 16.3 Data Health (DAT) — owner: DTA
+
+| ID | KPI | Definition | Formula | Source | Owner | Cadence | Target / alert |
+|---|---|---|---|---|---|---|---|
+| DAT-01 | Ingestion freshness (hours) | Hours since last successful per-tenant seal, worst across file types | now − last sealed ingest | pipeline | DTA | hourly | ≤ 26h; > 36h red + alarm |
+| DAT-02 | First-pass acceptance % | Files passing all gates without manual repair | clean files ÷ received files × 100 | pipeline | DTA | daily | ≥ 90% |
+| DAT-03 | Rejected-row rate % | Rows quarantined by validation gates | rejected rows ÷ ingested rows × 100 | pipeline | DTA | daily | ≤ 1% |
+| DAT-04 | Duplicate-hit rate % | Idempotency keys seen before (re-upload hygiene) | duplicate keys ÷ ingested keys × 100 | pipeline | DTA | daily | informational |
+| DAT-05 | Master-data completeness % | SKUs/suppliers carrying required fields (lead time, conversion factors, Supplier ID) | complete records ÷ population × 100 | master data | DTA | weekly | ≥ 95% |
+| DAT-06 | FX pin coverage % | Lines normalized with the pinned tenant-day rate | pinned lines ÷ total lines × 100 | currency normalization | DTA | daily | 100% |
+
+### 16.4 Team productivity (TM) — owner: SCM unless noted
+
+| ID | KPI | Definition | Formula | Source | Owner | Cadence | Target / alert |
+|---|---|---|---|---|---|---|---|
+| TM-01 | Plan-to-execute latency (h) | Median hours from proposal APPROVED to the matching Precoro action | median(approved → matching PO/receipt) | feedback chain | SCM | daily | ≤ 48h |
+| TM-02 | Reconciliation auto-rate % | Share of reconciliations completed without manual touch — measures the "Precoro executes, Sentinel plans + verifies" boundary working as designed | auto-RECONCILED ÷ total reconciled × 100 | §14.7 pipeline | SCM | daily | ≥ 90% |
+| TM-03 | Exception backlog & age | Open MISMATCH plans, quarantine recommendations, recount flags — with age buckets | count + max age by type | tasks | SCM | daily | none > 7d |
+| TM-04 | Approval SLA (h) | Median queue time by approval type | median(time in queue) | approvals (screen 20) | O / SCM | daily | ≤ 24h |
+| TM-05 | Weekly active users | Distinct active users by tenant × role | distinct users / week | platform | O | weekly | adoption trend |
+
+### 16.5 Project milestones (PM)
+
+| ID | KPI | Definition | Formula | Source | Owner | Cadence | Target / alert |
+|---|---|---|---|---|---|---|---|
+| PM-01 | Cutover readiness % | Completed items across the cutover workstreams | done items ÷ total items × 100 | cutover project spec | O | weekly | on-plan curve |
+| PM-02 | Data-readiness gates passed | Tenants × file types fully passing ingestion gates | gates passed ÷ gates planned | ingestion | DTA | weekly | all tenants × types by cutover |
+| PM-03 | Milestone RAG index | Delivery-spec milestone status rollup | RAG per milestone | delivery spec | O | weekly | green |
+| PM-04 | Open defect aging | Open defects by severity with age buckets | count + max age by severity | issue tracker | SCM / O | daily | no sev-1 > 48h |
+
+### 16.6 Food philosophy & production adherence (FP) — owner: O unless noted
+
+| ID | KPI | Definition | Formula | Source | Owner | Cadence | Target / alert |
+|---|---|---|---|---|---|---|---|
+| FP-01 | Spec adherence % | Production batches produced within the approved recipe spec | compliant batches ÷ batches produced × 100 | production approvals + consumption vs recipe refs | O / SCM | daily | ≥ 98% |
+| FP-02 | Nutrition adherence % | Meals within the declared kcal / macro band | compliant meals ÷ meals produced × 100 | nutrition approvals (screen 20) | O | daily | ≥ 97% |
+| FP-03 | Unapproved substitution rate % | Ingredient substitutions made without approval | unapproved substitutions ÷ substitutions × 100 | screens 20/21 | O | weekly | ≤ 1% |
+| FP-04 | Allergen segregation compliance % | Storage/segregation checks passing | compliant checks ÷ checks × 100 | quarantine + warehouse-kind data | O / DTA | weekly | 100% |
+| FP-05 | FIFO / shelf-life compliance % | Stock issues taken in FEFO order vs sampled issues; plus expiry write-off value | FEFO issues ÷ sampled issues × 100 | movement ledger | SCM | weekly | ≥ 98%; write-offs ≤ cap |
+| FP-06 | Menu coverage at cutoff % | Menu ingredients holding cover ≥ cutoff horizon | covered ingredients ÷ menu ingredients × 100 | engine cover | SCM | daily (pre-cutoff) | ≥ 99% |
+
+### 16.7 Inventory value charts (CH) — rendered on screen 34, per tenant and per tenant warehouse
+
+| ID | Chart | Definition | Source | Owner | Cadence |
+|---|---|---|---|---|---|
+| CH-01 | Value trend by tenant | Daily sealed inventory value per tenant — tenant currency first, normalized view for cross-tenant reads | Inventory_All_Dimensions + Gross Total | DTA / VWR | daily |
+| CH-02 | Value by warehouse | Value stacked by Warehouse Kind per tenant warehouse; quarantine/staging excluded from the Available overlay (§14.2) | same | VWR | daily |
+| CH-03 | Value mix by category | Share of inventory value per category, per tenant | same | SCM | weekly |
+| CH-04 | Value at risk | Value expiring within 7 days, by warehouse | shelf-life data | SCM | daily |
+
+### 16.8 Governance
+
+- **Definitions are data, not prose in code.** Screen 34 renders the catalog; the `kpi-catalog`
+  module carries the evaluators. Formula changes = spec amendment + module version bump through
+  the §14.15 gates (auto-pause, golden smoke, contract tests, resume-or-rollback).
+- **No silent numbers.** A KPI missing fresh sealed input renders an explicit stale/unavailable
+  state — §3's fail-closed, fail-visible rules apply to metrics too.
+- **Ownership is explicit.** Every KPI names an accountable role; TM/PM exceptions route to tasks
+  automatically; the weekly review is W-16.
+- **Per-tenant targets.** Bands are tenant-scoped configuration, amendable without code change,
+  and every change is a ledger event with actor and reason.
