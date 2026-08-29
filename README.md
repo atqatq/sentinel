@@ -85,6 +85,7 @@ sentinel/
 │  └─ config/             # tsconfig / eslint / vitest presets — M1+
 ├─ docs/
 │  ├─ spec/               # THE CONTRACT: build, delivery, ingestion, design specs (sanitized)
+│  ├─ design/             # design handoff: final tokens, shell, 35-screen intent + prototypes
 │  ├─ atlas/              # User Workflow Atlas (W-01…W-16 + glossary + appendices)
 │  ├─ adr/                # architecture decision records (MADR)
 │  └─ ingest-contracts/   # one page per inbound report — M1+
@@ -138,7 +139,9 @@ npm run guard       # forbidden-term & secret scan — must always be clean
 | `docs/spec/SENTINEL_V3_BUILD_SPEC.md` | the contract — screens, logic, data model, DoD |
 | `docs/spec/SENTINEL_V1_DELIVERY_SPEC.md` | how this repo gets built: stack, TDD, CI, versioning |
 | `docs/spec/INGESTION_FILE_SPEC.md` | which files arrive, allow-lists, validation gates |
-| `docs/spec/SENTINEL_DESIGN_SPEC.md` | the SDS design system |
+| `docs/spec/SENTINEL_DESIGN_SPEC.md` | the SDS design brief (superseded on visual detail by the handoff below) |
+| `docs/design/README.md` | the design handoff — final tokens, shell, and all 35 screens' intent |
+| `docs/design/prototypes/` | sanitized design references (app, foundations, components) — visual truth, not code to copy |
 | `docs/atlas/Sentinel_User_Workflow_Atlas.html` | every user workflow W-01…W-16 + glossary |
 | `docs/ARCHITECTURE.md` + `docs/adr/` | how the codebase is shaped and why |
 | `CONTRIBUTING.md` | the micro-commit convention |
