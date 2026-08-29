@@ -1,0 +1,8 @@
+# Default owner — single-maintainer phase
+* @atqatq
+
+# Delivery-spec §3.1: elevated review when collaborators join
+/packages/core/** @atqatq
+/packages/db/** @atqatq
+/docs/spec/** @atqatq
+/SECURITY.md @atqatq
