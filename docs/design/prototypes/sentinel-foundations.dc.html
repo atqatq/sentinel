@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  html, body { margin: 0; padding: 0; background: #0B0D0F; }
+  * { box-sizing: border-box; }
+  a { color: #4C9AF0; text-decoration: none; }
+  a:hover { color: #9CC6F7; }
+  ::selection { background: color-mix(in srgb, #4C9AF0 32%, transparent); }
+  @keyframes sdsShimmer { 0% { opacity: .45 } 50% { opacity: .18 } 100% { opacity: .45 } }
+  @keyframes sdsSpin { to { transform: rotate(360deg) } }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important } }
+</style>
+</helmet>
+
+<div style="background:#0B0D0F;color:#E8EBED;font:400 13px/20px 'IBM Plex Sans',sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh;padding:24px;display:flex;flex-direction:column;gap:32px">
+
+  <header style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px;padding-bottom:20px;border-bottom:1px solid rgba(255,255,255,.12)">
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:22px;height:22px;border-radius:6px;background:#38B675"></div>
+        <span style="font:600 15px/1 'IBM Plex Sans',sans-serif;color:#E8EBED;letter-spacing:.18em">SENTINEL</span>
+      </div>
+      <h1 style="margin:0;font:600 32px/38px 'IBM Plex Sans',sans-serif;letter-spacing:-.011em;color:#E8EBED">Sentinel Design System</h1>
+      <p style="margin:0;max-width:70ch;font:400 13px/20px 'IBM Plex Sans',sans-serif;color:#A2ABB3;text-wrap:pretty">Foundations and component sheet. Colour is reserved for status, data and brand; interactive chrome is neutral. Every figure is monospaced and tabular. Depth is tonal — <span style="font:500 12.5px/1 'JetBrains Mono',monospace">canvas → surface → raised</span> — never a drop shadow outside floating layers.</p>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px;text-align:right;font:500 10.5px/14px 'JetBrains Mono',monospace;color:#6B757D">
+      <span>SDS v1.0</span>
+      <span>DARK-FIRST · RTL-READY</span>
+      <span>8PX BASE · IBM PLEX SANS / JETBRAINS MONO</span>
+    </div>
+  </header>
+
+  <!-- ══ COLOUR ══ -->
+  <section style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;align-items:baseline;gap:12px">
+      <span style="font:600 11px/14px 'IBM Plex Sans',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#6B757D;white-space:nowrap">01 — Foundations</span>
+      <h2 style="margin:0;font:600 22px/28px 'IBM Plex Sans',sans-serif;letter-spacing:-.011em">Colour</h2>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div style="background:#14171A;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px">
+        <span style="font:600 11px/14px 'IBM Plex Sans',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#6B757D">Neutrals — dark (cool graphite)</span>
+        <div style="display:flex;flex-direction:column;gap:1px">
+          <sc-for list="{{ darkNeutrals }}" as="t" hint-placeholder-count="10">
+            <div style="display:grid;grid-template-columns:36px 108px 1fr auto;align-items:center;gap:12px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.07)">
+              <div style="height:24px;border-radius:6px;border:1px solid rgba(255,255,255,.12);background:{{ t.hex }}"></div>
+              <span style="font:500 12.5px/18px 'JetBrains Mono',monospace;color:#E8EBED">{{ t.name }}</span>
+              <span style="font:400 13px/18px 'IBM Plex Sans',sans-serif;color:#A2ABB3">{{ t.use }}</span>
+              <span style="font:400 12.5px/18px 'JetBrains Mono',monospace;color:#6B757D;font-variant-numeric:tabular-nums">{{ t.hex }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div style="background:#FFFFFF;border:1px solid rgba(11,13,15,.14);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px">
+          <span style="font:600 11px/14px 'IBM Plex Sans',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#7C858C">Neutrals — light variant</span>
+          <div style="display:flex;flex-direction:column;gap:1px">
+            <sc-for list="{{ lightNeutrals }}" as="t" hint-placeholder-count="7">
+              <div style="display:grid;grid-template-columns:36px 108px 1fr auto;align-items:center;gap:12px;padding:6px 0;border-bottom:1px solid rgba(11,13,15,.08)">
+                <div style="height:24px;border-radius:6px;border:1px solid rgba(11,13,15,.14);background:{{ t.hex }}"></div>
+                <span style="font:500 12.5px/18px 'JetBrains Mono',monospace;color:#14171A">{{ t.name }}</span>
+                <span style="font:400 13px/18px 'IBM Plex Sans',sans-serif;color:#545C63">{{ t.use }}</span>
+                <span style="font:400 12.5px/18px 'JetBrains Mono',monospace;color:#7C858C">{{ t.hex }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="background:#14171A;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:14px">
+          <span style="font:600 11px/14px 'IBM Plex Sans',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#6B757D">Brand</span>
+          <div style="display:flex;align-items:center;gap:20px">
+            <div style="width:64px;height:64px;border-radius:10px;background:#38B675"></div>
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <span style="font:500 12.5px/18px 'JetBrains Mono',monospace;color:#E8EBED">#38B675</span>
+              <span style="font:400 13px/20px 'IBM Plex Sans',sans-serif;color:#A2ABB3;max-width:36ch;text-wrap:pretty">Wordmark, active-nav indicator, brand moments only. Never a generic button colour, never in a data context.</span>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:6px;background:color-mix(in srgb,#E8A33D 12%,transparent);border:1px solid color-mix(in srgb,#E8A33D 28%,transparent)">
+            <span style="width:6px;height:6px;border-radius:999px;background:#E8A33D;flex:none"></span>
+            <span style="font:400 12.5px/18px 'IBM Plex Sans',sans-serif;color:#E8A33D">Brand green and status <span style="font-family:'JetBrains Mono',monospace">--ok</span> are close but distinct by design. Do not resolve by recolouring status.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1.15fr 1fr;gap:16px">
+      <div style="background:#14171A;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px">
+        <span style="font:600 11px/14px 'IBM Plex Sans',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#6B757D">Status palette — semantic only</span>
+        <div style="display:flex;flex-direction:column;gap:1px">
+          <sc-for list="{{ statuses }}" as="s" hint-placeholder-count="6">
+            <div style="display:grid;grid-template-columns:104px 1fr 86px 86px;align-items:center;gap:12px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.07)">
+              <span style="font:500 12.5px/18px 'JetBrains Mono',monospace;color:{{ s.hex }}">{{ s.name }}</span>
+              <div>
+                <span style="display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 9px;border-radius:999px;font:500 11.5px/1 'JetBrains Mono',monospace;background:{{ s.fill }};color:{{ s.hex }}"><span style="width:6px;height:6px;border-radius:999px;background:{{ s.hex }}"></span>{{ s.applied }}</span>
+              </div>
+              <span style="font:400 12.5px/18px 'JetBrains Mono',monospace;color:#A2ABB3">{{ s.hex }}</span>
+              <span style="font:400 12.5px/18px 'JetBrains Mono',monospace;color:#6B757D">{{ s.light }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <span style="font:400 12.5px/18px 'IBM Plex Sans',sans-serif;color:#6B757D">Fill = <span style="font-family:'JetBrains Mono',monospace">color-mix(in srgb, token 14%, transparent)</span>, token as text colour, 6px dot. Light-theme hex in the last column.</span>
+      </div>
+
+      <div style="background:#14171A;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:16px">
+        <span style="font:600 11px/14px 'IBM Plex Sans',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#6B757D">Data-visualisation palette</span>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <span style="font:400 12.5px/18px 'IBM Plex Sans',sans-serif;color:#A2ABB3">Categorical — ordered for separation, deuteranopia-checked</span>
+          <div style="display:grid;grid-template-columns:repeat(8,1fr);gap:4px">
+            <sc-for list="{{ vizCat }}" as="c" hint-placeholder-count="8">
+              <div style="display:flex;flex-direction:column;gap:4px">
+                <div style="height:40px;border-radius:6px;background:{{ c }}"></div>
+                <span style="font:400 9.5px/12px 'JetBrains Mono',monospace;color:#6B757D">{{ c }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <span style="font:400 12.5px/18px 'IBM Plex Sans',sans-serif;color:#A2ABB3">Sequential — value heat</span>
+          <div style="display:flex;height:28px;border-radius:6px;overflow:hidden">
+            <div style="flex:1;background:#132B44"></div><div style="flex:1;background:#1D4B72"></div><div style="flex:1;background:#2A6FA6"></div><div style="flex:1;background:#4C9AF0"></div><div style="flex:1;background:#9CC6F7"></div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <span style="font:400 12.5px/18px 'IBM Plex Sans',sans-serif;color:#A2ABB3">Diverging — variance vs target</span>
+          <div style="height:28px;border-radius:6px;background:linear-gradient(90deg,#F1656B,#6B757D,#4C9AF0)"></div>
+        </div>
+        <span style="font:400 12.5px/18px 'IBM Plex Sans',sans-serif;color:#6B757D;text-wrap:pretty">Never encode a non-status series with a status colour. Never rely on colour alone — pair with label, shape or position.</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ TYPE / SPACE / MOTION ══ -->
+  <section style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;align-items:baseline;gap:12px">
+      <span style="font:600 11px/14px 'IBM Plex Sans',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#6B757D;white-space:nowrap">02 — Foundations</span>
+      <h2 style="margin:0;font:600 22px/28px 'IBM Plex Sans',sans-serif;letter-spacing:-.011em">Type, space, shape, motion</h2>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:16px">
+      <div style="background:#14171A;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:2px">
+        <span style="font:600 11px/14px 'IBM Plex Sans',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#6B757D;padding-bottom:10px">Type scale</span>
+        <sc-for list="{{ typeScale }}" as="r" hint-placeholder-count="8">
+          <div style="display:grid;grid-template-columns:1fr 168px;align-items:baseline;gap:16px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.07)">
+            <span style="font:{{ r.css }};color:#E8EBED">{{ r.sample }}</span>
+            <span style="font:400 12.5px/18px 'JetBrains Mono',monospace;color:#6B757D;font-variant-numeric:tabular-nums">{{ r.spec }}</span>
+          </div>
+        </sc-for>
+        <div style="display:flex;gap:24px;padding-top:12px">
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <span style="font:600 11px/14px 'IBM Plex Sans',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#6B757D">Figures</span>
+            <span style="font:500 22px/28px 'JetBrains Mono',monospace;color:#E8EBED;font-variant-numeric:tabular-nums">109,138.000 BHD</span>
+            <span style="font:400 12.5px/18px 'JetBrains Mono',monospace;color:#A2ABB3;font-variant-numeric:tabular-nums">1,395 refs · 3,993 SKUs · 84.0%</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <span style="font:600 11px/14px 'IBM Plex Sans',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#6B757D">Wordmark only</span>
+            <span style="font:600 20px/28px 'IBM Plex Sans',sans-serif;color:#38B675;letter-spacing:.18em">SENTINEL</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div style="background:#14171A;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px">
+          <span style="font:600 11px/14px 'IBM Plex Sans',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#6B757D">Spacing — 8px base, 4px sub-unit</span>
+          <div style="display:flex;align-items:flex-end;gap:8px">
+            <sc-for list="{{ spacing }}" as="s" hint-placeholder-count="7">
+              <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+                <div style="width:{{ s.px }};height:{{ s.px }};background:color-mix(in srgb,#4C9AF0 22%,transparent);border:1px solid color-mix(in srgb,#4C9AF0 40%,transparent);border-radius:2px"></div>
+                <span style="font:400 10.5px/14px 'JetBrains Mono',monospace;color:#6B757D">{{ s.n }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <span style="font:400 12.5px/18px 'IBM Plex Sans',sans-serif;color:#A2ABB3">Page 24 · card 16 · section gap 20 · inline control gap 8 · 12-col grid, 16px gutters.</span>
+        </div>
+
+        <div style="background:#14171A;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px">
+          <span style="font:600 11px/14px 'IBM Plex Sans',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#6B757D">Radius & tonal elevation</span>
+          <div style="display:flex;gap:8px">
+            <div style="flex:1;height:56px;border-radius:6px;background:#1B1F23;border:1px solid rgba(255,255,255,.12);display:flex;align-items:flex-end;padding:6px;font:400 10.5px/14px 'JetBrains Mono',monospace;color:#6B757D">sm 6</div>
+            <div style="flex:1;height:56px;border-radius:10px;background:#1B1F23;border:1px solid rgba(255,255,255,.12);display:flex;align-items:flex-end;padding:6px;font:400 10.5px/14px 'JetBrains Mono',monospace;color:#6B757D">md 10</div>
+            <div style="flex:1;height:56px;border-radius:14px;background:#1B1F23;border:1px solid rgba(255,255,255,.12);display:flex;align-items:flex-end;padding:6px;font:400 10.5px/14px 'JetBrains Mono',monospace;color:#6B757D">lg 14</div>
+            <div style="flex:none;width:56px;height:56px;border-radius:999px;background:#1B1F23;border:1px solid rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;font:400 10.5px/14px 'JetBrains Mono',monospace;color:#6B757D">full</div>
+          </div>
+          <div style="display:flex;gap:0;border-radius:6px;overflow:hidden;border:1px solid rgba(255,255,255,.07)">
+            <div style="flex:1;padding:12px 10px;background:#0B0D0F;font:400 10.5px/14px 'JetBrains Mono',monospace;color:#6B757D">canvas</div>
+            <div style="flex:1;padding:12px 10px;background:#14171A;font:400 10.5px/14px 'JetBrains Mono',monospace;color:#A2ABB3">surface</div>
+            <div style="flex:1;padding:12px 10px;background:#1B1F23;font:400 10.5px/14px 'JetBrains Mono',monospace;color:#E8EBED">raised</div>
+          </div>
+        </div>
+
+        <div style="background:#14171A;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:10px">
+          <span style="font:600 11px/14px 'IBM Plex Sans',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#6B757D">Motion</span>
+          <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font:400 12.5px/18px 'JetBrains Mono',monospace;color:#A2ABB3">
+            <span style="color:#E8EBED">fast 120ms</span><span>hover, focus</span>
+            <span style="color:#E8EBED">base 200ms</span><span>popover, drawer</span>
+            <span style="color:#E8EBED">slow 320ms</span><span>page / route</span>
+            <span style="color:#E8EBED">cubic-bezier(0.2, 0, 0, 1)</span><span>all easing</span>
+          </div>
+          <span style="font:400 12.5px/18px 'IBM Plex Sans',sans-serif;color:#6B757D">Charts animate on mount only. <span style="font-family:'JetBrains Mono',monospace">prefers-reduced-motion</span> disables transforms, keeps opacity.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ COMPONENTS ══ -->
+  <section style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;align-items:baseline;gap:12px">
+      <span style="font:600 11px/14px 'IBM Plex Sans',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#6B757D;white-space:nowrap">03 — Component sheet</span>
+      <h2 style="margin:0;font:600 22px/28px 'IBM Plex Sans',sans-serif;letter-spacing:-.011em">Primitives</h2>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
+      <!-- buttons -->
+      <div style="background:#14171A;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:14px">
+        <span style="font:600 11px/14px 'IBM Plex Sans',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#6B757D">Button</span>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+          <button style="height:32px;padding:0 14px;border-radius:6px;border:1px solid #E8EBED;background:#E8EBED;color:#0B0D0F;font:500 13px/1 'IBM Plex Sans',sans-serif;cursor:pointer;transition:opacity 120ms cubic-bezier(.2,0,0,1)" style-hover="opacity:.88">Approve</button>
+          <button style="height:32px;padding:0 14px;border-radius:6px;border:1px solid rgba(255,255,255,.12);background:#1B1F23;color:#E8EBED;font:500 13px/1 'IBM Plex Sans',sans-serif;cursor:pointer;transition:background 120ms cubic-bezier(.2,0,0,1)" style-hover="background:#22272C">Secondary</button>
+          <button style="height:32px;padding:0 14px;border-radius:6px;border:1px solid transparent;background:transparent;color:#A2ABB3;font:500 13px/1 'IBM Plex Sans',sans-serif;cursor:pointer;transition:color 120ms" style-hover="color:#E8EBED;background:#1B1F23">Ghost</button>
+          <button style="height:32px;padding:0 14px;border-radius:6px;border:1px solid color-mix(in srgb,#F1656B 40%,transparent);background:color-mix(in srgb,#F1656B 14%,transparent);color:#F1656B;font:500 13px/1 'IBM Plex Sans',sans-serif;cursor:pointer" style-hover="background:color-mix(in srgb,#F1656B 22%,transparent)">Dismiss</button>
+          <button style="width:32px;height:32px;border-radius:6px;border:1px solid rgba(255,255,255,.12);background:#1B1F23;color:#A2ABB3;font:400 14px/1 'IBM Plex Sans',sans-serif;cursor:pointer" style-hover="color:#E8EBED">⋯</button>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button style="height:28px;padding:0 10px;border-radius:6px;border:1px solid rgba(255,255,255,.12);background:#1B1F23;color:#E8EBED;font:500 12px/1 'IBM Plex Sans',sans-serif;cursor:pointer">sm</button>
+          <button style="height:32px;padding:0 12px;border-radius:6px;border:1px solid rgba(255,255,255,.12);background:#1B1F23;color:#E8EBED;font:500 13px/1 'IBM Plex Sans',sans-serif;cursor:pointer">md</button>
+          <button style="height:38px;padding:0 16px;border-radius:6px;border:1px solid rgba(255,255,255,.12);background:#1B1F23;color:#E8EBED;font:500 13px/1 'IBM Plex Sans',sans-serif;cursor:pointer">lg</button>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button style="height:32px;padding:0 14px;border-radius:6px;border:1px solid #E8EBED;background:#E8EBED;color:#0B0D0F;font:500 13px/1 'IBM Plex Sans',sans-serif;display:inline-flex;align-items:center;gap:8px;cursor:default"><span style="width:12px;height:12px;border-radius:999px;border:1.5px solid rgba(11,13,15,.3);border-top-color:#0B0D0F;animation:sdsSpin 700ms linear infinite"></span>Saving</button>
+          <button disabled="" style="height:32px;padding:0 14px;border-radius:6px;border:1px solid rgba(255,255,255,.07);background:#14171A;color:#454D54;font:500 13px/1 'IBM Plex Sans',sans-serif;cursor:not-allowed">Disabled</button>
+        </div>
+      </div>
+
+      <!-- inputs -->
+      <div style="background:#14171A;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px">
+        <span style="font:600 11px/14px 'IBM Plex Sans',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#6B757D">Input · Number · Select</span>
+        <input placeholder="Search recipe refs" style="height:32px;padding:0 10px;border-radius:6px;border:1px solid rgba(255,255,255,.12);background:#1B1F23;color:#E8EBED;font:400 13px/1 'IBM Plex Sans',sans-serif;outline:none;width:100%" />
+        <input value="Beef Topside" style="height:32px;padding:0 10px;border-radius:6px;border:2px solid #4C9AF0;background:#1B1F23;color:#E8EBED;font:400 13px/1 'IBM Plex Sans',sans-serif;outline:none;width:100%" />
+        <div style="display:flex;align-items:center;height:32px;border-radius:6px;border:1px solid rgba(255,255,255,.12);background:#1B1F23;overflow:hidden">
+          <button style="width:30px;height:100%;border:none;background:transparent;color:#A2ABB3;font:400 14px/1 'IBM Plex Sans',sans-serif;cursor:pointer;border-right:1px solid rgba(255,255,255,.07)" style-hover="color:#E8EBED">−</button>
+          <span style="flex:1;text-align:right;padding:0 10px;font:500 12.5px/1 'JetBrains Mono',monospace;color:#E8EBED;font-variant-numeric:tabular-nums">14</span>
+          <span style="padding-right:8px;font:400 11px/1 'JetBrains Mono',monospace;color:#6B757D">days</span>
+          <button style="width:30px;height:100%;border:none;background:transparent;color:#A2ABB3;font:400 14px/1 'IBM Plex Sans',sans-serif;cursor:pointer;border-left:1px solid rgba(255,255,255,.07)" style-hover="color:#E8EBED">+</button>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;height:32px;padding:0 10px;border-radius:6px;border:1px solid rgba(255,255,255,.12);background:#1B1F23;font:400 13px/1 'IBM Plex Sans',sans-serif;color:#E8EBED">Protein Items<span style="color:#6B757D;font-size:10px">▾</span></div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-height:32px;padding:5px 8px;border-radius:6px;border:1px solid rgba(255,255,255,.12);background:#1B1F23">
+          <span style="display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 4px 0 8px;border-radius:999px;background:#22272C;border:1px solid rgba(255,255,255,.12);font:400 11.5px/1 'IBM Plex Sans',sans-serif;color:#E8EBED">BahrainMP<span style="color:#6B757D;cursor:pointer">×</span></span>
+          <span style="display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 4px 0 8px;border-radius:999px;background:#22272C;border:1px solid rgba(255,255,255,.12);font:400 11.5px/1 'IBM Plex Sans',sans-serif;color:#E8EBED">QatarMP<span style="color:#6B757D;cursor:pointer">×</span></span>
+          <span style="font:400 12.5px/1 'IBM Plex Sans',sans-serif;color:#6B757D">+ tenant</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;height:32px;padding:0 10px;border-radius:6px;border:1px solid rgba(255,255,255,.12);background:#1B1F23;font:400 12.5px/1 'JetBrains Mono',monospace;color:#E8EBED;font-variant-numeric:tabular-nums">2026-08-01<span style="color:#6B757D">→</span>2026-08-29</div>
+        <span style="font:400 12.5px/18px 'IBM Plex Sans',sans-serif;color:#F1656B">Lead time must be ≥ 1 day.</span>
+      </div>
+
+      <!-- toggles -->
+      <div style="background:#14171A;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:14px">
+        <span style="font:600 11px/14px 'IBM Plex Sans',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#6B757D">Checkbox · Radio · Switch · Slider</span>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <label style="display:flex;align-items:center;gap:10px;font:400 13px/20px 'IBM Plex Sans',sans-serif;color:#E8EBED;cursor:pointer"><span style="width:16px;height:16px;border-radius:4px;background:#E8EBED;color:#0B0D0F;display:flex;align-items:center;justify-content:center;font:600 11px/1 'IBM Plex Sans',sans-serif">✓</span>Include inactive refs</label>
+          <label style="display:flex;align-items:center;gap:10px;font:400 13px/20px 'IBM Plex Sans',sans-serif;color:#E8EBED;cursor:pointer"><span style="width:16px;height:16px;border-radius:4px;border:1px solid rgba(255,255,255,.24);background:#1B1F23"></span>Unapproved nutrition only</label>
+          <label style="display:flex;align-items:center;gap:10px;font:400 13px/20px 'IBM Plex Sans',sans-serif;color:#454D54"><span style="width:16px;height:16px;border-radius:4px;border:1px solid rgba(255,255,255,.07);background:#14171A"></span>Cross-tenant (no grant)</label>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;padding-top:2px;border-top:1px solid rgba(255,255,255,.07)">
+          <label style="display:flex;align-items:center;gap:10px;font:400 13px/20px 'IBM Plex Sans',sans-serif;color:#E8EBED;cursor:pointer;padding-top:10px"><span style="width:16px;height:16px;border-radius:999px;border:1px solid #E8EBED;display:flex;align-items:center;justify-content:center"><span style="width:8px;height:8px;border-radius:999px;background:#E8EBED"></span></span>p80 observed</label>
+          <label style="display:flex;align-items:center;gap:10px;font:400 13px/20px 'IBM Plex Sans',sans-serif;color:#A2ABB3;cursor:pointer"><span style="width:16px;height:16px;border-radius:999px;border:1px solid rgba(255,255,255,.24)"></span>Supplier-stated</label>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding-top:12px;border-top:1px solid rgba(255,255,255,.07)">
+          <span style="font:400 13px/20px 'IBM Plex Sans',sans-serif;color:#E8EBED">Compact density</span>
+          <span style="width:34px;height:20px;border-radius:999px;background:#38B675;position:relative;cursor:pointer"><span style="position:absolute;top:2px;inset-inline-start:16px;width:16px;height:16px;border-radius:999px;background:#0B0D0F"></span></span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;justify-content:space-between;font:400 11px/14px 'IBM Plex Sans',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#6B757D"><span>Cost ↔ Service</span><span style="font-family:'JetBrains Mono',monospace;letter-spacing:0;color:#A2ABB3">0.62</span></div>
+          <div style="height:4px;border-radius:999px;background:#22272C;position:relative"><div style="position:absolute;inset-inline-start:0;top:0;height:4px;width:62%;border-radius:999px;background:#E8EBED"></div><div style="position:absolute;inset-inline-start:62%;top:-6px;width:16px;height:16px;margin-inline-start:-8px;border-radius:999px;background:#E8EBED;border:2px solid #0B0D0F"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
+      <!-- status pills both axes -->
+      <div style="background:#14171A;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:14px">
+        <span style="font:600 11px/14px 'IBM Plex Sans',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#6B757D">Status pill — two axes</span>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <span style="font:400 12.5px/18px 'IBM Plex Sans',sans-serif;color:#A2ABB3">Inventory axis</span>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            <sc-for list="{{ invAxis }}" as="p" hint-placeholder-count="5">
+              <span style="display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 9px;border-radius:999px;font:500 11.5px/1 'JetBrains Mono',monospace;background:{{ p.fill }};color:{{ p.hex }}"><span style="width:6px;height:6px;border-radius:999px;background:{{ p.hex }}"></span>{{ p.label }}</span>
+            </sc-for>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <span style="font:400 12.5px/18px 'IBM Plex Sans',sans-serif;color:#A2ABB3">Supply axis — square marker, distinct shape</span>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            <sc-for list="{{ supAxis }}" as="p" hint-placeholder-count="4">
+              <span style="display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 9px;border-radius:6px;border:1px solid {{ p.border }};font:500 11.5px/1 'JetBrains Mono',monospace;background:transparent;color:{{ p.hex }}"><span style="width:6px;height:6px;background:{{ p.hex }}"></span>{{ p.label }}</span>
+            </sc-for>
+          </div>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;padding-top:12px;border-top:1px solid rgba(255,255,255,.07)">
+          <span style="display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:6px;background:#22272C;border:1px solid rgba(255,255,255,.12);font:400 11.5px/1 'IBM Plex Sans',sans-serif;color:#A2ABB3">Tag</span>
+          <span style="display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:999px;background:#22272C;font:500 11px/1 'JetBrains Mono',monospace;color:#E8EBED;font-variant-numeric:tabular-nums">312</span>
+          <span style="display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:999px;background:color-mix(in srgb,#F1656B 18%,transparent);font:500 11px/1 'JetBrains Mono',monospace;color:#F1656B">14</span>
+          <span style="display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:6px;background:color-mix(in srgb,#A78BF5 14%,transparent);font:500 11px/1 'JetBrains Mono',monospace;color:#A78BF5">OVERRIDE</span>
+        </div>
+      </div>
+
+      <!-- tabs / segmented / breadcrumb / progress -->
+      <div style="background:#14171A;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:16px">
+        <span style="font:600 11px/14px 'IBM Plex Sans',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#6B757D">Navigation & progress</span>
+        <div style="display:flex;align-items:center;gap:8px;font:400 12.5px/18px 'IBM Plex Sans',sans-serif;color:#6B757D"><span>Planning</span><span>/</span><span>Profiles</span><span>/</span><span style="color:#E8EBED">Beef Topside</span></div>
+        <div style="display:flex;gap:0;border-bottom:1px solid rgba(255,255,255,.07)">
+          <span style="padding:0 12px 9px;font:500 13px/1 'IBM Plex Sans',sans-serif;color:#E8EBED;border-bottom:2px solid #38B675;margin-bottom:-1px">Parameters</span>
+          <span style="padding:0 12px 9px;font:400 13px/1 'IBM Plex Sans',sans-serif;color:#A2ABB3;cursor:pointer" style-hover="color:#E8EBED">History</span>
+          <span style="padding:0 12px 9px;font:400 13px/1 'IBM Plex Sans',sans-serif;color:#A2ABB3;cursor:pointer" style-hover="color:#E8EBED">Members</span>
+        </div>
+        <div style="display:inline-flex;padding:2px;border-radius:6px;background:#1B1F23;border:1px solid rgba(255,255,255,.07);width:fit-content">
+          <span style="padding:5px 12px;border-radius:4px;background:#22272C;font:500 12px/1 'IBM Plex Sans',sans-serif;color:#E8EBED">Compact</span>
+          <span style="padding:5px 12px;border-radius:4px;font:400 12px/1 'IBM Plex Sans',sans-serif;color:#A2ABB3;cursor:pointer">Comfortable</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div style="display:flex;justify-content:space-between;font:400 12.5px/18px 'IBM Plex Sans',sans-serif;color:#A2ABB3"><span>Recompute</span><span style="font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums">1,240 / 1,395</span></div>
+          <div style="height:4px;border-radius:999px;background:#22272C"><div style="height:4px;width:89%;border-radius:999px;background:#4C9AF0"></div></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <span style="font:400 12.5px/18px 'IBM Plex Sans',sans-serif;color:#A2ABB3">Skeleton</span>
+          <div style="height:12px;border-radius:4px;background:#22272C;animation:sdsShimmer 1.4s ease-in-out infinite"></div>
+          <div style="height:12px;width:62%;border-radius:4px;background:#22272C;animation:sdsShimmer 1.4s ease-in-out .2s infinite"></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="display:flex">
+            <span style="width:24px;height:24px;border-radius:999px;background:#2A6FA6;border:2px solid #14171A;font:500 10.5px/20px 'IBM Plex Sans',sans-serif;color:#E8EBED;text-align:center">AL</span>
+            <span style="width:24px;height:24px;border-radius:999px;background:#5B4B8A;border:2px solid #14171A;margin-inline-start:-8px;font:500 10.5px/20px 'IBM Plex Sans',sans-serif;color:#E8EBED;text-align:center">SK</span>
+            <span style="width:24px;height:24px;border-radius:999px;background:#22272C;border:2px solid #14171A;margin-inline-start:-8px;font:500 10.5px/20px 'JetBrains Mono',monospace;color:#A2ABB3;text-align:center">+6</span>
+          </div>
+          <span style="font:400 12.5px/18px 'IBM Plex Sans',sans-serif;color:#6B757D">Avatar stack</span>
+        </div>
+      </div>
+
+      <!-- feedback -->
+      <div style="background:#14171A;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px">
+        <span style="font:600 11px/14px 'IBM Plex Sans',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#6B757D">Feedback layers</span>
+        <div style="display:flex;align-items:flex-start;gap:10px;padding:11px 12px;border-radius:6px;background:color-mix(in srgb,#E8A33D 12%,transparent);border:1px solid color-mix(in srgb,#E8A33D 28%,transparent)">
+          <span style="width:6px;height:6px;border-radius:999px;background:#E8A33D;margin-top:7px;flex:none"></span>
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <span style="font:500 13px/20px 'IBM Plex Sans',sans-serif;color:#E8A33D">Stale data</span>
+            <span style="font:400 12.5px/18px 'IBM Plex Sans',sans-serif;color:#A2ABB3">Last Precoro export <span style="font-family:'JetBrains Mono',monospace">2026-08-27 06:14</span> — 2 days old.</span>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:10px;background:#1B1F23;border:1px solid rgba(255,255,255,.12);box-shadow:0 8px 24px rgba(0,0,0,.45)">
+          <span style="width:18px;height:18px;border-radius:999px;background:color-mix(in srgb,#3FBF87 20%,transparent);color:#3FBF87;font:600 11px/18px 'IBM Plex Sans',sans-serif;text-align:center;flex:none">✓</span>
+          <span style="font:400 12.5px/18px 'IBM Plex Sans',sans-serif;color:#E8EBED">Profile saved — <span style="font-family:'JetBrains Mono',monospace">1,395</span> refs recomputed</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:10px;background:#1B1F23;border:1px solid color-mix(in srgb,#F1656B 40%,transparent);box-shadow:0 8px 24px rgba(0,0,0,.45)">
+          <span style="width:18px;height:18px;border-radius:999px;background:color-mix(in srgb,#F1656B 20%,transparent);color:#F1656B;font:600 11px/18px 'IBM Plex Sans',sans-serif;text-align:center;flex:none">!</span>
+          <span style="font:400 12.5px/18px 'IBM Plex Sans',sans-serif;color:#E8EBED">Upsert failed on 12 rows<span style="color:#4C9AF0;margin-inline-start:8px;cursor:pointer">Retry</span></span>
+        </div>
+        <div style="display:inline-flex;align-items:center;gap:8px;padding:6px 9px;border-radius:6px;background:#1B1F23;border:1px solid rgba(255,255,255,.12);box-shadow:0 8px 24px rgba(0,0,0,.45);width:fit-content">
+          <span style="font:400 12px/1 'IBM Plex Sans',sans-serif;color:#E8EBED">EOQ</span>
+          <span style="font:500 12px/1 'JetBrains Mono',monospace;color:#A2ABB3;font-variant-numeric:tabular-nums">√(2DS/H) = 480 KG</span>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:20px 12px;border-radius:6px;border:1px dashed rgba(255,255,255,.12)">
+          <span style="font:500 13px/20px 'IBM Plex Sans',sans-serif;color:#E8EBED">No inventory yet</span>
+          <span style="font:400 12.5px/18px 'IBM Plex Sans',sans-serif;color:#6B757D;text-align:center;max-width:32ch">Upload today's Precoro export to populate stock lines.</span>
+          <button style="height:28px;padding:0 12px;margin-top:2px;border-radius:6px;border:1px solid #E8EBED;background:#E8EBED;color:#0B0D0F;font:500 12px/1 'IBM Plex Sans',sans-serif;cursor:pointer">Go to Data Upload</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- data components -->
+    <div style="display:flex;align-items:baseline;gap:12px;padding-top:8px">
+      <span style="font:600 11px/14px 'IBM Plex Sans',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#6B757D;white-space:nowrap">04 — Component sheet</span>
+      <h2 style="margin:0;font:600 22px/28px 'IBM Plex Sans',sans-serif;letter-spacing:-.011em">Data components</h2>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px">
+      <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="4">
+        <div style="background:#14171A;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:10px">
+          <span style="font:600 11px/14px 'IBM Plex Sans',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#6B757D">{{ k.label }}</span>
+          <div style="display:flex;align-items:baseline;gap:8px">
+            <span style="font:500 26px/30px 'JetBrains Mono',monospace;color:#E8EBED;font-variant-numeric:tabular-nums;letter-spacing:-.01em">{{ k.value }}</span>
+            <span style="font:500 12px/18px 'JetBrains Mono',monospace;color:{{ k.deltaColor }};font-variant-numeric:tabular-nums">{{ k.delta }}</span>
+          </div>
+          <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:10px">
+            <span style="font:400 11px/14px 'JetBrains Mono',monospace;color:#6B757D">{{ k.target }}</span>
+            {{ k.spark }}
+          </div>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="background:#14171A;border:1px solid rgba(255,255,255,.07);border-radius:10px;overflow:hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.07)">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font:600 14px/20px 'IBM Plex Sans',sans-serif;color:#E8EBED">Data grid</span>
+          <span style="font:400 12.5px/18px 'JetBrains Mono',monospace;color:#6B757D">sticky header · pinned first column · inline edit · bulk bar</span>
+        </div>
+        <div style="display:flex;gap:6px">
+          <span style="display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:6px;background:#1B1F23;border:1px solid rgba(255,255,255,.12);font:400 12px/1 'IBM Plex Sans',sans-serif;color:#E8EBED">Columns</span>
+          <span style="display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:6px;background:#1B1F23;border:1px solid rgba(255,255,255,.12);font:400 12px/1 'IBM Plex Sans',sans-serif;color:#E8EBED">Saved views</span>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 16px;background:color-mix(in srgb,#4C9AF0 10%,transparent);border-bottom:1px solid color-mix(in srgb,#4C9AF0 28%,transparent)">
+        <span style="font:500 12.5px/18px 'JetBrains Mono',monospace;color:#4C9AF0">3 rows selected</span>
+        <div style="display:flex;gap:6px">
+          <button style="height:26px;padding:0 10px;border-radius:6px;border:1px solid rgba(255,255,255,.12);background:#1B1F23;color:#E8EBED;font:500 12px/1 'IBM Plex Sans',sans-serif;cursor:pointer">Assign owner</button>
+          <button style="height:26px;padding:0 10px;border-radius:6px;border:1px solid rgba(255,255,255,.12);background:#1B1F23;color:#E8EBED;font:500 12px/1 'IBM Plex Sans',sans-serif;cursor:pointer">Create proposal</button>
+          <button style="height:26px;padding:0 10px;border-radius:6px;border:1px solid #E8EBED;background:#E8EBED;color:#0B0D0F;font:500 12px/1 'IBM Plex Sans',sans-serif;cursor:pointer">Export</button>
+        </div>
+      </div>
+      {{ gridDemo }}
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+      <!-- diff -->
+      <div style="background:#14171A;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px">
+        <span style="font:600 11px/14px 'IBM Plex Sans',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#6B757D">Diff viewer</span>
+        <div style="display:flex;justify-content:space-between;font:400 12px/16px 'JetBrains Mono',monospace;color:#6B757D"><span>2026-08-22</span><span>2026-08-29</span></div>
+        <sc-for list="{{ diffs }}" as="d" hint-placeholder-count="4">
+          <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;padding:7px 0;border-top:1px solid rgba(255,255,255,.07)">
+            <div style="display:flex;flex-direction:column;gap:1px">
+              <span style="font:400 11px/14px 'IBM Plex Sans',sans-serif;color:#6B757D">{{ d.field }}</span>
+              <span style="font:400 12.5px/18px 'JetBrains Mono',monospace;color:#A2ABB3;text-decoration:line-through">{{ d.from }}</span>
+            </div>
+            <span style="font:400 11px/14px 'JetBrains Mono',monospace;color:#6B757D">→</span>
+            <span style="font:500 12.5px/18px 'JetBrains Mono',monospace;color:{{ d.color }};text-align:right">{{ d.to }}</span>
+          </div>
+        </sc-for>
+        <div style="display:flex;align-items:center;gap:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.07)">
+          <span style="width:6px;height:6px;border-radius:999px;background:#3FBF87"></span>
+          <span style="font:400 12px/16px 'JetBrains Mono',monospace;color:#A2ABB3">chain intact · 4,412 entries</span>
+        </div>
+      </div>
+
+      <!-- permission matrix -->
+      <div style="background:#14171A;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px">
+        <span style="font:600 11px/14px 'IBM Plex Sans',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#6B757D">Permission matrix — tri-state</span>
+        {{ matrixDemo }}
+        <div style="display:flex;gap:14px;font:400 11px/14px 'IBM Plex Sans',sans-serif;color:#6B757D">
+          <span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:3px;background:#E8EBED"></span>allow</span>
+          <span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:3px;background:#454D54"></span>inherit</span>
+          <span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:3px;border:1px solid rgba(255,255,255,.12)"></span>deny</span>
+        </div>
+      </div>
+
+      <!-- pipeline + timeline -->
+      <div style="background:#14171A;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:14px">
+        <span style="font:600 11px/14px 'IBM Plex Sans',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#6B757D">Pipeline stepper · Activity</span>
+        <div style="display:flex;flex-direction:column;gap:0">
+          <sc-for list="{{ pipeline }}" as="p" hint-placeholder-count="8">
+            <div style="display:flex;align-items:center;gap:10px;padding:5px 0">
+              <span style="width:14px;height:14px;border-radius:999px;flex:none;background:{{ p.dot }};border:1px solid {{ p.ring }}"></span>
+              <span style="font:400 12.5px/18px 'JetBrains Mono',monospace;color:{{ p.color }};flex:1">{{ p.step }}</span>
+              <span style="font:400 11px/14px 'JetBrains Mono',monospace;color:#6B757D">{{ p.ms }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;padding-top:12px;border-top:1px solid rgba(255,255,255,.07)">
+          <sc-for list="{{ activity }}" as="a" hint-placeholder-count="3">
+            <div style="display:flex;gap:10px">
+              <span style="width:6px;height:6px;border-radius:999px;background:#6B757D;margin-top:7px;flex:none"></span>
+              <div style="display:flex;flex-direction:column;gap:1px">
+                <span style="font:400 12.5px/18px 'IBM Plex Sans',sans-serif;color:#E8EBED">{{ a.text }}</span>
+                <span style="font:400 11px/14px 'JetBrains Mono',monospace;color:#6B757D">{{ a.who }} · {{ a.when }}</span>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+
+    <!-- command palette + charts -->
+    <div style="display:grid;grid-template-columns:1fr 1.4fr;gap:16px">
+      <div style="background:#0B0D0F;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:24px;display:flex;align-items:flex-start;justify-content:center">
+        <div style="width:100%;max-width:380px;background:#1B1F23;border:1px solid rgba(255,255,255,.12);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,.6);overflow:hidden">
+          <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.07)">
+            <span style="font:400 12px/1 'JetBrains Mono',monospace;color:#6B757D">⌘K</span>
+            <span style="font:400 13px/1 'IBM Plex Sans',sans-serif;color:#E8EBED">beef</span>
+            <span style="width:1px;height:14px;background:#38B675"></span>
+          </div>
+          <div style="padding:6px">
+            <div style="padding:6px 8px;font:600 10.5px/14px 'IBM Plex Sans',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#6B757D">Recipe refs</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px;border-radius:6px;background:#22272C">
+              <span style="font:400 13px/18px 'IBM Plex Sans',sans-serif;color:#E8EBED">Beef Topside</span>
+              <span style="font:400 11.5px/18px 'JetBrains Mono',monospace;color:#F1656B">Below Safety</span>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px;border-radius:6px">
+              <span style="font:400 13px/18px 'IBM Plex Sans',sans-serif;color:#A2ABB3">Beef Striploin</span>
+              <span style="font:400 11.5px/18px 'JetBrains Mono',monospace;color:#6B757D">OK</span>
+            </div>
+            <div style="padding:6px 8px;font:600 10.5px/14px 'IBM Plex Sans',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#6B757D">Actions</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px;border-radius:6px">
+              <span style="font:400 13px/18px 'IBM Plex Sans',sans-serif;color:#A2ABB3">Create order proposal</span>
+              <span style="font:400 11px/18px 'JetBrains Mono',monospace;color:#6B757D">⏎</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="background:#14171A;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:14px">
+        <span style="font:600 11px/14px 'IBM Plex Sans',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#6B757D">Chart primitives — four states each</span>
+        {{ chartSheet }}
+      </div>
+    </div>
+  </section>
+
+  <footer style="display:flex;justify-content:space-between;gap:24px;padding-top:20px;border-top:1px solid rgba(255,255,255,.12);font:400 11px/16px 'JetBrains Mono',monospace;color:#454D54">
+    <span>SENTINEL DESIGN SYSTEM · FOUNDATIONS + COMPONENT SHEET</span>
+    <span>DENSITY COMPACT 36 / COMFORTABLE 44 · FOCUS RING --info 2PX OFFSET 2PX</span>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}">
+const mix = (hex, pct) => `color-mix(in srgb, ${hex} ${pct}%, transparent)`;
+const E = React.createElement;
+
+class Component extends DCLogic {
+  spark(color, pts, target) {
+    const w = 96, h = 28, max = Math.max(...pts), min = Math.min(...pts);
+    const d = pts.map((v, i) => `${i ? 'L' : 'M'}${(i / (pts.length - 1) * w).toFixed(1)},${(h - (v - min) / (max - min || 1) * (h - 4) - 2).toFixed(1)}`).join(' ');
+    return E('svg', { width: w, height: h, viewBox: `0 0 ${w} ${h}`, key: 'sp' },
+      target != null ? E('line', { x1: 0, x2: w, y1: h * target, y2: h * target, stroke: '#FFFFFF1F', strokeDasharray: '2 3' }) : null,
+      E('path', { d, fill: 'none', stroke: color, strokeWidth: 1.5, strokeLinecap: 'round' }));
+  }
+
+  area() {
+    const pts = [88, 92, 97, 95, 103, 99, 106, 109, 104, 112, 108, 109];
+    const w = 300, h = 120, max = 120, min = 80;
+    const x = i => 28 + i / (pts.length - 1) * (w - 34);
+    const y = v => h - 22 - (v - min) / (max - min) * (h - 34);
+    const line = pts.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+    return E('svg', { width: '100%', viewBox: `0 0 ${w} ${h}`, style: { display: 'block' } },
+      [100, 110, 120].map(v => E('line', { key: v, x1: 28, x2: w - 6, y1: y(v), y2: y(v), stroke: '#FFFFFF12' })),
+      [100, 110, 120].map(v => E('text', { key: 't' + v, x: 24, y: y(v) + 3, textAnchor: 'end', fill: '#6B757D', style: { font: "400 9px 'JetBrains Mono', monospace" } }, v + 'k')),
+      E('line', { x1: 28, x2: w - 6, y1: y(105), y2: y(105), stroke: '#E8A33D', strokeDasharray: '3 3' }),
+      E('text', { x: w - 8, y: y(105) - 5, textAnchor: 'end', fill: '#E8A33D', style: { font: "400 9px 'JetBrains Mono', monospace" } }, 'target 105k'),
+      E('path', { d: `${line} L${x(pts.length - 1)},${h - 22} L${x(0)},${h - 22} Z`, fill: mix('#4C9AF0', 16), stroke: 'none' }),
+      E('path', { d: line, fill: 'none', stroke: '#4C9AF0', strokeWidth: 1.75 }),
+      E('circle', { cx: x(pts.length - 1), cy: y(pts[pts.length - 1]), r: 3, fill: '#4C9AF0' }),
+      ['Sep', 'Dec', 'Mar', 'Jun'].map((m, i) => E('text', { key: m, x: x(i * 3.66), y: h - 6, fill: '#6B757D', style: { font: "400 9px 'JetBrains Mono', monospace" } }, m)));
+  }
+
+  donut() {
+    const segs = [['BahrainMP', 62, '#4C9AF0'], ['QatarMP', 27, '#3FBF87'], ['Staging', 11, '#E8A33D']];
+    let acc = 0, r = 40, c = 2 * Math.PI * r;
+    return E('svg', { width: '100%', viewBox: '0 0 120 120', style: { display: 'block' } },
+      E('g', { transform: 'translate(60,60) rotate(-90)' }, segs.map(([n, v, col]) => {
+        const el = E('circle', { key: n, r, fill: 'none', stroke: col, strokeWidth: 14, strokeDasharray: `${(c * v / 100).toFixed(1)} ${c}`, strokeDashoffset: -(c * acc / 100).toFixed(1) });
+        acc += v; return el;
+      })),
+      E('text', { x: 60, y: 58, textAnchor: 'middle', fill: '#E8EBED', style: { font: "500 15px 'JetBrains Mono', monospace" } }, '109.1k'),
+      E('text', { x: 60, y: 72, textAnchor: 'middle', fill: '#6B757D', style: { font: "400 9px 'JetBrains Mono', monospace" } }, 'BHD'));
+  }
+
+  bars() {
+    const rows = [['Dry food & consumables', 38.2], ['Protien items Freezer', 24.9], ['Packaging & tissue', 17.4], ['Fresh / Dairy Chiller', 12.1], ['External 3PL', 8.4]];
+    const max = 40;
+    return E('div', { style: { display: 'flex', flexDirection: 'column', gap: 7 } }, rows.map(([n, v]) =>
+      E('div', { key: n, style: { display: 'grid', gridTemplateColumns: '128px 1fr 54px', alignItems: 'center', gap: 8 } },
+        E('span', { style: { font: "400 11px/14px 'IBM Plex Sans', sans-serif", color: '#A2ABB3', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, n),
+        E('div', { style: { height: 8, background: '#22272C', borderRadius: 2 } }, E('div', { style: { height: 8, width: (v / max * 100) + '%', background: '#4C9AF0', borderRadius: 2 } })),
+        E('span', { style: { font: "400 11px/14px 'JetBrains Mono', monospace", color: '#E8EBED', textAlign: 'right', fontVariantNumeric: 'tabular-nums' } }, v.toFixed(1) + 'k'))));
+  }
+
+  renderVals() {
+    const st = { ok: '#3FBF87', warn: '#E8A33D', critical: '#F1656B', info: '#4C9AF0', pending: '#A78BF5', muted: '#6B757D' };
+
+    const gridRows = [
+      ['MP-BEEF-TOPSIDE', 'Beef Topside', 'Protein Items', 412.5, 'KG', 'Below Safety', 'critical', 'Follow-up', 'pending', true],
+      ['MP-TOM-PEELED', 'Tomato Peeled', 'Dry Goods', 0, 'CS', 'Zero Stock', 'critical', 'Proposal open', 'info', true],
+      ['MP-CHK-BREAST', 'Tender Chicken Breast', 'Dairy & Poultry', 1840.0, 'KG', 'Below Reorder', 'warn', 'Proposal open', 'info', true],
+      ['MP-RICE-BASMATI', 'Basmati Rice', 'Dry Goods', 12400.0, 'KG', 'OK', 'ok', 'Covered', 'muted', false],
+      ['MP-FETA-200', 'Feta Cheese', 'Dairy & Poultry', 640.0, 'KG', 'Over Stock', 'info', 'Covered', 'muted', false],
+      ['MP-BOX-MEAL', 'Paper Meal Box', 'Packaging – Local', 88200, 'PCS', 'OK', 'ok', 'Covered', 'muted', false],
+    ];
+    const cell = (extra) => Object.assign({ padding: '0 12px', height: 36, borderBottom: '1px solid #FFFFFF12', font: "400 12.5px/36px 'JetBrains Mono', monospace", color: '#E8EBED', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }, extra || {});
+    const th = (extra) => Object.assign({ padding: '0 12px', height: 34, background: '#1B1F23', borderBottom: '1px solid #FFFFFF1F', font: "600 11px/34px 'IBM Plex Sans', sans-serif", letterSpacing: '.06em', textTransform: 'uppercase', color: '#6B757D', textAlign: 'left', position: 'sticky', top: 0 }, extra || {});
+    const pill = (label, tone, square) => E('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 6, height: 22, padding: '0 9px', borderRadius: square ? 6 : 999, border: square ? `1px solid ${mix(st[tone], 34)}` : 'none', background: square ? 'transparent' : mix(st[tone], 14), color: st[tone], font: "500 11.5px/1 'JetBrains Mono', monospace" } },
+      E('span', { style: { width: 6, height: 6, borderRadius: square ? 0 : 999, background: st[tone] } }), label);
+
+    const gridDemo = E('div', { style: { overflow: 'auto', maxHeight: 300 } },
+      E('table', { style: { width: '100%', borderCollapse: 'collapse' } },
+        E('thead', null, E('tr', null,
+          E('th', { style: th({ width: 34, left: 0, zIndex: 3 }) }, ''),
+          E('th', { style: th({ position: 'sticky', left: 34, zIndex: 3, minWidth: 200 }) }, 'Recipe ref'),
+          E('th', { style: th() }, 'Category'),
+          E('th', { style: th({ textAlign: 'right' }) }, 'Available'),
+          E('th', { style: th() }, 'UoM'),
+          E('th', { style: th() }, 'Inventory status'),
+          E('th', { style: th() }, 'Supply status'),
+          E('th', { style: th({ textAlign: 'right' }) }, 'Safety'),
+          E('th', { style: th({ textAlign: 'right' }) }, 'Reorder'),
+          E('th', { style: th({ textAlign: 'right' }) }, 'EOQ'))),
+        E('tbody', null, gridRows.map((r, i) => {
+          const sel = i < 3;
+          return E('tr', { key: r[0], style: { background: sel ? mix('#4C9AF0', 7) : 'transparent' } },
+            E('td', { style: cell({ position: 'sticky', left: 0, background: sel ? '#171B20' : '#14171A', zIndex: 2 }) },
+              E('span', { style: { display: 'inline-block', width: 14, height: 14, borderRadius: 3, verticalAlign: 'middle', background: sel ? '#E8EBED' : '#1B1F23', border: sel ? 'none' : '1px solid #FFFFFF24', color: '#0B0D0F', font: "600 10px/14px 'IBM Plex Sans', sans-serif", textAlign: 'center' } }, sel ? '✓' : '')),
+            E('td', { style: cell({ position: 'sticky', left: 34, background: sel ? '#171B20' : '#14171A', zIndex: 2, font: "400 13px/36px 'IBM Plex Sans', sans-serif" }) }, r[1]),
+            E('td', { style: cell({ font: "400 12.5px/36px 'IBM Plex Sans', sans-serif", color: '#A2ABB3' }) }, r[2]),
+            E('td', { style: cell({ textAlign: 'right', color: r[3] === 0 ? st.critical : '#E8EBED' }) }, r[3].toLocaleString('en-US', { minimumFractionDigits: r[4] === 'PCS' ? 0 : 1 })),
+            E('td', { style: cell({ color: '#6B757D' }) }, r[4]),
+            E('td', { style: cell() }, pill(r[5], r[6], false)),
+            E('td', { style: cell() }, pill(r[7], r[8], true)),
+            E('td', { style: cell({ textAlign: 'right', color: '#A2ABB3' }) }, (r[3] * 0.3).toFixed(0)),
+            E('td', { style: cell({ textAlign: 'right', color: '#A2ABB3' }) }, (r[3] * 0.55).toFixed(0)),
+            i === 2
+              ? E('td', { style: cell({ textAlign: 'right', padding: 4 }) }, E('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 6, height: 28, padding: '0 8px', borderRadius: 6, border: '2px solid #4C9AF0', background: '#1B1F23', color: '#E8EBED', font: "500 12.5px/1 'JetBrains Mono', monospace" } }, '2,400', E('span', { style: { width: 5, height: 5, borderRadius: 999, background: '#E8A33D' } })))
+              : E('td', { style: cell({ textAlign: 'right', color: '#A2ABB3' }) }, (r[3] * 1.2).toFixed(0)));
+        }))));
+
+    const acts = ['view', 'edit', 'approve', 'export'];
+    const roles = [['Director', [1, 1, 1, 1]], ['Planner', [1, 1, 0, 1]], ['Buyer', [1, 1, 2, 1]], ['Viewer', [1, 0, 2, 2]]];
+    const matrixDemo = E('div', { style: { display: 'grid', gridTemplateColumns: '78px repeat(4, 1fr)', gap: 4, alignItems: 'center' } },
+      E('span', null, ''),
+      acts.map(a => E('span', { key: a, style: { font: "600 10px/14px 'IBM Plex Sans', sans-serif", letterSpacing: '.06em', textTransform: 'uppercase', color: '#6B757D', textAlign: 'center' } }, a)),
+      roles.map(([role, vals]) => [
+        E('span', { key: role, style: { font: "400 12px/16px 'IBM Plex Sans', sans-serif", color: '#E8EBED' } }, role),
+        vals.map((v, i) => E('span', { key: role + i, style: { height: 26, borderRadius: 4, background: v === 1 ? '#E8EBED' : v === 0 ? '#454D54' : 'transparent', border: v === 2 ? '1px solid #FFFFFF12' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', font: "600 11px/1 'IBM Plex Sans', sans-serif", color: '#0B0D0F' } }, v === 1 ? '✓' : ''))
+      ]));
+
+    const chartSheet = E('div', { style: { display: 'flex', flexDirection: 'column', gap: 14 } },
+      E('div', { style: { display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 16 } },
+        E('div', { style: { display: 'flex', flexDirection: 'column', gap: 6 } },
+          E('span', { style: { font: "600 10.5px/14px 'IBM Plex Sans', sans-serif", letterSpacing: '.06em', textTransform: 'uppercase', color: '#6B757D' } }, 'Inventory value trend · loaded'),
+          this.area()),
+        E('div', { style: { display: 'flex', flexDirection: 'column', gap: 6 } },
+          E('span', { style: { font: "600 10.5px/14px 'IBM Plex Sans', sans-serif", letterSpacing: '.06em', textTransform: 'uppercase', color: '#6B757D' } }, 'BU split'),
+          this.donut())),
+      E('div', { style: { display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 16, paddingTop: 14, borderTop: '1px solid #FFFFFF12' } },
+        E('div', { style: { display: 'flex', flexDirection: 'column', gap: 8 } },
+          E('span', { style: { font: "600 10.5px/14px 'IBM Plex Sans', sans-serif", letterSpacing: '.06em', textTransform: 'uppercase', color: '#6B757D' } }, 'Warehouse value ranking'),
+          this.bars()),
+        E('div', { style: { display: 'flex', flexDirection: 'column', gap: 8 } },
+          E('span', { style: { font: "600 10.5px/14px 'IBM Plex Sans', sans-serif", letterSpacing: '.06em', textTransform: 'uppercase', color: '#6B757D' } }, 'Other states'),
+          E('div', { style: { display: 'flex', flexDirection: 'column', gap: 5, height: 30, justifyContent: 'center' } },
+            E('div', { style: { height: 8, borderRadius: 2, background: '#22272C', animation: 'sdsShimmer 1.4s ease-in-out infinite' } }),
+            E('div', { style: { height: 8, width: '68%', borderRadius: 2, background: '#22272C', animation: 'sdsShimmer 1.4s ease-in-out .2s infinite' } })),
+          E('div', { style: { padding: '10px 12px', borderRadius: 6, border: '1px dashed #FFFFFF12', font: "400 12px/16px 'IBM Plex Sans', sans-serif", color: '#6B757D', textAlign: 'center' } }, 'No data for this period'),
+          E('div', { style: { padding: '10px 12px', borderRadius: 6, border: `1px solid ${mix('#F1656B', 34)}`, background: mix('#F1656B', 10), font: "400 12px/16px 'IBM Plex Sans', sans-serif", color: '#F1656B', display: 'flex', justifyContent: 'space-between' } }, 'Could not load series', E('span', { style: { color: '#4C9AF0', cursor: 'pointer' } }, 'Retry')))));
+
+    return {
+      darkNeutrals: [
+        { name: '--canvas', hex: '#0B0D0F', use: 'app background' },
+        { name: '--surface', hex: '#14171A', use: 'cards, panels, table body' },
+        { name: '--raised', hex: '#1B1F23', use: 'popovers, modals, inputs' },
+        { name: '--line', hex: '#FFFFFF12', use: 'hairline dividers (~7%)' },
+        { name: '--line-strong', hex: '#FFFFFF1F', use: 'emphasis dividers (~12%)' },
+        { name: '--text', hex: '#E8EBED', use: 'primary text' },
+        { name: '--text-2', hex: '#A2ABB3', use: 'secondary' },
+        { name: '--text-3', hex: '#6B757D', use: 'tertiary / labels' },
+        { name: '--text-disabled', hex: '#454D54', use: 'disabled' },
+      ],
+      lightNeutrals: [
+        { name: '--canvas', hex: '#F4F5F6', use: 'app background' },
+        { name: '--surface', hex: '#FFFFFF', use: 'cards, table body' },
+        { name: '--line', hex: '#0B0D0F14', use: 'hairline dividers' },
+        { name: '--line-strong', hex: '#0B0D0F24', use: 'emphasis dividers' },
+        { name: '--text', hex: '#14171A', use: 'primary text' },
+        { name: '--text-2', hex: '#545C63', use: 'secondary' },
+        { name: '--text-3', hex: '#7C858C', use: 'tertiary / labels' },
+      ],
+      statuses: [
+        { name: '--ok', hex: '#3FBF87', light: '#0A7D4B', applied: 'OK', fill: mix('#3FBF87', 14) },
+        { name: '--warn', hex: '#E8A33D', light: '#A66300', applied: 'Below Reorder', fill: mix('#E8A33D', 14) },
+        { name: '--critical', hex: '#F1656B', light: '#B3122B', applied: 'Below Safety', fill: mix('#F1656B', 14) },
+        { name: '--info', hex: '#4C9AF0', light: '#1266D6', applied: 'Over Stock', fill: mix('#4C9AF0', 14) },
+        { name: '--pending', hex: '#A78BF5', light: '#5B3BC4', applied: 'Follow-up with Supplier', fill: mix('#A78BF5', 14) },
+        { name: '--muted', hex: '#6B757D', light: '#7C858C', applied: 'Inactive', fill: mix('#6B757D', 14) },
+      ],
+      vizCat: ['#4C9AF0', '#3FBF87', '#E8A33D', '#A78BF5', '#40C4C4', '#F1656B', '#8FA0AE', '#D98BC8'],
+      typeScale: [
+        { sample: 'Inventory under control', spec: '32 / 38 / 600', css: "600 32px/38px 'IBM Plex Sans', sans-serif" },
+        { sample: 'MRP Board', spec: '22 / 28 / 600', css: "600 22px/28px 'IBM Plex Sans', sans-serif" },
+        { sample: 'Top shortages by run-out', spec: '16 / 22 / 600', css: "600 16px/22px 'IBM Plex Sans', sans-serif" },
+        { sample: 'Planning parameters', spec: '14 / 20 / 600', css: "600 14px/20px 'IBM Plex Sans', sans-serif" },
+        { sample: 'Precoro records transactions but holds zero planning parameters.', spec: '13 / 20 / 400', css: "400 13px/20px 'IBM Plex Sans', sans-serif" },
+        { sample: 'Beef Topside · 412.5 KG', spec: '13 / 18 / 400 · mono 12.5', css: "400 12.5px/18px 'JetBrains Mono', monospace" },
+        { sample: 'AVAILABLE STOCK', spec: '11 / 14 / 600 · +0.06em', css: "600 11px/14px 'IBM Plex Sans', sans-serif" },
+        { sample: 'p80 · n=42 · high confidence', spec: '10.5 / 14 / 500', css: "500 10.5px/14px 'JetBrains Mono', monospace" },
+      ],
+      spacing: [{ n: '4', px: '4px' }, { n: '8', px: '8px' }, { n: '12', px: '12px' }, { n: '16', px: '16px' }, { n: '24', px: '24px' }, { n: '32', px: '32px' }, { n: '48', px: '48px' }],
+      invAxis: [
+        { label: 'OK', hex: st.ok, fill: mix(st.ok, 14) },
+        { label: 'Below Reorder', hex: st.warn, fill: mix(st.warn, 14) },
+        { label: 'Below Safety', hex: st.critical, fill: mix(st.critical, 14) },
+        { label: 'Zero Stock', hex: st.critical, fill: mix(st.critical, 14) },
+        { label: 'Over Stock', hex: st.info, fill: mix(st.info, 14) },
+        { label: 'Inactive', hex: st.muted, fill: mix(st.muted, 14) },
+      ],
+      supAxis: [
+        { label: 'Covered', hex: st.muted, border: mix(st.muted, 34) },
+        { label: 'Proposal open', hex: st.info, border: mix(st.info, 34) },
+        { label: 'Follow-up', hex: st.pending, border: mix(st.pending, 34) },
+        { label: 'No proposal', hex: st.critical, border: mix(st.critical, 34) },
+      ],
+      kpis: [
+        { label: 'Inventory value', value: '109,138', delta: '+2.4%', deltaColor: st.warn, target: 'target 105,000 BHD', spark: this.spark('#4C9AF0', [88, 92, 97, 95, 103, 99, 106, 109], 0.4) },
+        { label: 'DIO', value: '38.2', delta: '−1.6', deltaColor: st.ok, target: 'target 34.0 days', spark: this.spark('#3FBF87', [44, 43, 41, 42, 40, 39, 39, 38], 0.6) },
+        { label: 'Shortages', value: '14', delta: '+6', deltaColor: st.critical, target: '3 with no proposal', spark: this.spark('#F1656B', [4, 6, 5, 8, 7, 11, 9, 14]) },
+        { label: 'Service level', value: '96.8%', delta: '+0.4', deltaColor: st.ok, target: 'target 98.0%', spark: this.spark('#8FA0AE', [95, 96, 95, 97, 96, 97, 96, 97]) },
+      ],
+      gridDemo, matrixDemo, chartSheet,
+      diffs: [
+        { field: 'Available (KG)', from: '980.0', to: '412.5', color: st.critical },
+        { field: 'Inventory status', from: 'Below Reorder', to: 'Below Safety', color: st.critical },
+        { field: 'Lead time (days)', from: '10', to: '14', color: st.warn },
+        { field: 'Unit price (BHD)', from: '3.420', to: '3.180', color: st.ok },
+      ],
+      pipeline: [
+        { step: 'detect', dot: st.ok, ring: st.ok, color: '#A2ABB3', ms: '0.2s' },
+        { step: 'strip tips', dot: st.ok, ring: st.ok, color: '#A2ABB3', ms: '0.1s' },
+        { step: 'normalize units', dot: st.ok, ring: st.ok, color: '#A2ABB3', ms: '1.4s' },
+        { step: 'validate', dot: mix(st.warn, 40), ring: st.warn, color: st.warn, ms: '12 fail' },
+        { step: 'upsert', dot: 'transparent', ring: '#FFFFFF24', color: '#6B757D', ms: '—' },
+        { step: 'recompute', dot: 'transparent', ring: '#FFFFFF24', color: '#6B757D', ms: '—' },
+        { step: 'snapshot', dot: 'transparent', ring: '#FFFFFF24', color: '#6B757D', ms: '—' },
+        { step: 'tasks', dot: 'transparent', ring: '#FFFFFF24', color: '#6B757D', ms: '—' },
+      ],
+      activity: [
+        { text: 'Safety days 5 → 7 on Beef Topside', who: 'Owner E', when: '2026-08-29 09:14' },
+        { text: 'Proposal PR-2291 approved · Supplier A', who: 'Owner D', when: '2026-08-29 08:02' },
+        { text: 'Lead-time suggestion rejected · Supplier C', who: 'Owner A', when: '2026-08-28 17:41' },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

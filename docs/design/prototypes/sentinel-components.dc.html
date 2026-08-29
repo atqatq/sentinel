@@ -1,0 +1,1214 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  html, body { margin: 0; padding: 0; }
+  * { box-sizing: border-box; }
+  :root {
+    --canvas: #0B0D0F; --surface: #14171A; --raised: #1B1F23; --hover: #22272C;
+    --line: rgba(255,255,255,.07); --lineS: rgba(255,255,255,.12);
+    --text: #E8EBED; --text2: #A2ABB3; --text3: #6B757D; --dis: #454D54;
+    --brand: #38B675; --ok: #3FBF87; --warn: #E8A33D; --crit: #F1656B; --info: #4C9AF0; --pend: #A78BF5; --mut: #6B757D;
+    --inv: #0B0D0F; --row: 36px; --rowf: 12.5px;
+  }
+  :root[data-sds-theme="light"] {
+    --canvas: #F4F5F6; --surface: #FFFFFF; --raised: #FFFFFF; --hover: #EDEEF0;
+    --line: rgba(11,13,15,.08); --lineS: rgba(11,13,15,.14);
+    --text: #14171A; --text2: #545C63; --text3: #7C858C; --dis: #A9B0B6;
+    --ok: #0A7D4B; --warn: #A66300; --crit: #B3122B; --info: #1266D6; --pend: #5B3BC4; --mut: #7C858C;
+    --inv: #FFFFFF;
+  }
+  :root[data-sds-density="comfortable"] { --row: 44px; --rowf: 13px; }
+  body { background: var(--canvas); }
+  a { color: var(--info); text-decoration: none; }
+  a:hover { color: var(--text); }
+  ::selection { background: color-mix(in srgb, var(--info) 30%, transparent); }
+  input, button, textarea { font-family: 'IBM Plex Sans', sans-serif; }
+  input:focus-visible, button:focus-visible { outline: 2px solid var(--info); outline-offset: 2px; }
+  @keyframes sdsShim { 0%,100% { opacity:.45 } 50% { opacity:.18 } }
+  @keyframes sdsIn { from { opacity:0; transform:translateY(-4px) } to { opacity:1; transform:none } }
+  @keyframes sdsSpin { to { transform: rotate(360deg) } }
+  @media (prefers-reduced-motion: reduce) { * { animation-duration:.01ms !important; transition:none !important } }
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:var(--canvas);color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:13px;line-height:20px;-webkit-font-smoothing:antialiased;padding:24px;display:flex;flex-direction:column;gap:36px">
+
+  <header style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px;padding-bottom:20px;border-bottom:1px solid var(--lineS)">
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:20px;height:20px;border-radius:5px;background:var(--brand)"></div>
+        <span style="font-size:13px;font-weight:600;letter-spacing:.18em">SENTINEL</span>
+      </div>
+      <h1 style="margin:0;font-size:30px;line-height:36px;font-weight:600;letter-spacing:-.011em">Application components</h1>
+      <p style="margin:0;max-width:78ch;font-size:13px;color:var(--text2);text-wrap:pretty">Everything the seven built screens rely on, plus the machinery the remaining screens need: overlays, table internals, data entry, ingestion, workflow and audit, extended charts, and the loading / empty / error triad. Primitives and tokens live in the foundations sheet.</p>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <div style="display:flex;padding:2px;border-radius:6px;background:var(--raised);border:1px solid var(--line)">
+        <button onClick="{{ setCompact }}" style="padding:5px 11px;border:none;border-radius:4px;background:{{ compactBg }};color:{{ compactFg }};font-size:12px;font-weight:500;cursor:pointer">Compact</button>
+        <button onClick="{{ setComfy }}" style="padding:5px 11px;border:none;border-radius:4px;background:{{ comfyBg }};color:{{ comfyFg }};font-size:12px;font-weight:500;cursor:pointer">Comfortable</button>
+      </div>
+      <button onClick="{{ toggleTheme }}" style="width:32px;height:32px;border:1px solid var(--lineS);border-radius:6px;background:var(--raised);color:var(--text2);font-size:13px;cursor:pointer">{{ themeGlyph }}</button>
+    </div>
+  </header>
+
+  <!-- ═══ 01 OVERLAYS ═══ -->
+  <section style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3)">01</span>
+      <h2 style="margin:0;font-size:22px;line-height:28px;font-weight:600;letter-spacing:-.011em">Overlays &amp; menus</h2>
+      <span style="font-size:12.5px;color:var(--text3)">Floating layers are the only place depth is a shadow rather than a tone.</span>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;align-items:start">
+      <div style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px;min-height:300px">
+        <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Dropdown menu — live</span>
+        <div style="position:relative;align-self:flex-start">
+          <button onClick="{{ toggleMenu }}" style="display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 12px;border:1px solid var(--lineS);border-radius:6px;background:{{ menuBg }};color:var(--text);font-size:13px;font-weight:500;cursor:pointer">Row actions<span style="font-size:9px;color:var(--text3)">▾</span></button>
+          <sc-if value="{{ menuOpen }}" hint-placeholder-val="{{ false }}">
+            <div style="position:absolute;top:38px;inset-inline-start:0;z-index:30;min-width:252px;padding:6px;background:var(--raised);border:1px solid var(--lineS);border-radius:10px;box-shadow:0 18px 44px rgba(0,0,0,.5);animation:sdsIn 120ms cubic-bezier(.2,0,0,1)">
+              <div style="padding:6px 9px;font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">This ref</div>
+              <sc-for list="{{ menuItems }}" as="m" hint-placeholder-count="4">
+                <button style="display:flex;width:100%;align-items:center;justify-content:space-between;gap:12px;padding:7px 9px;border:none;border-radius:6px;background:transparent;color:var(--text);font-size:13px;text-align:start;cursor:pointer" style-hover="background:var(--hover)">
+                  <span>{{ m.label }}</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--text3)">{{ m.kbd }}</span>
+                </button>
+              </sc-for>
+              <div style="height:1px;margin:5px 0;background:var(--line)"></div>
+              <button style="display:flex;width:100%;align-items:center;justify-content:space-between;gap:12px;padding:7px 9px;border:none;border-radius:6px;background:transparent;color:var(--crit);font-size:13px;text-align:start;cursor:pointer" style-hover="background:color-mix(in srgb,var(--crit) 12%,transparent)">
+                <span>Mark inactive</span><span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;opacity:.6">⌫</span>
+              </button>
+            </div>
+          </sc-if>
+        </div>
+        <span style="font-size:12.5px;color:var(--text3);text-wrap:pretty">Sections labelled, shortcut hints right-aligned in mono, destructive item separated and last.</span>
+      </div>
+
+      <div style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px">
+        <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Popover — holds a form</span>
+        <div style="padding:6px;background:var(--raised);border:1px solid var(--lineS);border-radius:10px;box-shadow:0 18px 44px rgba(0,0,0,.5)">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 9px 6px">
+            <span style="font-size:13px;font-weight:600">Run-out window</span>
+            <span style="color:var(--text3);font-size:13px;cursor:pointer">×</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:9px;padding:0 9px 9px">
+            <div style="display:flex;gap:6px">
+              <div style="flex:1;height:30px;padding:0 9px;border:1px solid var(--lineS);border-radius:6px;background:var(--surface);font-family:'JetBrains Mono',monospace;font-size:12px;line-height:28px">0</div>
+              <span style="align-self:center;color:var(--text3);font-family:'JetBrains Mono',monospace;font-size:11px">→</span>
+              <div style="flex:1;height:30px;padding:0 9px;border:2px solid var(--info);border-radius:6px;background:var(--surface);font-family:'JetBrains Mono',monospace;font-size:12px;line-height:26px">7</div>
+              <span style="align-self:center;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3)">days</span>
+            </div>
+            <div style="display:flex;gap:6px;justify-content:flex-end;padding-top:3px">
+              <button style="height:28px;padding:0 10px;border:1px solid var(--lineS);border-radius:6px;background:var(--surface);color:var(--text2);font-size:12px;cursor:pointer">Clear</button>
+              <button style="height:28px;padding:0 10px;border:1px solid var(--text);border-radius:6px;background:var(--text);color:var(--inv);font-size:12px;font-weight:500;cursor:pointer">Apply</button>
+            </div>
+          </div>
+        </div>
+        <span style="font-size:12.5px;color:var(--text3)">Popovers hold forms, menus hold actions. Never mixed.</span>
+      </div>
+
+      <div style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px">
+        <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Tooltips — three kinds</span>
+        <div style="display:inline-flex;align-items:center;gap:8px;padding:6px 9px;border-radius:6px;background:var(--raised);border:1px solid var(--lineS);box-shadow:0 18px 44px rgba(0,0,0,.5);width:fit-content">
+          <span style="font-size:12px">Reorder point</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text2)">daily × lead + safety</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:5px;padding:9px 11px;border-radius:6px;background:var(--raised);border:1px solid var(--lineS);box-shadow:0 18px 44px rgba(0,0,0,.5)">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3)">2026-08-22</span>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="width:7px;height:7px;border-radius:999px;background:var(--info)"></span>
+            <span style="font-size:12px;flex:1">Inventory value</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:500;font-variant-numeric:tabular-nums">103,410</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="width:7px;height:7px;background:var(--warn)"></span>
+            <span style="font-size:12px;flex:1">Target</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text2);font-variant-numeric:tabular-nums">105,000</span>
+          </div>
+        </div>
+        <div style="display:inline-flex;align-items:center;gap:8px;padding:6px 9px;border-radius:6px;background:var(--raised);border:1px solid color-mix(in srgb,var(--crit) 40%,transparent);box-shadow:0 18px 44px rgba(0,0,0,.5);width:fit-content">
+          <span style="width:6px;height:6px;border-radius:999px;background:var(--crit)"></span>
+          <span style="font-size:12px;color:var(--crit)">Blocked — preferred SKU unresolved</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;align-items:start">
+      <div style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px">
+        <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Dialog shells — live</span>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          <button onClick="{{ openDialog }}" style="height:32px;padding:0 12px;border:1px solid var(--lineS);border-radius:6px;background:var(--raised);color:var(--text);font-size:13px;font-weight:500;cursor:pointer">Decision dialog</button>
+          <button onClick="{{ openConfirm }}" style="height:32px;padding:0 12px;border:1px solid color-mix(in srgb,var(--crit) 40%,transparent);border-radius:6px;background:color-mix(in srgb,var(--crit) 14%,transparent);color:var(--crit);font-size:13px;font-weight:500;cursor:pointer">Destructive confirm</button>
+          <button onClick="{{ openDrawer }}" style="height:32px;padding:0 12px;border:1px solid var(--lineS);border-radius:6px;background:var(--raised);color:var(--text);font-size:13px;font-weight:500;cursor:pointer">Detail drawer</button>
+        </div>
+        <span style="font-size:12.5px;color:var(--text3);text-wrap:pretty">Dialog for a decision, drawer to inspect a record without losing the board, confirm for anything irreversible.</span>
+      </div>
+
+      <div style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px">
+        <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Context menu — right click</span>
+        <div style="padding:6px;background:var(--raised);border:1px solid var(--lineS);border-radius:10px;box-shadow:0 18px 44px rgba(0,0,0,.5)">
+          <sc-for list="{{ contextItems }}" as="c" hint-placeholder-count="5">
+            <button style="display:flex;width:100%;align-items:center;justify-content:space-between;gap:12px;padding:6px 9px;border:none;border-radius:6px;background:{{ c.bg }};color:{{ c.color }};font-size:12.5px;text-align:start;cursor:pointer">
+              <span>{{ c.label }}</span><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text3)">{{ c.meta }}</span>
+            </button>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px">
+        <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Notification centre</span>
+        <div style="padding:6px;background:var(--raised);border:1px solid var(--lineS);border-radius:10px;box-shadow:0 18px 44px rgba(0,0,0,.5)">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 9px">
+            <span style="font-size:13px;font-weight:600">Notifications</span>
+            <span style="font-size:11.5px;color:var(--info);cursor:pointer">Mark all read</span>
+          </div>
+          <sc-for list="{{ notifications }}" as="n" hint-placeholder-count="3">
+            <div style="display:flex;gap:9px;padding:8px 9px;border-radius:6px;background:{{ n.bg }}">
+              <span style="width:6px;height:6px;border-radius:999px;background:{{ n.dot }};margin-top:7px;flex:none"></span>
+              <div style="display:flex;flex-direction:column;gap:1px">
+                <span style="font-size:12.5px">{{ n.text }}</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--text3)">{{ n.when }}</span>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ 02 TABLE MACHINERY ═══ -->
+  <section style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3)">02</span>
+      <h2 style="margin:0;font-size:22px;line-height:28px;font-weight:600;letter-spacing:-.011em">Table machinery</h2>
+      <span style="font-size:12.5px;color:var(--text3)">The app is mostly tables. These are the parts they are made of.</span>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1.25fr 1fr;gap:16px;align-items:start">
+      <div style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:14px">
+        <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Editable cell — seven states</span>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+          <sc-for list="{{ cellStates }}" as="c" hint-placeholder-count="7">
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px;height:32px;padding:0 9px;border:{{ c.border }};border-radius:6px;background:{{ c.bg }};font-family:'JetBrains Mono',monospace;font-size:12.5px;color:{{ c.color }};font-variant-numeric:tabular-nums">{{ c.value }}</div>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text3)">{{ c.label }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <span style="font-size:12.5px;color:var(--text3);text-wrap:pretty">Dirty stays warn-bordered until saved. Invalid blocks the save and states the rule. Saved flashes info for 900ms, then returns to read.</span>
+        <div style="display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:6px;background:color-mix(in srgb,var(--crit) 10%,transparent);border:1px solid color-mix(in srgb,var(--crit) 30%,transparent)">
+          <span style="width:6px;height:6px;border-radius:999px;background:var(--crit);flex:none"></span>
+          <span style="font-size:12.5px;color:var(--crit)">Lead time must be ≥ 1 day. Two rows blocked.</span>
+        </div>
+      </div>
+
+      <div style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:14px">
+        <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Provenance — which value wins</span>
+        <div style="display:flex;flex-direction:column;gap:1px">
+          <sc-for list="{{ provenance }}" as="p" hint-placeholder-count="4">
+            <div style="display:grid;grid-template-columns:96px 1fr auto;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--line)">
+              <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.04em;color:{{ p.labelColor }}">{{ p.label }}</span>
+              <span style="font-size:12px;color:var(--text3)">{{ p.note }}</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:{{ p.size }};font-weight:{{ p.weight }};color:{{ p.color }};font-variant-numeric:tabular-nums">{{ p.value }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <span style="font-size:12.5px;color:var(--text3);text-wrap:pretty">Precedence is override → manual → calculated. The winner is repeated in ACTIVE so nobody has to work it out.</span>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;align-items:start">
+      <div style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px">
+        <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Header cell states</span>
+        <div style="display:flex;flex-direction:column;gap:1px">
+          <sc-for list="{{ headerStates }}" as="h" hint-placeholder-count="5">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;height:34px;padding:0 11px;background:{{ h.bg }};border-bottom:1px solid var(--lineS)">
+              <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:{{ h.color }}">{{ h.label }}</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text3)">{{ h.state }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px">
+        <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Column manager</span>
+        <div style="padding:6px;background:var(--raised);border:1px solid var(--lineS);border-radius:10px">
+          <input placeholder="Find column" style="width:100%;height:28px;margin-bottom:5px;padding:0 9px;border:1px solid var(--lineS);border-radius:6px;background:var(--surface);color:var(--text);font-size:12px;outline:none" />
+          <sc-for list="{{ columnManager }}" as="c" hint-placeholder-count="6">
+            <div style="display:flex;align-items:center;gap:9px;padding:6px 7px;border-radius:6px">
+              <span style="color:var(--text3);font-size:11px;cursor:grab">⠿</span>
+              <span style="width:13px;height:13px;border-radius:3px;background:{{ c.boxBg }};border:1px solid {{ c.boxBorder }};color:var(--inv);font-size:9px;font-weight:600;line-height:12px;text-align:center">{{ c.check }}</span>
+              <span style="flex:1;font-size:12.5px;color:{{ c.color }}">{{ c.label }}</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:9.5px;color:var(--text3)">{{ c.pin }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:14px">
+        <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Saved views &amp; pagination</span>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          <sc-for list="{{ savedViews }}" as="v" hint-placeholder-count="4">
+            <button style="display:inline-flex;align-items:center;gap:7px;height:28px;padding:0 11px;border:1px solid {{ v.border }};border-radius:6px;background:{{ v.bg }};color:{{ v.fg }};font-size:12.5px;cursor:pointer">{{ v.label }}<span style="font-family:'JetBrains Mono',monospace;font-size:11px;opacity:.7;font-variant-numeric:tabular-nums">{{ v.count }}</span></button>
+          </sc-for>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:12px;border-top:1px solid var(--line)">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--text3);font-variant-numeric:tabular-nums">1–60 of 1,395</span>
+          <div style="display:flex;gap:4px">
+            <button style="width:28px;height:26px;border:1px solid var(--lineS);border-radius:6px;background:var(--raised);color:var(--dis);font-size:12px;cursor:not-allowed">‹</button>
+            <button style="width:28px;height:26px;border:1px solid var(--text);border-radius:6px;background:var(--text);color:var(--inv);font-family:'JetBrains Mono',monospace;font-size:12px;cursor:pointer">1</button>
+            <button style="width:28px;height:26px;border:1px solid var(--lineS);border-radius:6px;background:var(--raised);color:var(--text2);font-family:'JetBrains Mono',monospace;font-size:12px;cursor:pointer">2</button>
+            <button style="width:28px;height:26px;border:1px solid var(--lineS);border-radius:6px;background:var(--raised);color:var(--text2);font-family:'JetBrains Mono',monospace;font-size:12px;cursor:pointer">3</button>
+            <button style="width:28px;height:26px;border:1px solid var(--lineS);border-radius:6px;background:var(--raised);color:var(--text);font-size:12px;cursor:pointer">›</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">
+      <div style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px">
+        <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Cell type catalog</span>
+        <div style="display:flex;flex-direction:column;gap:1px">
+          <sc-for list="{{ cellTypes }}" as="c" hint-placeholder-count="8">
+            <div style="display:grid;grid-template-columns:132px 1fr;align-items:center;gap:14px;padding:7px 0;border-bottom:1px solid var(--line)">
+              <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--text3)">{{ c.kind }}</span>
+              {{ c.demo }}
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px">
+        <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Row expansion &amp; skeleton</span>
+        <div style="border:1px solid var(--line);border-radius:6px;overflow:hidden">
+          <div style="display:flex;align-items:center;gap:10px;height:36px;padding:0 12px;background:var(--hover);border-bottom:1px solid var(--line)">
+            <span style="color:var(--text2);font-size:10px">▾</span>
+            <span style="font-size:13px;flex:1">Beef Topside</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--crit);font-variant-numeric:tabular-nums">412.5 KG</span>
+          </div>
+          <div style="padding:12px;background:var(--raised);border-bottom:1px solid var(--line);display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+            <sc-for list="{{ expandDetail }}" as="d" hint-placeholder-count="6">
+              <div style="display:flex;flex-direction:column;gap:2px">
+                <span style="font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">{{ d.label }}</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:{{ d.color }};font-variant-numeric:tabular-nums">{{ d.value }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <sc-for list="{{ skeletonRows }}" as="s" hint-placeholder-count="3">
+            <div style="display:flex;align-items:center;gap:12px;height:36px;padding:0 12px;border-bottom:1px solid var(--line)">
+              <div style="height:9px;width:{{ s.a }};border-radius:3px;background:var(--hover);animation:sdsShim 1.4s ease-in-out infinite"></div>
+              <div style="flex:1"></div>
+              <div style="height:9px;width:{{ s.b }};border-radius:3px;background:var(--hover);animation:sdsShim 1.4s ease-in-out .2s infinite"></div>
+            </div>
+          </sc-for>
+        </div>
+        <span style="font-size:12.5px;color:var(--text3)">Skeleton rows match real row height, so the table does not jump when data lands.</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ 03 DATA ENTRY ═══ -->
+  <section style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3)">03</span>
+      <h2 style="margin:0;font-size:22px;line-height:28px;font-weight:600;letter-spacing:-.011em">Data entry</h2>
+      <span style="font-size:12.5px;color:var(--text3)">Every figure carries a unit. Every unit resolves to a canonical one.</span>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;align-items:start">
+      <div style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:14px">
+        <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Field anatomy</span>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div style="display:flex;align-items:baseline;justify-content:space-between">
+            <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Safety days</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text3)">required</span>
+          </div>
+          <input value="7" style="height:32px;padding:0 10px;border:1px solid var(--lineS);border-radius:6px;background:var(--raised);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12.5px;outline:none" />
+          <span style="font-size:11.5px;color:var(--text3)">Observed p80 lead time is 19 days.</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Lead time</span>
+          <input value="0" style="height:32px;padding:0 10px;border:2px solid var(--crit);border-radius:6px;background:var(--raised);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12.5px;outline:none" />
+          <span style="font-size:11.5px;color:var(--crit)">Must be ≥ 1 day.</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Recipe ref</span>
+          <div style="height:32px;padding:0 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--dis);font-size:13px;line-height:30px">Beef Topside</div>
+          <span style="font-size:11.5px;color:var(--text3)">Read-only — set at ingest.</span>
+        </div>
+      </div>
+
+      <div style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:14px">
+        <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Figures &amp; units</span>
+        <div style="display:flex;align-items:center;height:32px;border:1px solid var(--lineS);border-radius:6px;background:var(--raised);overflow:hidden">
+          <button style="width:30px;height:100%;border:none;border-inline-end:1px solid var(--line);background:transparent;color:var(--text2);font-size:14px;cursor:pointer">−</button>
+          <span style="flex:1;text-align:end;padding:0 9px;font-family:'JetBrains Mono',monospace;font-size:12.5px;font-variant-numeric:tabular-nums">2,400</span>
+          <span style="padding-inline-end:8px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3)">KG</span>
+          <button style="width:30px;height:100%;border:none;border-inline-start:1px solid var(--line);background:transparent;color:var(--text2);font-size:14px;cursor:pointer">+</button>
+        </div>
+        <div style="display:flex;align-items:center;height:32px;border:1px solid var(--lineS);border-radius:6px;background:var(--raised);overflow:hidden">
+          <span style="padding:0 9px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3);border-inline-end:1px solid var(--line);line-height:30px">BHD</span>
+          <span style="flex:1;text-align:end;padding:0 9px;font-family:'JetBrains Mono',monospace;font-size:12.5px;font-variant-numeric:tabular-nums">3.180</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Unit conversion</span>
+          <div style="display:flex;align-items:center;gap:8px;padding:9px 11px;border-radius:6px;background:var(--raised);border:1px solid var(--lineS);font-family:'JetBrains Mono',monospace;font-size:12px">
+            <span>12 CS</span><span style="color:var(--text3)">→</span><span>144 PCS</span><span style="color:var(--text3);font-size:10.5px">pack 12</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;padding:9px 11px;border-radius:6px;background:color-mix(in srgb,var(--crit) 10%,transparent);border:1px solid color-mix(in srgb,var(--crit) 30%,transparent);font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--crit)">
+            <span>4 BAG</span><span>→</span><span>unresolved</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:14px">
+        <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Combobox &amp; scope</span>
+        <div style="padding:6px;background:var(--raised);border:1px solid var(--lineS);border-radius:10px;box-shadow:0 18px 44px rgba(0,0,0,.5)">
+          <input value="hor" style="width:100%;height:28px;margin-bottom:5px;padding:0 9px;border:1px solid var(--lineS);border-radius:6px;background:var(--surface);color:var(--text);font-size:12.5px;outline:none" />
+          <sc-for list="{{ comboItems }}" as="c" hint-placeholder-count="3">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 8px;border-radius:6px;background:{{ c.bg }}">
+              <span style="font-size:12.5px;color:{{ c.color }}">{{ c.label }}</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--text3)">{{ c.meta }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;min-height:32px;padding:5px 8px;border:1px solid var(--lineS);border-radius:6px;background:var(--raised)">
+          <sc-for list="{{ scopeTokens }}" as="t" hint-placeholder-count="3">
+            <span style="display:inline-flex;align-items:center;gap:6px;height:20px;padding:0 5px 0 8px;border-radius:999px;background:var(--hover);border:1px solid var(--lineS);font-size:11.5px">{{ t.label }}<span style="color:var(--text3);cursor:pointer">×</span></span>
+          </sc-for>
+          <span style="font-size:12px;color:var(--text3);line-height:20px">+ scope</span>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          <span style="display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:6px;background:color-mix(in srgb,var(--brand) 14%,transparent);color:var(--brand);font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:500">DIRECTOR</span>
+          <span style="display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:6px;background:var(--hover);color:var(--text2);font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:500">BOTH TENANTS</span>
+          <span style="display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:6px;border:1px solid color-mix(in srgb,var(--crit) 34%,transparent);color:var(--crit);font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:500">DENY EXPORT</span>
+        </div>
+      </div>
+
+      <div style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:14px">
+        <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Dates, keys, notes</span>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div style="display:flex;align-items:center;gap:8px;height:32px;padding:0 10px;border:1px solid var(--lineS);border-radius:6px;background:var(--raised);font-family:'JetBrains Mono',monospace;font-size:12.5px;font-variant-numeric:tabular-nums">2026-08-01<span style="color:var(--text3)">→</span>2026-08-29</div>
+          <div style="display:flex;flex-wrap:wrap;gap:5px">
+            <sc-for list="{{ datePresets }}" as="d" hint-placeholder-count="4">
+              <span style="display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;border:1px solid {{ d.border }};background:{{ d.bg }};color:{{ d.fg }};font-family:'JetBrains Mono',monospace;font-size:10.5px;cursor:pointer">{{ d.label }}</span>
+            </sc-for>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;padding-top:12px;border-top:1px solid var(--line)">
+          <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Shortcut keys</span>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            <sc-for list="{{ keys }}" as="k" hint-placeholder-count="6">
+              <span style="display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:22px;padding:0 6px;border-radius:5px;background:var(--raised);border:1px solid var(--lineS);box-shadow:0 1px 0 var(--lineS);font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--text2)">{{ k }}</span>
+            </sc-for>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Note</span>
+          <div style="min-height:54px;padding:9px 10px;border:1px solid var(--lineS);border-radius:6px;background:var(--raised);font-size:12.5px;color:var(--text2)">Supplier confirmed lower MOQ by email 2026-06-14.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ 04 INGESTION ═══ -->
+  <section style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3)">04</span>
+      <h2 style="margin:0;font-size:22px;line-height:28px;font-weight:600;letter-spacing:-.011em">Ingestion</h2>
+      <span style="font-size:12.5px;color:var(--text3)">How an empty Sentinel fills up — and how it refuses bad data.</span>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1.4fr;gap:16px;align-items:start">
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px">
+          <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Dropzone — three states</span>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:24px 16px;border:1px dashed var(--lineS);border-radius:10px">
+            <span style="width:30px;height:30px;border-radius:7px;border:1px dashed var(--lineS)"></span>
+            <span style="font-size:13px;font-weight:500">Drop the Precoro export</span>
+            <span style="font-size:12px;color:var(--text3);text-align:center">XLSX or CSV · stock, deliveries, price list</span>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:20px 16px;border:1px dashed color-mix(in srgb,var(--info) 50%,transparent);border-radius:10px;background:color-mix(in srgb,var(--info) 8%,transparent)">
+            <span style="font-size:13px;font-weight:500;color:var(--info)">Release to upload</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--info)">stock_2026-08-29.xlsx · 1.4 MB</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 11px;border-radius:6px;background:var(--raised);border:1px solid var(--lineS)">
+            <span style="width:14px;height:14px;border-radius:999px;border:1.5px solid var(--lineS);border-top-color:var(--info);animation:sdsSpin 700ms linear infinite;flex:none"></span>
+            <div style="flex:1;display:flex;flex-direction:column;gap:4px">
+              <span style="font-family:'JetBrains Mono',monospace;font-size:11.5px">stock_2026-08-29.xlsx</span>
+              <div style="height:3px;border-radius:999px;background:var(--hover)"><div style="height:3px;width:64%;border-radius:999px;background:var(--info)"></div></div>
+            </div>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3)">64%</span>
+          </div>
+        </div>
+
+        <div style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px">
+          <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Ingest summary</span>
+          <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px">
+            <sc-for list="{{ ingestStats }}" as="s" hint-placeholder-count="4">
+              <div style="display:flex;flex-direction:column;gap:2px">
+                <span style="font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">{{ s.label }}</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:500;color:{{ s.color }};font-variant-numeric:tabular-nums">{{ s.value }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <span style="font-size:12.5px;color:var(--text3);text-wrap:pretty">A partial ingest is reported, never silently accepted. Failed rows keep their original line numbers.</span>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:14px">
+          <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Pipeline stepper</span>
+          <div style="display:flex;align-items:flex-start;gap:0">
+            <sc-for list="{{ pipeline }}" as="p" hint-placeholder-count="8">
+              <div style="flex:1;display:flex;flex-direction:column;gap:7px;min-width:0">
+                <div style="display:flex;align-items:center;gap:0">
+                  <span style="width:16px;height:16px;flex:none;border-radius:999px;background:{{ p.dot }};border:1px solid {{ p.ring }};color:var(--inv);font-size:9px;font-weight:600;line-height:14px;text-align:center">{{ p.glyph }}</span>
+                  <span style="flex:1;height:1px;background:{{ p.bar }}"></span>
+                </div>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:{{ p.color }};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ p.step }}</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:9.5px;color:var(--text3)">{{ p.ms }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 11px;border-radius:6px;background:color-mix(in srgb,var(--warn) 12%,transparent);border:1px solid color-mix(in srgb,var(--warn) 28%,transparent)">
+            <span style="width:6px;height:6px;border-radius:999px;background:var(--warn);flex:none"></span>
+            <span style="font-size:12.5px;color:var(--warn);flex:1">Validation stopped the run — 12 rows failed. Nothing was upserted.</span>
+            <button style="height:26px;padding:0 10px;border:1px solid var(--lineS);border-radius:6px;background:var(--raised);color:var(--text);font-size:12px;font-weight:500;cursor:pointer">Export failures</button>
+          </div>
+        </div>
+
+        <div style="background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line)">
+            <span style="font-size:14px;font-weight:600">Column mapping</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3)">9 of 11 mapped</span>
+          </div>
+          <table style="width:100%;border-collapse:collapse">
+            <thead>
+              <tr>
+                <th style="height:32px;padding:0 16px;background:var(--raised);border-bottom:1px solid var(--lineS);font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);text-align:start">Source header</th>
+                <th style="height:32px;padding:0 12px;background:var(--raised);border-bottom:1px solid var(--lineS);font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);text-align:start">Sample</th>
+                <th style="height:32px;padding:0 12px;background:var(--raised);border-bottom:1px solid var(--lineS);font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);text-align:start">Sentinel field</th>
+                <th style="height:32px;padding:0 16px;background:var(--raised);border-bottom:1px solid var(--lineS);font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);text-align:end">State</th>
+              </tr>
+            </thead>
+            <tbody>
+              <sc-for list="{{ mapping }}" as="m" hint-placeholder-count="6">
+                <tr style="background:{{ m.bg }}">
+                  <td style="height:40px;padding:0 16px;border-bottom:1px solid var(--line);font-family:'JetBrains Mono',monospace;font-size:12px">{{ m.source }}</td>
+                  <td style="height:40px;padding:0 12px;border-bottom:1px solid var(--line);font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--text3)">{{ m.sample }}</td>
+                  <td style="height:40px;padding:4px 12px;border-bottom:1px solid var(--line)">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;height:30px;padding:0 9px;border:1px solid {{ m.border }};border-radius:6px;background:var(--raised);font-size:12.5px;color:{{ m.fieldColor }}">{{ m.field }}<span style="font-size:9px;color:var(--text3)">▾</span></div>
+                  </td>
+                  <td style="height:40px;padding:0 16px;border-bottom:1px solid var(--line);text-align:end">
+                    <span style="display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 9px;border-radius:999px;background:{{ m.stateBg }};color:{{ m.stateFg }};font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:500"><span style="width:6px;height:6px;border-radius:999px;background:{{ m.stateFg }}"></span>{{ m.state }}</span>
+                  </td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+
+        <div style="background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line)">
+            <span style="font-size:14px;font-weight:600">Validation failures</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--crit)">12 rows</span>
+          </div>
+          <table style="width:100%;border-collapse:collapse">
+            <tbody>
+              <sc-for list="{{ failures }}" as="f" hint-placeholder-count="4">
+                <tr>
+                  <td style="width:72px;height:36px;padding:0 16px;border-bottom:1px solid var(--line);font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--text3)">{{ f.line }}</td>
+                  <td style="height:36px;padding:0 12px;border-bottom:1px solid var(--line);font-family:'JetBrains Mono',monospace;font-size:12px">{{ f.value }}</td>
+                  <td style="height:36px;padding:0 16px;border-bottom:1px solid var(--line);font-size:12.5px;color:var(--crit)">{{ f.reason }}</td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ 05 WORKFLOW & AUDIT ═══ -->
+  <section style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3)">05</span>
+      <h2 style="margin:0;font-size:22px;line-height:28px;font-weight:600;letter-spacing:-.011em">Workflow &amp; audit</h2>
+      <span style="font-size:12.5px;color:var(--text3)">Who decided what, when, and on what evidence.</span>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1.15fr 1fr 1fr;gap:16px;align-items:start">
+      <div style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:14px">
+        <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Lifecycle track</span>
+        <div style="display:flex;align-items:center;gap:0;flex-wrap:wrap;row-gap:8px">
+          <sc-for list="{{ lifecycle }}" as="l" hint-placeholder-count="5">
+            <div style="display:flex;align-items:center;gap:0">
+              <span style="display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:6px;background:{{ l.bg }};border:1px solid {{ l.border }};color:{{ l.fg }};font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:500;white-space:nowrap">{{ l.label }}</span>
+              <span style="width:12px;height:1px;background:{{ l.bar }}"></span>
+            </div>
+          </sc-for>
+        </div>
+        <span style="font-size:12.5px;color:var(--text3);text-wrap:pretty">Terminal states are muted, not hidden. A dismissed proposal keeps its reason.</span>
+        <div style="display:flex;flex-direction:column;gap:9px;padding-top:12px;border-top:1px solid var(--line)">
+          <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Approval chain</span>
+          <sc-for list="{{ approvals }}" as="a" hint-placeholder-count="3">
+            <div style="display:flex;align-items:center;gap:11px;padding:10px 11px;border-radius:6px;background:{{ a.bg }};border:1px solid {{ a.border }}">
+              <span style="width:24px;height:24px;flex:none;border-radius:999px;background:{{ a.avatarBg }};color:#E8EBED;font-size:10px;font-weight:500;line-height:24px;text-align:center">{{ a.initials }}</span>
+              <div style="flex:1;display:flex;flex-direction:column;gap:1px;min-width:0">
+                <span style="font-size:12.5px">{{ a.role }}</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--text3)">{{ a.meta }}</span>
+              </div>
+              {{ a.action }}
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:14px">
+        <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Task card &amp; comment</span>
+        <div style="display:flex;flex-direction:column;gap:10px;padding:12px;border-radius:10px;background:var(--raised);border:1px solid var(--lineS)">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+            <span style="font-size:13px;font-weight:500;text-wrap:pretty">Resolve preferred SKU for Beef Topside</span>
+            <span style="display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:999px;background:color-mix(in srgb,var(--crit) 16%,transparent);color:var(--crit);font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:500;flex:none">2d late</span>
+          </div>
+          <span style="font-size:12px;color:var(--text2);text-wrap:pretty">Two SKUs have equal purchase history. Approval is blocked until one is pinned.</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="width:20px;height:20px;border-radius:999px;background:#5B4B8A;color:#E8EBED;font-size:9.5px;font-weight:500;line-height:20px;text-align:center">SK</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--text3)">due 2026-08-27</span>
+            <div style="flex:1"></div>
+            <span style="display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:6px;background:var(--hover);color:var(--text2);font-family:'JetBrains Mono',monospace;font-size:10px">BLOCKER</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px">
+          <span style="width:24px;height:24px;flex:none;border-radius:999px;background:#2A6FA6;color:#E8EBED;font-size:10px;font-weight:500;line-height:24px;text-align:center">AL</span>
+          <div style="display:flex;flex-direction:column;gap:3px">
+            <div style="display:flex;align-items:baseline;gap:8px">
+              <span style="font-size:12.5px;font-weight:500">Owner A</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--text3)">2026-08-28 17:41</span>
+            </div>
+            <span style="font-size:12.5px;color:var(--text2);text-wrap:pretty">Pinning the Supplier A SKU. Supplier C is cheaper per kilo but 8 days slower and we are already below safety.</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <input placeholder="Reply" style="flex:1;height:30px;padding:0 10px;border:1px solid var(--lineS);border-radius:6px;background:var(--raised);color:var(--text);font-size:12.5px;outline:none" />
+          <button style="height:30px;padding:0 11px;border:1px solid var(--text);border-radius:6px;background:var(--text);color:var(--inv);font-size:12.5px;font-weight:500;cursor:pointer">Send</button>
+        </div>
+      </div>
+
+      <div style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:14px">
+        <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Audit entry &amp; snapshot chain</span>
+        <div style="display:flex;flex-direction:column;gap:0">
+          <sc-for list="{{ audit }}" as="a" hint-placeholder-count="4">
+            <div style="display:grid;grid-template-columns:14px 1fr;gap:11px">
+              <div style="display:flex;flex-direction:column;align-items:center;gap:0">
+                <span style="width:8px;height:8px;border-radius:999px;background:{{ a.dot }};margin-top:6px;flex:none"></span>
+                <span style="width:1px;flex:1;background:var(--line)"></span>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:2px;padding-bottom:12px">
+                <span style="font-size:12.5px;text-wrap:pretty">{{ a.text }}</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--text3)">{{ a.who }} · {{ a.when }}</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text3)">{{ a.hash }}</span>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display:flex;align-items:center;gap:9px;padding:10px 11px;border-radius:6px;background:color-mix(in srgb,var(--ok) 10%,transparent);border:1px solid color-mix(in srgb,var(--ok) 28%,transparent)">
+          <span style="width:6px;height:6px;border-radius:999px;background:var(--ok);flex:none"></span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--ok)">chain intact · 4,412 entries</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;height:32px;padding:0 10px;border:1px solid var(--lineS);border-radius:6px;background:var(--raised)">
+          <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Time machine</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-variant-numeric:tabular-nums">2026-08-22</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">
+      <div style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;align-items:baseline;justify-content:space-between">
+          <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Diff viewer</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--text3)">2026-08-22 → 2026-08-29</span>
+        </div>
+        <sc-for list="{{ diffs }}" as="d" hint-placeholder-count="5">
+          <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;padding:7px 0;border-top:1px solid var(--line)">
+            <div style="display:flex;flex-direction:column;gap:1px">
+              <span style="font-size:11px;color:var(--text3)">{{ d.field }}</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--text2);text-decoration:line-through">{{ d.from }}</span>
+            </div>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3)">→</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:12.5px;font-weight:500;color:{{ d.color }};text-align:end">{{ d.to }}</span>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px">
+        <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Permission matrix — tri-state</span>
+        {{ matrix }}
+        <div style="display:flex;gap:14px;font-size:11px;color:var(--text3)">
+          <span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:3px;background:var(--text)"></span>allow</span>
+          <span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:3px;background:var(--dis)"></span>inherit</span>
+          <span style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:3px;border:1px solid var(--lineS)"></span>deny</span>
+          <span style="color:var(--text2)">Deny always wins.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ 06 CHARTS ═══ -->
+  <section style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3)">06</span>
+      <h2 style="margin:0;font-size:22px;line-height:28px;font-weight:600;letter-spacing:-.011em">Charts</h2>
+      <span style="font-size:12.5px;color:var(--text3)">Hand-built here to fix the visual target. Rebuild on the real charting library.</span>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;align-items:start">
+      <sc-for list="{{ charts }}" as="c" hint-placeholder-count="6">
+        <div style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px">
+            <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">{{ c.label }}</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text3)">{{ c.meta }}</span>
+          </div>
+          {{ c.svg }}
+          <span style="font-size:12px;color:var(--text3);text-wrap:pretty">{{ c.note }}</span>
+        </div>
+      </sc-for>
+    </div>
+  </section>
+
+  <!-- ═══ 07 STATES ═══ -->
+  <section style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3)">07</span>
+      <h2 style="margin:0;font-size:22px;line-height:28px;font-weight:600;letter-spacing:-.011em">Loading, empty, error</h2>
+      <span style="font-size:12.5px;color:var(--text3)">Every data surface ships all three. An empty Sentinel is the normal first state.</span>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;align-items:start">
+      <sc-for list="{{ states }}" as="s" hint-placeholder-count="6">
+        <div style="background:var(--surface);border:1px solid {{ s.frame }};border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px;min-height:186px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="width:6px;height:6px;border-radius:999px;background:{{ s.dot }}"></span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.04em;color:{{ s.dot }}">{{ s.kind }}</span>
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:8px;padding:8px 0">
+            {{ s.body }}
+          </div>
+          <span style="font-size:12px;color:var(--text3);text-wrap:pretty">{{ s.note }}</span>
+        </div>
+      </sc-for>
+    </div>
+  </section>
+
+  <footer style="display:flex;flex-wrap:wrap;gap:8px 24px;justify-content:space-between;padding-top:20px;border-top:1px solid var(--lineS);font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--dis)">
+    <span>SENTINEL DESIGN SYSTEM · APPLICATION COMPONENTS</span>
+    <span>IBM PLEX SANS / JETBRAINS MONO · 8PX BASE · DARK-FIRST · RTL-READY</span>
+  </footer>
+
+  <!-- ═══ LIVE OVERLAYS ═══ -->
+  <sc-if value="{{ dialogOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeAll }}" style="position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;padding:32px;background:rgba(11,13,15,.8)">
+      <div style="width:min(520px,100%);background:var(--surface);border:1px solid var(--lineS);border-radius:14px;box-shadow:0 30px 80px rgba(0,0,0,.6);overflow:hidden">
+        <div style="display:flex;flex-direction:column;gap:4px;padding:20px 24px 16px">
+          <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Order proposal · PR-2291</span>
+          <span style="font-size:18px;font-weight:600;letter-spacing:-.011em">Approve 12,480.000 BHD to Supplier A?</span>
+          <span style="font-size:12.5px;color:var(--text2);text-wrap:pretty">Three lines, MOQ met on all. Approval does not send the order — the PDF still has to be issued from Buying.</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:1px;padding:0 24px 16px">
+          <sc-for list="{{ dialogLines }}" as="l" hint-placeholder-count="3">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;border-top:1px solid var(--line)">
+              <span style="font-size:12.5px">{{ l.name }}</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--text2);font-variant-numeric:tabular-nums">{{ l.qty }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:14px 24px;background:var(--raised);border-top:1px solid var(--line)">
+          <button onClick="{{ closeAll }}" style="height:32px;padding:0 14px;border:1px solid var(--lineS);border-radius:6px;background:var(--surface);color:var(--text);font-size:13px;font-weight:500;cursor:pointer">Cancel</button>
+          <button onClick="{{ closeAll }}" style="height:32px;padding:0 14px;border:1px solid var(--text);border-radius:6px;background:var(--text);color:var(--inv);font-size:13px;font-weight:500;cursor:pointer">Approve</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ confirmOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeAll }}" style="position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;padding:32px;background:rgba(11,13,15,.8)">
+      <div style="width:min(460px,100%);background:var(--surface);border:1px solid color-mix(in srgb,var(--crit) 40%,transparent);border-radius:14px;box-shadow:0 30px 80px rgba(0,0,0,.6);overflow:hidden">
+        <div style="display:flex;flex-direction:column;gap:10px;padding:20px 24px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="display:inline-flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.04em;color:var(--crit)"><span style="width:6px;height:6px;border-radius:999px;background:var(--crit)"></span>IRREVERSIBLE</span>
+          </div>
+          <span style="font-size:17px;font-weight:600;letter-spacing:-.011em">Dismiss 14 proposals?</span>
+          <span style="font-size:12.5px;color:var(--text2);text-wrap:pretty">Dismissed proposals keep their reason in the audit chain but cannot be reopened. The underlying shortages stay open and will be picked up on the next run.</span>
+          <div style="display:flex;flex-direction:column;gap:6px;padding-top:4px">
+            <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Type the count to confirm</span>
+            <input value="{{ confirmText }}" onChange="{{ onConfirmText }}" placeholder="14" style="height:32px;padding:0 10px;border:1px solid {{ confirmBorder }};border-radius:6px;background:var(--raised);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12.5px;outline:none" />
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:14px 24px;background:var(--raised);border-top:1px solid var(--line)">
+          <button onClick="{{ closeAll }}" style="height:32px;padding:0 14px;border:1px solid var(--lineS);border-radius:6px;background:var(--surface);color:var(--text);font-size:13px;font-weight:500;cursor:pointer">Keep them</button>
+          <button onClick="{{ closeAll }}" style="height:32px;padding:0 14px;border:1px solid {{ confirmBtnBorder }};border-radius:6px;background:{{ confirmBtnBg }};color:{{ confirmBtnFg }};font-size:13px;font-weight:500;cursor:{{ confirmCursor }}">Dismiss 14</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ drawerOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeAll }}" style="position:fixed;inset:0;z-index:100;display:flex;justify-content:flex-end;background:rgba(11,13,15,.7)">
+      <div style="width:min(440px,100%);height:100%;overflow:auto;background:var(--surface);border-inline-start:1px solid var(--lineS);box-shadow:-24px 0 60px rgba(0,0,0,.5)">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:20px 20px 16px;border-bottom:1px solid var(--line)">
+          <div style="display:flex;flex-direction:column;gap:3px">
+            <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Supplier</span>
+            <span style="font-size:17px;font-weight:600;letter-spacing:-.011em">Supplier A</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--text2)">42 refs · lead p80 19d · n=42</span>
+          </div>
+          <button onClick="{{ closeAll }}" style="width:28px;height:28px;flex:none;border:1px solid var(--lineS);border-radius:6px;background:var(--raised);color:var(--text2);font-size:14px;cursor:pointer">×</button>
+        </div>
+        <div style="padding:16px 20px;display:flex;flex-direction:column;gap:16px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <sc-for list="{{ drawerStats }}" as="d" hint-placeholder-count="4">
+              <div style="display:flex;flex-direction:column;gap:2px;padding:11px 12px;border-radius:6px;background:var(--raised);border:1px solid var(--lineS)">
+                <span style="font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">{{ d.label }}</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:500;color:{{ d.color }};font-variant-numeric:tabular-nums">{{ d.value }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Delivery lead time — observed</span>
+            {{ drawerChart }}
+          </div>
+          <div style="display:flex;flex-direction:column;gap:1px">
+            <sc-for list="{{ drawerRows }}" as="r" hint-placeholder-count="5">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--line)">
+                <span style="font-size:12.5px;color:var(--text2)">{{ r.label }}</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:{{ r.color }};font-variant-numeric:tabular-nums">{{ r.value }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;dark&quot;,&quot;options&quot;:[&quot;dark&quot;,&quot;light&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Sheet&quot;},&quot;density&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;compact&quot;,&quot;options&quot;:[&quot;compact&quot;,&quot;comfortable&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Sheet&quot;}}">
+const E = React.createElement;
+const mix = (v, p) => `color-mix(in srgb, ${v} ${p}%, transparent)`;
+const MONO = "'JetBrains Mono', monospace";
+const SANS = "'IBM Plex Sans', sans-serif";
+
+class Component extends DCLogic {
+  state = { theme: 'dark', density: 'compact', menuOpen: false, dialogOpen: false, confirmOpen: false, drawerOpen: false, confirmText: '' };
+
+  componentDidMount() {
+    const p = this.props || {};
+    const init = {};
+    if (p.theme && p.theme !== this.state.theme) init.theme = p.theme;
+    if (p.density && p.density !== this.state.density) init.density = p.density;
+    if (Object.keys(init).length) this.setState(init, () => this.applyRoot());
+    this.applyRoot();
+    this.key = (e) => { if (e.key === 'Escape') this.setState({ dialogOpen: false, confirmOpen: false, drawerOpen: false, menuOpen: false }); };
+    window.addEventListener('keydown', this.key);
+  }
+  componentWillUnmount() { window.removeEventListener('keydown', this.key); }
+  applyRoot() { const r = document.documentElement; r.setAttribute('data-sds-theme', this.state.theme); r.setAttribute('data-sds-density', this.state.density); }
+
+  pill(label, tone, square) {
+    return E('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 6, height: 22, padding: '0 9px', borderRadius: square ? 6 : 999, border: square ? `1px solid ${mix(tone, 34)}` : 'none', background: square ? 'transparent' : mix(tone, 14), color: tone, font: `500 11.5px/1 ${MONO}` } },
+      E('span', { style: { width: 6, height: 6, borderRadius: square ? 0 : 999, background: tone } }), label);
+  }
+
+  spark(color, pts, w, h) {
+    w = w || 88; h = h || 26;
+    const max = Math.max(...pts), min = Math.min(...pts), rng = (max - min) || 1;
+    const d = pts.map((v, i) => `${i ? 'L' : 'M'}${(i / (pts.length - 1) * w).toFixed(1)},${(h - 2 - (v - min) / rng * (h - 5)).toFixed(1)}`).join(' ');
+    return E('svg', { width: w, height: h, viewBox: `0 0 ${w} ${h}`, style: { display: 'block' } },
+      E('path', { d, fill: 'none', stroke: color, strokeWidth: 1.4, strokeLinecap: 'round' }));
+  }
+
+  // ── charts ──
+  waterfall() {
+    const steps = [['open', 96, 'var(--mut)'], ['receipts', 22, 'var(--info)'], ['usage', -14, 'var(--ok)'], ['waste', -3, 'var(--crit)'], ['transfer', 8, 'var(--info)'], ['close', 109, 'var(--mut)']];
+    const w = 300, h = 132, base = h - 22, scale = (h - 40) / 130;
+    let run = 0;
+    return E('svg', { viewBox: `0 0 ${w} ${h}`, style: { display: 'block', width: '100%' } },
+      E('line', { x1: 0, x2: w, y1: base, y2: base, stroke: 'var(--lineS)' }),
+      steps.map(([label, v, col], i) => {
+        const bw = w / steps.length - 12, x = i * (w / steps.length) + 6;
+        const terminal = i === 0 || i === steps.length - 1;
+        const top = terminal ? base - Math.abs(v) * scale : base - (run + Math.max(v, 0)) * scale;
+        const height = Math.max(2, Math.abs(v) * scale);
+        if (!terminal) run += v;
+        else run = v;
+        return E('g', { key: label },
+          E('rect', { x, y: top, width: bw, height, fill: mix(col, terminal ? 30 : 55), stroke: col, strokeWidth: 1 }),
+          E('text', { x: x + bw / 2, y: h - 8, textAnchor: 'middle', fill: 'var(--text3)', style: { font: `400 8.5px ${MONO}` } }, label));
+      }));
+  }
+
+  bullet() {
+    const rows = [['Inventory value', 109, 105, 130, 'var(--warn)'], ['DIO', 38, 34, 60, 'var(--warn)'], ['Service level', 96.8, 98, 100, 'var(--ok)']];
+    return E('div', { style: { display: 'flex', flexDirection: 'column', gap: 11 } }, rows.map(([label, actual, target, max, col]) =>
+      E('div', { key: label, style: { display: 'flex', flexDirection: 'column', gap: 4 } },
+        E('div', { style: { display: 'flex', justifyContent: 'space-between', font: `400 11px/14px ${SANS}`, color: 'var(--text2)' } },
+          E('span', null, label),
+          E('span', { style: { font: `500 11px/14px ${MONO}`, color: col, fontVariantNumeric: 'tabular-nums' } }, actual)),
+        E('div', { style: { position: 'relative', height: 10, borderRadius: 2, background: 'var(--hover)' } },
+          E('div', { style: { height: 10, width: (actual / max * 100) + '%', borderRadius: 2, background: mix(col, 55) } }),
+          E('div', { style: { position: 'absolute', top: -2, insetInlineStart: (target / max * 100) + '%', width: 2, height: 14, background: 'var(--text)' } })))));
+  }
+
+  heatmap() {
+    const cols = 14, rows = 5;
+    const labels = ['Protein', 'Dairy', 'Dry', 'Pack', 'Cafe'];
+    return E('div', { style: { display: 'flex', flexDirection: 'column', gap: 4 } },
+      Array.from({ length: rows }).map((_, r) => E('div', { key: r, style: { display: 'grid', gridTemplateColumns: `52px repeat(${cols}, 1fr)`, gap: 2, alignItems: 'center' } },
+        E('span', { style: { font: `400 9.5px ${MONO}`, color: 'var(--text3)' } }, labels[r]),
+        Array.from({ length: cols }).map((__, c) => {
+          const v = Math.abs(Math.sin((r + 1) * (c + 2) * 1.7));
+          const scale = ['#132B44', '#1D4B72', '#2A6FA6', '#4C9AF0', '#9CC6F7'];
+          return E('span', { key: c, style: { height: 14, borderRadius: 2, background: v > 0.86 ? 'var(--crit)' : scale[Math.floor(v * 4.99)] } });
+        }))),
+      E('div', { style: { display: 'flex', justifyContent: 'space-between', paddingInlineStart: 54, font: `400 9px ${MONO}`, color: 'var(--text3)' } },
+        E('span', null, 'Aug 16'), E('span', null, 'Aug 29')));
+  }
+
+  boxplot(w, h) {
+    w = w || 300; h = h || 118;
+    const rows = [['Supplier A', 8, 14, 19, 26, 31], ['Supplier C', 6, 9, 11, 14, 22], ['Supplier B', 3, 5, 6, 8, 11]];
+    const max = 34, x = v => 62 + v / max * (w - 74);
+    return E('svg', { viewBox: `0 0 ${w} ${h}`, style: { display: 'block', width: '100%' } },
+      [0, 10, 20, 30].map(v => E('g', { key: v },
+        E('line', { x1: x(v), x2: x(v), y1: 6, y2: h - 18, stroke: 'var(--line)' }),
+        E('text', { x: x(v), y: h - 6, textAnchor: 'middle', fill: 'var(--text3)', style: { font: `400 8.5px ${MONO}` } }, v + 'd'))),
+      rows.map(([label, lo, q1, med, q3, hi], i) => {
+        const y = 22 + i * 30;
+        return E('g', { key: label },
+          E('text', { x: 56, y: y + 4, textAnchor: 'end', fill: 'var(--text2)', style: { font: `400 9.5px ${MONO}` } }, label),
+          E('line', { x1: x(lo), x2: x(hi), y1: y, y2: y, stroke: 'var(--text3)' }),
+          E('rect', { x: x(q1), y: y - 6, width: x(q3) - x(q1), height: 12, fill: mix('var(--info)', 26), stroke: 'var(--info)', strokeWidth: 1 }),
+          E('line', { x1: x(med), x2: x(med), y1: y - 7, y2: y + 7, stroke: 'var(--text)', strokeWidth: 1.6 }));
+      }));
+  }
+
+  donut() {
+    const segs = [['Protein', 38, '#4C9AF0'], ['Dry', 27, '#3FBF87'], ['Packaging', 19, '#E8A33D'], ['Dairy', 16, '#A78BF5']];
+    let acc = 0; const r = 40, c = 2 * Math.PI * r;
+    return E('svg', { viewBox: '0 0 120 120', style: { display: 'block', width: '100%', maxHeight: 132 } },
+      E('g', { transform: 'translate(60,60) rotate(-90)' }, segs.map(([n, v, col]) => {
+        const el = E('circle', { key: n, r, fill: 'none', stroke: col, strokeWidth: 14, strokeDasharray: `${(c * v / 100).toFixed(1)} ${c}`, strokeDashoffset: -(c * acc / 100).toFixed(1) });
+        acc += v; return el;
+      })),
+      E('text', { x: 60, y: 58, textAnchor: 'middle', fill: 'var(--text)', style: { font: `500 15px ${MONO}` } }, '109.1k'),
+      E('text', { x: 60, y: 72, textAnchor: 'middle', fill: 'var(--text3)', style: { font: `400 9px ${MONO}` } }, 'BHD'));
+  }
+
+  projection() {
+    const w = 300, h = 132;
+    const hist = [96, 92, 88, 84, 79, 74, 70], fut = [70, 64, 58, 51, 45, 38, 30];
+    const min = 0, max = 100;
+    const x = i => 30 + i / 13 * (w - 40);
+    const y = v => h - 22 - (v - min) / (max - min) * (h - 38);
+    const line = a => a.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+    const futLine = fut.map((v, i) => `${i ? 'L' : 'M'}${x(i + 6).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+    return E('svg', { viewBox: `0 0 ${w} ${h}`, style: { display: 'block', width: '100%' } },
+      [0, 50, 100].map(v => E('g', { key: v },
+        E('line', { x1: 30, x2: w - 6, y1: y(v), y2: y(v), stroke: 'var(--line)' }),
+        E('text', { x: 26, y: y(v) + 3, textAnchor: 'end', fill: 'var(--text3)', style: { font: `400 8.5px ${MONO}` } }, v))),
+      E('line', { x1: 30, x2: w - 6, y1: y(28), y2: y(28), stroke: 'var(--warn)', strokeDasharray: '4 4' }),
+      E('text', { x: w - 8, y: y(28) - 5, textAnchor: 'end', fill: 'var(--warn)', style: { font: `400 8.5px ${MONO}` } }, 'safety 28'),
+      E('rect', { x: x(6), y: 6, width: w - 6 - x(6), height: h - 28, fill: mix('var(--pend)', 6) }),
+      E('path', { d: line(hist), fill: 'none', stroke: 'var(--info)', strokeWidth: 1.8 }),
+      E('path', { d: futLine, fill: 'none', stroke: 'var(--pend)', strokeWidth: 1.8, strokeDasharray: '4 3' }),
+      E('circle', { cx: x(11.6), cy: y(28), r: 3.5, fill: 'var(--crit)' }),
+      E('text', { x: x(11.6), y: y(28) + 15, textAnchor: 'middle', fill: 'var(--crit)', style: { font: `400 8.5px ${MONO}` } }, 'run-out'));
+  }
+
+  renderVals() {
+    const st = this.state;
+    const V = {};
+    const on = 'var(--hover)', off = 'transparent';
+
+    V.themeGlyph = st.theme === 'dark' ? '☾' : '☀';
+    V.toggleTheme = () => this.setState(s => ({ theme: s.theme === 'dark' ? 'light' : 'dark' }), () => this.applyRoot());
+    V.compactBg = st.density === 'compact' ? on : off; V.compactFg = st.density === 'compact' ? 'var(--text)' : 'var(--text3)';
+    V.comfyBg = st.density === 'comfortable' ? on : off; V.comfyFg = st.density === 'comfortable' ? 'var(--text)' : 'var(--text3)';
+    V.setCompact = () => this.setState({ density: 'compact' }, () => this.applyRoot());
+    V.setComfy = () => this.setState({ density: 'comfortable' }, () => this.applyRoot());
+
+    // ── 01 overlays ──
+    V.menuOpen = st.menuOpen;
+    V.menuBg = st.menuOpen ? 'var(--hover)' : 'var(--raised)';
+    V.toggleMenu = () => this.setState(s => ({ menuOpen: !s.menuOpen }));
+    V.menuItems = [
+      { label: 'Open member SKUs', kbd: '⏎' },
+      { label: 'Edit planning profile', kbd: 'E' },
+      { label: 'Create order proposal', kbd: 'P' },
+      { label: 'Assign owner', kbd: 'O' },
+    ];
+    V.contextItems = [
+      { label: 'Copy recipe ref', meta: '⌘C', bg: 'transparent', color: 'var(--text)' },
+      { label: 'Copy row as TSV', meta: '⇧⌘C', bg: 'transparent', color: 'var(--text)' },
+      { label: 'Pin column', meta: '', bg: 'var(--hover)', color: 'var(--text)' },
+      { label: 'Filter to this warehouse', meta: '', bg: 'transparent', color: 'var(--text)' },
+      { label: 'Open in Item 360', meta: '↗', bg: 'transparent', color: 'var(--text2)' },
+    ];
+    V.notifications = [
+      { text: 'Proposal PR-2291 approved', when: '09:14 · Owner D', dot: 'var(--ok)', bg: mix('var(--info)', 5) },
+      { text: 'Lead-time suggestion rejected · Supplier C', when: 'yesterday · Owner A', dot: 'var(--pend)', bg: 'transparent' },
+      { text: 'Ingest failed validation — 12 rows', when: 'yesterday 06:14', dot: 'var(--crit)', bg: 'transparent' },
+    ];
+
+    V.dialogOpen = st.dialogOpen; V.confirmOpen = st.confirmOpen; V.drawerOpen = st.drawerOpen;
+    V.openDialog = (e) => { e.stopPropagation(); this.setState({ dialogOpen: true }); };
+    V.openConfirm = (e) => { e.stopPropagation(); this.setState({ confirmOpen: true, confirmText: '' }); };
+    V.openDrawer = (e) => { e.stopPropagation(); this.setState({ drawerOpen: true }); };
+    V.closeAll = (e) => { if (e) e.stopPropagation(); this.setState({ dialogOpen: false, confirmOpen: false, drawerOpen: false }); };
+    V.dialogLines = [
+      { name: 'Beef Topside', qty: '2,400 KG · 7,632.000' },
+      { name: 'Lamb Shoulder', qty: '900 KG · 3,708.000' },
+      { name: 'Salmon Fillet', qty: '150 KG · 1,140.000' },
+    ];
+    const armed = st.confirmText.trim() === '14';
+    V.confirmText = st.confirmText;
+    V.onConfirmText = (e) => this.setState({ confirmText: e.target.value });
+    V.confirmBorder = armed ? mix('var(--crit)', 60) : 'var(--lineS)';
+    V.confirmBtnBg = armed ? mix('var(--crit)', 20) : 'var(--surface)';
+    V.confirmBtnBorder = armed ? mix('var(--crit)', 50) : 'var(--line)';
+    V.confirmBtnFg = armed ? 'var(--crit)' : 'var(--dis)';
+    V.confirmCursor = armed ? 'pointer' : 'not-allowed';
+    V.drawerStats = [
+      { label: 'Lead p80', value: '19d', color: 'var(--warn)' },
+      { label: 'On-time', value: '71%', color: 'var(--warn)' },
+      { label: 'Open POs', value: '4', color: 'var(--text)' },
+      { label: 'Spend YTD', value: '184.2k', color: 'var(--text)' },
+    ];
+    V.drawerChart = this.boxplot(380, 118);
+    V.drawerRows = [
+      { label: 'Stated lead time', value: '14d', color: 'var(--text2)' },
+      { label: 'Observed median', value: '19d', color: 'var(--warn)' },
+      { label: 'Deliveries sampled', value: 'n=42', color: 'var(--text2)' },
+      { label: 'Late deliveries', value: '12', color: 'var(--crit)' },
+      { label: 'Preferred on', value: '9 refs', color: 'var(--text2)' },
+    ];
+
+    // ── 02 table machinery ──
+    V.cellStates = [
+      { label: 'read', value: '14', border: '1px solid transparent', bg: 'transparent', color: 'var(--text)' },
+      { label: 'hover', value: '14', border: '1px solid var(--lineS)', bg: 'var(--hover)', color: 'var(--text)' },
+      { label: 'focus', value: '14', border: '2px solid var(--info)', bg: 'var(--raised)', color: 'var(--text)' },
+      { label: 'dirty', value: '19', border: `1px solid ${mix('var(--warn)', 60)}`, bg: mix('var(--warn)', 8), color: 'var(--text)' },
+      { label: 'invalid', value: '0', border: '2px solid var(--crit)', bg: mix('var(--crit)', 8), color: 'var(--crit)' },
+      { label: 'saved · flash', value: '19', border: '1px solid transparent', bg: mix('var(--info)', 14), color: 'var(--text)' },
+      { label: 'locked', value: '14', border: '1px solid var(--line)', bg: 'transparent', color: 'var(--dis)' },
+    ];
+    V.provenance = [
+      { label: 'CALCULATED', note: 'from observed p80', value: '7.2', color: 'var(--text3)', labelColor: 'var(--text3)', size: '12.5px', weight: 400 },
+      { label: 'MANUAL', note: 'set by planner', value: '5', color: 'var(--text3)', labelColor: 'var(--text3)', size: '12.5px', weight: 400 },
+      { label: 'OVERRIDE', note: 'none', value: '—', color: 'var(--dis)', labelColor: 'var(--text3)', size: '12.5px', weight: 400 },
+      { label: 'ACTIVE', note: 'manual wins — what the board reads', value: '5', color: 'var(--text)', labelColor: 'var(--text)', size: '14px', weight: 500 },
+    ];
+    V.headerStates = [
+      { label: 'Category', state: 'rest', bg: 'var(--raised)', color: 'var(--text3)' },
+      { label: 'Available', state: 'hover', bg: 'var(--hover)', color: 'var(--text2)' },
+      { label: 'Run-out ↑', state: 'sorted asc', bg: 'var(--raised)', color: 'var(--text)' },
+      { label: 'Reorder ↓', state: 'sorted desc', bg: 'var(--raised)', color: 'var(--text)' },
+      { label: 'Recipe ref', state: 'pinned', bg: 'var(--hover)', color: 'var(--text)' },
+    ];
+    V.columnManager = [
+      { label: 'Recipe ref', check: '✓', pin: 'PINNED', boxBg: 'var(--dis)', boxBorder: 'var(--dis)', color: 'var(--text3)' },
+      { label: 'Category', check: '✓', pin: '', boxBg: 'var(--text)', boxBorder: 'var(--text)', color: 'var(--text)' },
+      { label: 'Warehouse', check: '✓', pin: '', boxBg: 'var(--text)', boxBorder: 'var(--text)', color: 'var(--text)' },
+      { label: 'Available', check: '✓', pin: '', boxBg: 'var(--text)', boxBorder: 'var(--text)', color: 'var(--text)' },
+      { label: 'Landed cost', check: '', pin: '', boxBg: 'var(--raised)', boxBorder: 'var(--lineS)', color: 'var(--text2)' },
+      { label: 'Shelf life', check: '', pin: '', boxBg: 'var(--raised)', boxBorder: 'var(--lineS)', color: 'var(--text2)' },
+    ];
+    V.savedViews = [
+      { label: 'My shortages', count: '14', bg: 'var(--hover)', border: 'var(--lineS)', fg: 'var(--text)' },
+      { label: 'No proposal', count: '3', bg: 'transparent', border: 'var(--line)', fg: 'var(--text2)' },
+      { label: 'Imported packaging', count: '112', bg: 'transparent', border: 'var(--line)', fg: 'var(--text2)' },
+      { label: '+ Save current', count: '', bg: 'transparent', border: 'var(--lineS)', fg: 'var(--text3)' },
+    ];
+    const figure = (v, color) => E('span', { style: { font: `400 12.5px ${MONO}`, color: color || 'var(--text)', fontVariantNumeric: 'tabular-nums' } }, v);
+    V.cellTypes = [
+      { kind: 'text', demo: E('span', { style: { font: `400 13px ${SANS}` } }, 'Beef Topside') },
+      { kind: 'figure + unit', demo: E('span', { style: { display: 'flex', gap: 6, alignItems: 'baseline' } }, figure('412.5'), E('span', { style: { font: `400 11px ${MONO}`, color: 'var(--text3)' } }, 'KG')) },
+      { kind: 'currency', demo: E('span', { style: { display: 'flex', gap: 6, alignItems: 'baseline' } }, E('span', { style: { font: `400 11px ${MONO}`, color: 'var(--text3)' } }, 'BHD'), figure('3.180')) },
+      { kind: 'delta', demo: E('span', { style: { display: 'flex', gap: 8 } }, figure('−1.6', 'var(--ok)'), figure('+2.4%', 'var(--warn)')) },
+      { kind: 'status pill', demo: this.pill('Below Safety', 'var(--crit)', false) },
+      { kind: 'supply pill', demo: this.pill('Proposal open', 'var(--info)', true) },
+      { kind: 'trend', demo: this.spark('var(--mut)', [8, 6, 7, 5, 4, 3, 2, 1], 72, 20) },
+      { kind: 'owner', demo: E('span', { style: { display: 'flex', alignItems: 'center', gap: 7 } }, E('span', { style: { width: 20, height: 20, borderRadius: 999, background: '#2A6FA6', color: '#E8EBED', font: `500 9.5px/20px ${SANS}`, textAlign: 'center' } }, 'AL'), E('span', { style: { font: `400 12.5px ${SANS}`, color: 'var(--text2)' } }, 'Owner A')) },
+    ];
+    V.expandDetail = [
+      { label: 'Daily usage', value: '294.0 KG', color: 'var(--text)' },
+      { label: 'Safety', value: '1,470', color: 'var(--text2)' },
+      { label: 'Reorder', value: '5,586', color: 'var(--text2)' },
+      { label: 'Run-out', value: '1.4d', color: 'var(--crit)' },
+      { label: 'Member SKUs', value: '3', color: 'var(--text2)' },
+      { label: 'Preferred', value: 'unresolved', color: 'var(--crit)' },
+    ];
+    V.skeletonRows = [{ a: '38%', b: '54px' }, { a: '52%', b: '48px' }, { a: '30%', b: '60px' }];
+
+    // ── 03 data entry ──
+    V.comboItems = [
+      { label: 'Supplier A', meta: '42 refs', bg: 'var(--hover)', color: 'var(--text)' },
+      { label: 'Supplier A', meta: '8 refs', bg: 'transparent', color: 'var(--text)' },
+      { label: 'Al Supplier A', meta: 'no refs', bg: 'transparent', color: 'var(--text2)' },
+    ];
+    V.scopeTokens = [{ label: 'BahrainMP' }, { label: 'Protein Items' }, { label: 'Dry Goods' }];
+    V.datePresets = [
+      { label: '7d', bg: 'transparent', border: 'var(--lineS)', fg: 'var(--text2)' },
+      { label: '30d', bg: 'var(--hover)', border: 'var(--lineS)', fg: 'var(--text)' },
+      { label: '90d', bg: 'transparent', border: 'var(--lineS)', fg: 'var(--text2)' },
+      { label: 'YTD', bg: 'transparent', border: 'var(--lineS)', fg: 'var(--text2)' },
+    ];
+    V.keys = ['⌘K', '⏎', 'esc', '⇧↑', 'E', '⌫'];
+
+    // ── 04 ingestion ──
+    V.ingestStats = [
+      { label: 'Rows read', value: '4,006', color: 'var(--text)' },
+      { label: 'Upserted', value: '0', color: 'var(--warn)' },
+      { label: 'Failed', value: '12', color: 'var(--crit)' },
+      { label: 'Unresolved units', value: '46', color: 'var(--warn)' },
+    ];
+    V.pipeline = [
+      ['detect', 'done', '0.2s'], ['strip tips', 'done', '0.1s'], ['normalize units', 'done', '1.4s'], ['validate', 'fail', '12 fail'],
+      ['upsert', 'idle', '—'], ['recompute', 'idle', '—'], ['snapshot', 'idle', '—'], ['tasks', 'idle', '—'],
+    ].map(([step, state, ms], i, arr) => ({
+      step, ms,
+      glyph: state === 'done' ? '✓' : state === 'fail' ? '!' : '',
+      dot: state === 'done' ? 'var(--ok)' : state === 'fail' ? 'var(--warn)' : 'transparent',
+      ring: state === 'idle' ? 'var(--lineS)' : 'transparent',
+      color: state === 'idle' ? 'var(--text3)' : state === 'fail' ? 'var(--warn)' : 'var(--text2)',
+      bar: i === arr.length - 1 ? 'transparent' : state === 'done' ? 'var(--ok)' : 'var(--line)',
+    }));
+    V.mapping = [
+      { source: 'Item name', sample: 'Beef Topside', field: 'Recipe ref', state: 'mapped', ok: true },
+      { source: 'Qty on hand', sample: '412.5', field: 'Available', state: 'mapped', ok: true },
+      { source: 'UOM', sample: 'KG', field: 'Unit of measure', state: 'mapped', ok: true },
+      { source: 'Whse', sample: 'Protien items Freezer', field: 'Warehouse', state: 'mapped', ok: true },
+      { source: 'Unit cost', sample: '3.18', field: 'Choose field', state: 'unmapped', ok: false },
+      { source: 'Batch no.', sample: 'B-4471', field: 'Choose field', state: 'unmapped', ok: false },
+    ].map(m => ({
+      source: m.source, sample: m.sample, field: m.field, state: m.state,
+      bg: m.ok ? 'transparent' : mix('var(--warn)', 5),
+      border: m.ok ? 'var(--lineS)' : mix('var(--warn)', 50),
+      fieldColor: m.ok ? 'var(--text)' : 'var(--warn)',
+      stateBg: mix(m.ok ? 'var(--ok)' : 'var(--warn)', 14),
+      stateFg: m.ok ? 'var(--ok)' : 'var(--warn)',
+    }));
+    V.failures = [
+      { line: 'line 214', value: 'Tomato Peeled', reason: 'Unit BAG has no conversion' },
+      { line: 'line 388', value: '−40.0', reason: 'Available cannot be negative' },
+      { line: 'line 502', value: '(blank)', reason: 'Recipe ref is required' },
+      { line: 'line 947', value: 'Beef Topside', reason: 'Duplicate row for same warehouse' },
+    ];
+
+    // ── 05 workflow ──
+    V.lifecycle = [
+      { label: 'DRAFT', tone: 'var(--mut)', state: 'past' },
+      { label: 'OPEN', tone: 'var(--info)', state: 'past' },
+      { label: 'APPROVED', tone: 'var(--ok)', state: 'current' },
+      { label: 'CONVERTED', tone: 'var(--mut)', state: 'future' },
+      { label: 'DISMISSED', tone: 'var(--mut)', state: 'terminal' },
+    ].map((l, i, arr) => ({
+      label: l.label,
+      bg: l.state === 'current' ? mix(l.tone, 16) : l.state === 'past' ? mix(l.tone, 8) : 'transparent',
+      border: l.state === 'current' ? mix(l.tone, 44) : l.state === 'future' || l.state === 'terminal' ? 'var(--line)' : mix(l.tone, 24),
+      fg: l.state === 'current' ? l.tone : l.state === 'past' ? 'var(--text2)' : 'var(--text3)',
+      bar: i === arr.length - 1 ? 'transparent' : 'var(--line)',
+    }));
+    const actBtn = (label, primary) => E('span', { style: { display: 'inline-flex', alignItems: 'center', height: 26, padding: '0 10px', borderRadius: 6, border: primary ? '1px solid var(--text)' : '1px solid var(--lineS)', background: primary ? 'var(--text)' : 'var(--raised)', color: primary ? 'var(--inv)' : 'var(--text2)', font: `500 12px/1 ${SANS}`, cursor: 'pointer', flex: 'none' } }, label);
+    V.approvals = [
+      { initials: 'NA', role: 'Buyer — Owner D', meta: 'approved 2026-08-29 08:02', avatarBg: '#2A6FA6', bg: mix('var(--ok)', 7), border: mix('var(--ok)', 24), action: this.pill('DONE', 'var(--ok)', false) },
+      { initials: 'AL', role: 'Director — Owner A', meta: 'waiting · 2nd of 2', avatarBg: '#5B4B8A', bg: mix('var(--info)', 7), border: mix('var(--info)', 24), action: E('span', { style: { display: 'inline-flex', gap: 6 } }, actBtn('Reject', false), actBtn('Approve', true)) },
+      { initials: 'SK', role: 'Planner — Owner E', meta: 'notified only', avatarBg: '#3F5C4A', bg: 'transparent', border: 'var(--line)', action: this.pill('FYI', 'var(--mut)', true) },
+    ];
+    V.audit = [
+      { text: 'Safety days 5 → 7 on Beef Topside', who: 'Owner E', when: '2026-08-29 09:14', hash: 'a41f…9c2', dot: 'var(--info)' },
+      { text: 'Proposal PR-2291 approved', who: 'Owner D', when: '2026-08-29 08:02', hash: '7b30…41e', dot: 'var(--ok)' },
+      { text: 'Ingest rejected — 12 validation failures', who: 'system', when: '2026-08-27 06:14', hash: 'c982…0aa', dot: 'var(--crit)' },
+      { text: 'Preferred SKU pinned on Feta Cheese', who: 'Owner B', when: '2026-08-26 15:38', hash: '1de4…77b', dot: 'var(--info)' },
+    ];
+    V.diffs = [
+      { field: 'Available (KG)', from: '980.0', to: '412.5', color: 'var(--crit)' },
+      { field: 'Inventory status', from: 'Below Reorder', to: 'Below Safety', color: 'var(--crit)' },
+      { field: 'Lead time (days)', from: '10', to: '14', color: 'var(--warn)' },
+      { field: 'Safety days', from: '5', to: '7', color: 'var(--warn)' },
+      { field: 'Unit price (BHD)', from: '3.420', to: '3.180', color: 'var(--ok)' },
+    ];
+    const acts = ['view', 'edit', 'approve', 'export'];
+    V.matrix = E('div', { style: { display: 'grid', gridTemplateColumns: '148px repeat(4, 1fr)', gap: 4, alignItems: 'center' } },
+      [''].concat(acts).map((a, i) => E('span', { key: 'h' + i, style: { font: `600 10px/14px ${SANS}`, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--text3)', textAlign: i ? 'center' : 'start' } }, a)),
+      [['Order proposals', [1, 1, 1, 1]], ['Planning parameters', [1, 1, 0, 1]], ['Users & permissions', [1, 0, 2, 2]], ['Audit chain', [1, 2, 2, 1]]].map(([res, vals]) => [
+        E('span', { key: res, style: { font: `400 12.5px/18px ${SANS}` } }, res),
+        vals.map((v, i) => E('span', { key: res + i, style: { height: 26, borderRadius: 4, background: v === 1 ? 'var(--text)' : v === 0 ? 'var(--dis)' : 'transparent', border: v === 2 ? '1px solid var(--lineS)' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', font: `600 11px/1 ${SANS}`, color: 'var(--inv)' } }, v === 1 ? '✓' : '')),
+      ]));
+
+    // ── 06 charts ──
+    V.charts = [
+      { label: 'Stock projection', meta: 'MRP Future', svg: this.projection(), note: 'Solid is observed, dashed is projected on the shaded future. The run-out crossing is the only red mark.' },
+      { label: 'Inventory waterfall', meta: 'Consolidated', svg: this.waterfall(), note: 'Opening and closing bars are muted; only movements carry hue. Waste is the sole status colour.' },
+      { label: 'Lead time distribution', meta: 'Supplier scorecard', svg: this.boxplot(), note: 'Box is the interquartile range, the heavy rule is the median. Stated lead time is a separate annotation.' },
+      { label: 'KPI vs target', meta: 'Command Center', svg: this.bullet(), note: 'Bullet bars, not gauges. The vertical rule is the target; the fill is actual.' },
+      { label: 'Shortage heat', meta: 'Coverage', svg: this.heatmap(), note: 'Sequential blues for value; a category-day only turns red when it went below safety.' },
+      { label: 'Value by category', meta: 'Analytics', svg: this.donut(), note: 'Categorical palette, never status colours. Total sits in the hole so no legend maths is needed.' },
+    ];
+
+    // ── 07 states ──
+    const line = (w, delay) => E('div', { style: { height: 9, width: w, borderRadius: 3, background: 'var(--hover)', animation: `sdsShim 1.4s ease-in-out ${delay}s infinite` } });
+    const centered = (children) => E('div', { style: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7, textAlign: 'center' } }, children);
+    const title = (t) => E('span', { style: { font: `600 13.5px/20px ${SANS}`, color: 'var(--text)' } }, t);
+    const body = (t) => E('span', { style: { font: `400 12px/17px ${SANS}`, color: 'var(--text2)', maxWidth: '34ch', textWrap: 'pretty' } }, t);
+    const btn = (t, primary) => E('span', { style: { display: 'inline-flex', alignItems: 'center', height: 28, padding: '0 11px', borderRadius: 6, border: primary ? '1px solid var(--text)' : '1px solid var(--lineS)', background: primary ? 'var(--text)' : 'var(--raised)', color: primary ? 'var(--inv)' : 'var(--text)', font: `500 12px/1 ${SANS}`, cursor: 'pointer' } }, t);
+
+    V.states = [
+      {
+        kind: 'LOADING', dot: 'var(--info)', frame: 'var(--line)',
+        body: E('div', { style: { display: 'flex', flexDirection: 'column', gap: 7 } }, line('100%', 0), line('72%', 0.15), line('86%', 0.3), line('54%', 0.45)),
+        note: 'Skeletons mirror the real shape. No spinner on a surface that has a known layout.',
+      },
+      {
+        kind: 'FIRST RUN', dot: 'var(--text3)', frame: 'var(--line)',
+        body: centered([title('No lead-time data yet'), body('This screen reads observed delivery lead times. Nothing has been ingested for BahrainMP.'), E('div', { style: { display: 'flex', gap: 6, paddingTop: 2 } }, btn('Go to Data Upload', true))]),
+        note: 'Names the missing dataset. Never a fabricated row, never a permanent spinner.',
+      },
+      {
+        kind: 'FILTERED EMPTY', dot: 'var(--text3)', frame: 'var(--line)',
+        body: centered([title('No refs match these filters'), body('Clear a status chip or widen the category filter.'), E('div', { style: { paddingTop: 2 } }, btn('Reset filters', false))]),
+        note: 'Distinct from first run — the data exists, the query is too narrow.',
+      },
+      {
+        kind: 'ERROR', dot: 'var(--crit)', frame: mix('var(--crit)', 30),
+        body: centered([title('Could not load the board'), body('The planning service returned 503 after 8s. Nothing was changed.'), E('div', { style: { display: 'flex', gap: 6, paddingTop: 2 } }, btn('Retry', true), btn('Copy error id', false))]),
+        note: 'States what failed, what it means for the data, and offers exactly one retry.',
+      },
+      {
+        kind: 'BLOCKED', dot: 'var(--warn)', frame: mix('var(--warn)', 30),
+        body: centered([title('Approval blocked'), body('Two SKUs have equal purchase history and no pin. A buyer must choose before this proposal can be approved.'), E('div', { style: { paddingTop: 2 } }, btn('Resolve preferred SKU', true))]),
+        note: 'A blocker is not an error. It names the person who can clear it and links to the fix.',
+      },
+      {
+        kind: 'NO PERMISSION', dot: 'var(--mut)', frame: 'var(--line)',
+        body: centered([title('Export is denied for your role'), body('Viewer cannot export. Deny always wins over an inherited allow — ask a director to change the matrix.')]),
+        note: 'Explains the rule rather than hiding the control, so the user knows what to request.',
+      },
+    ];
+
+    return V;
+  }
+}
+</script>
+</body>
+</html>
