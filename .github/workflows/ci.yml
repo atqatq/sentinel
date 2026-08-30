@@ -37,6 +37,8 @@ jobs:
         run: node packages/core/modules/planning-engine/test/engine.test.js
       - name: Feedback suite (31)
         run: node packages/core/modules/execution-feedback/test/feedback.test.js
+      - name: KPI catalog — dataState envelope, A1/A2 named proofs (24)
+        run: node packages/core/modules/kpi-catalog/test/catalog.test.js
 
   ingestion-tests:
     name: Ingestion boundary suites (strict parse + file binding)
