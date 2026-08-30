@@ -170,7 +170,11 @@ Top bar: page title + subtitle · global search · **⌘K command palette** · *
 **SRM**
 23. **Suppliers** — master, terms, payment-term days, lead time (with observed-value suggestion + one-click backfill).
 24. **Supplier Scorecards** — OTIF, fill rate, avg/median lead days, spend ranking, single-source risk.
-25. **Supplier Coverage** — suppliers by category, by recipe reference; quotes → best-available baseline.
+25. **Supplier Coverage — RETIRED as a standalone screen (Amendment A15).** Its duties fold into existing
+    screens: suppliers by recipe reference → the per-ref **member SKU table** (`PREFERRED` / `ALTERNATE` /
+    `SPOT` roles, screen 24's evidence surface); quotes → best-available baseline → **Preferred SKU**
+    selection with pin rationale. Screen IDs are stable identifiers — 25 is retired, never renumbered.
+    KPI SRC-05 now sources from the Supplier Scorecards single-source tile (§16, A15.2).
 
 **PLANES**
 26. **Analytics** — analysis and tenant×tenant comparison at SKU / recipe-ref / category / price / spend /
@@ -914,7 +918,7 @@ weekly KPI review (Atlas W-16; the human-readable glossary mirror lives in the A
 | SRC-02 | Fill rate % | Lines received complete vs lines ordered | complete lines ÷ ordered lines × 100 | R1 + R2 | SBR | daily | ≥ 97% |
 | SRC-03 | Lead-time drift (days) | Realized P50 lead days minus agreed lead days, per supplier × category | P50(realized) − agreed | R1 promised vs actual + learning loop | SBR | weekly | ≤ +1d amber; +3d red |
 | SRC-04 | Price variance % | PO unit price vs agreed baseline price | (PO price − baseline) ÷ baseline × 100 | R1 + price baselines | BYR | daily | within ±3% |
-| SRC-05 | Single-source exposure | Share of active categories with exactly one approved supplier | single-source categories ÷ active categories × 100 | supplier coverage (screen 25) | SBR | weekly | ≤ 15% |
+| SRC-05 | Single-source exposure | Share of active categories with exactly one approved supplier | single-source categories ÷ active categories × 100 | Supplier Scorecards single-source tile (A15.2) | SBR | weekly | ≤ 15% |
 | SRC-06 | Top-5 spend concentration | Share of spend held by the five largest suppliers | top-5 supplier spend ÷ total spend × 100 | R1 spend | SBR / SCM | monthly | trend-monitored |
 | SRC-07 | Realized savings % | Verified savings against the four baselines (screen 12) | realized savings ÷ addressable spend × 100 | execution-feedback module | SCM | monthly | > 2% YTD |
 
