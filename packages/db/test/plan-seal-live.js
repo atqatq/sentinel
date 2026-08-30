@@ -28,7 +28,7 @@ const REPO = path.join(__dirname, '..', '..', '..');
 const { runPlan } = require(path.join(REPO, 'packages/plan-service'));
 const { canonicalJson } = require(path.join(REPO, 'packages/plan-service/src/canonicalJson'));
 const E = require(path.join(REPO, 'packages/core/modules/planning-engine'));
-const { SCHEMA_VERSION } = require(path.join(REPO, 'packages/db'));
+const { SCHEMA_VERSION, makePlanAdapter } = require(path.join(REPO, 'packages/db'));
 
 const ADMIN_URL = process.env.DATABASE_URL_ADMIN || 'postgres://postgres@127.0.0.1:5433/postgres';
 const LIVE_DB = 'sentinel_plan_live';
@@ -53,55 +53,10 @@ function probeUrl(db) {
   return `postgres://plan_probe:probe@${u.hostname}:${u.port || 5432}/${db || LIVE_DB}`;
 }
 
-/* The pg-backed ports adapter — the same shape the app layer will inject. */
-function makeAdapter(client, tenantId) {
-  return {
-    loader: {
-      loadTenant: async () => (await client.query(
-        `SELECT code, currency_code AS "currencyCode", timezone FROM tenant WHERE id = $1`, [tenantId])).rows[0] || null,
-      loadPlanInputs: async () => ({
-        paramsByRef: Object.fromEntries((await client.query(
-          `SELECT recipe_ref, params FROM planning_param WHERE tenant_id = $1`, [tenantId])).rows.map((r) => [r.recipe_ref, r.params])),
-        items: (await client.query(
-          `SELECT sku, recipe_ref AS "recipeRef", conversion_factor AS "conversionFactor", converted_unit AS "convertedUnit",
-                  price, shelf_life_days AS "shelfLifeDays", preferred_for_recipe_ref AS "preferredForRecipeRef"
-             FROM item WHERE tenant_id = $1 ORDER BY sku`, [tenantId])).rows,
-        stock: (await client.query(
-          `SELECT i.sku, s.quantity, s.tenant_value AS "tenantValue"
-             FROM stock_line s JOIN item i ON i.id = s.item_id WHERE s.tenant_id = $1 ORDER BY i.sku`, [tenantId])).rows,
-        openPo: (await client.query(
-          `SELECT sku, po_number AS "poNumber", waiting_qty_converted AS "waitingQtyConverted"
-             FROM open_po_line WHERE tenant_id = $1 ORDER BY sku, po_number`, [tenantId])).rows,
-        consumption: (await client.query(
-          `SELECT sku, period_start::text AS start, period_end::text AS "end",
-                  start_balance AS "startBalance", goods_in AS "goodsIn", goods_out AS "goodsOut", end_balance AS "endBalance"
-             FROM consumption_balance WHERE tenant_id = $1 ORDER BY sku, period_start`, [tenantId])).rows,
-        deliveries: (await client.query(
-          `SELECT day::text AS start, day::text AS "end", deliveries
-             FROM delivery_day WHERE tenant_id = $1 AND granularity = 'daily' ORDER BY day`, [tenantId])).rows,
-        latestSeal: (await client.query(
-          `SELECT seal_date::text AS "sealDate", payload_hash AS "payloadHash"
-             FROM plan_seal WHERE tenant_id = $1 ORDER BY seal_date DESC LIMIT 1`, [tenantId])).rows[0] || null,
-      }),
-    },
-    saver: {
-      saveSeal: async (s) => {
-        const cols = `tenant_id AS "tenantId", seal_date::text AS "sealDate", engine_version AS "engineVersion",
-                      schema_version AS "schemaVersion", payload, payload_hash AS "payloadHash",
-                      (extract(epoch from sealed_at) * 1000)::bigint AS "sealedAt"`;
-        const ins = await client.query(
-          `INSERT INTO plan_seal (tenant_id, seal_date, engine_version, schema_version, payload, payload_hash, sealed_by)
-           VALUES ($1,$2,$3,$4,$5,$6,$7)
-           ON CONFLICT (tenant_id, seal_date) DO NOTHING RETURNING ${cols}`,
-          [tenantId, s.sealDate, s.engineVersion, s.schemaVersion, JSON.stringify(s.payload), s.payloadHash, s.sealedBy]);
-        if (ins.rows.length) return { replayed: false, seal: ins.rows[0] };
-        const sel = await client.query(
-          `SELECT ${cols} FROM plan_seal WHERE tenant_id = $1 AND seal_date = $2`, [tenantId, s.sealDate]);
-        return { replayed: true, seal: sel.rows[0] };
-      },
-    },
-  };
-}
+/* The pg-backed ports adapter now lives in ONE place: packages/db/plan-adapter.js
+ * (the app route injects the same module). The inline copy it replaces was the
+ * unit-3 interim; deduping keeps the served SQL byte-for-byte the proven SQL. */
+const makeAdapter = makePlanAdapter;
 
 async function main() {
   /* ---- 1. scratch database + all migrations ---- */

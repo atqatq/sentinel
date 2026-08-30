@@ -1,0 +1,27 @@
+{
+  "id": "web",
+  "version": "0.3.0",
+  "description": "Next.js 15 App Router shell (delivery spec §6.3 M2): the SDS top-bar menubar with the 44-entry screen map (unbuilt screens carry EMPTY tags), the two-axis status language bound fail-closed to the engine's displayStatus/supplyStatus through packages/ui, and the HTTP transport for the engine-live run (POST /api/plan — one tenant-scoped transaction with a transaction-local app.tenant_id GUC, the shared pg adapter injected into plan-service, receipts mapped 200/400/422/500). Transport only: request semantics live in plan-service; rendering primitives live in packages/ui (A12).",
+  "dependencies": [
+    "plan-service",
+    "db",
+    "ui"
+  ],
+  "permissionScopes": [
+    "db:read:planning",
+    "db:write:plan_seal"
+  ],
+  "ingestionKinds": [],
+  "uiSurfacePoints": [
+    "shell",
+    "status-language-reference",
+    "plan-run-api"
+  ],
+  "ledgerEventTypes": [],
+  "goldenTests": [
+    {
+      "suite": "next build (typecheck + static generation)",
+      "count": 1
+    }
+  ]
+}

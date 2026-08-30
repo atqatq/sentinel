@@ -1,0 +1,23 @@
+/*
+ * Sentinel global stylesheet — the SDS theme is imported from packages/ui
+ * (A12: tokens.css is the single source of truth; this file must never
+ * restate a token value). Fonts are self-hosted (OFL) via the theme package.
+ */
+@import "@sentinel/ui/theme";
+@import "@sentinel/ui/theme/fonts.css";
+
+/*
+ * README §Motion: "Under prefers-reduced-motion: reduce, drop transforms
+ * and animation, keep opacity." Instant animations keep the end state
+ * (opacity included) with no movement.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
