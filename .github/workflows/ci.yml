@@ -13,8 +13,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - name: Forbidden terms & secret scan
         run: bash scripts/guards/forbidden-terms.sh
+      - name: SDS token parity (design handoff vs theme)
+        run: node scripts/guards/sds-token-parity.mjs
 
   golden-tests:
     name: Golden tests (117)

@@ -8,7 +8,9 @@
     "node": ">=22"
   },
   "scripts": {
-    "guard": "bash scripts/guards/forbidden-terms.sh",
+    "guard": "bash scripts/guards/forbidden-terms.sh && node scripts/guards/sds-token-parity.mjs",
+    "guard:terms": "bash scripts/guards/forbidden-terms.sh",
+    "guard:tokens": "node scripts/guards/sds-token-parity.mjs",
     "test": "npm run test:engine && npm run test:feedback",
     "test:engine": "node packages/core/modules/planning-engine/test/engine.test.js",
     "test:feedback": "node packages/core/modules/execution-feedback/test/feedback.test.js"
