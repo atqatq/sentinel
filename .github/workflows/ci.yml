@@ -52,6 +52,8 @@ jobs:
         run: node packages/core/modules/ingestion/test/filebinding.test.js
       - name: Unit resolution + C1 conversion + C2 money normalization (36)
         run: node packages/core/modules/ingestion/test/normalize.test.js
+      - name: H8 window alignment guard — refuse to seed uncovered (26)
+        run: node packages/core/modules/ingestion/test/window.test.js
 
   db-rls:
     name: DB schema + RLS deny matrix (postgres 16)
