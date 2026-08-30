@@ -34,6 +34,30 @@ declare module "@sentinel/db" {
   }
   export function connectPlanClient(connectionString: string): Promise<import("pg").PoolClient>
   export function pgDriver(): typeof import("pg")
+  /* Data-health read side (single SQL source; RLS-fenced by the caller's
+   * transaction-local app.tenant_id + the explicit tenant_id predicate). */
+  export function makeDataHealthAdapter(
+    client: import("pg").PoolClient,
+    tenantId: string
+  ): {
+    lastAppliedStampByKind(): Promise<Array<{ kind: string; lastAppliedAtMs: number | null }>>
+    listOpenTasks(): Promise<Array<{
+      id: string
+      taskType: string
+      severity: string
+      status: string
+      payload: Record<string, unknown> | null
+      createdAtMs: number
+      resolvedAtMs: number | null
+    }>>
+    countResolvedSince(sinceMs: number): Promise<number>
+    countIngestFiles(): Promise<{ received: number; applied: number }>
+  }
+  /** Tenant-registry lookup (unfenced by design — returns the fence identity). */
+  export function resolveTenantByCode(
+    client: import("pg").PoolClient,
+    code: string
+  ): Promise<{ id: string; code: string; name: string } | null>
 }
 
 declare module "@sentinel/module-ops" {
