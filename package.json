@@ -12,8 +12,9 @@
     "guard:terms": "bash scripts/guards/forbidden-terms.sh",
     "guard:tokens": "node scripts/guards/sds-token-parity.mjs",
     "guard:ui-scope": "bash scripts/guards/ui-primitives-scope.sh",
-    "test": "npm run test:engine && npm run test:feedback",
+    "test": "npm run test:engine && npm run test:feedback && npm run test:ingest",
     "test:engine": "node packages/core/modules/planning-engine/test/engine.test.js",
-    "test:feedback": "node packages/core/modules/execution-feedback/test/feedback.test.js"
+    "test:feedback": "node packages/core/modules/execution-feedback/test/feedback.test.js",
+    "test:ingest": "node packages/core/modules/ingestion/test/parse.test.js"
   }
 }

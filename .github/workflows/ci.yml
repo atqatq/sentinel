@@ -38,6 +38,17 @@ jobs:
       - name: Feedback suite (31)
         run: node packages/core/modules/execution-feedback/test/feedback.test.js
 
+  ingestion-tests:
+    name: Ingestion boundary suite (strict parse)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Strict parse + bounds + quarantine + deliveries guard (32)
+        run: node packages/core/modules/ingestion/test/parse.test.js
+
   ui-checks:
     name: UI package (typecheck + theme compile)
     runs-on: ubuntu-latest
