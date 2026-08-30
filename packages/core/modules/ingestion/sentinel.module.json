@@ -1,7 +1,7 @@
 {
   "id": "ingestion",
   "version": "0.2.0",
-  "description": "Ingestion boundary v1 core. Strict numeric parsing (A5/C4): values crossing the boundary parse strictly or quarantine — thousands separators, decimal commas, currency forms, scientific notation, booleans and non-finite numbers are named quarantine reasons, never coerced. The nz()-style fallback is legal only for fields explicitly declared optional and genuinely missing. Plausibility bounds on every quantity-bearing field; the deliveries bounds-guard returns the full A5 substitution plan (quarantined value, trailing-7-day-mean baseline from valid entries only, DATA_HEALTH task, UI banner naming the substitution). Pure core: file IO, upserts, RLS and idempotency land with the M1 pipeline stages in the app layer.",
+  "description": "Ingestion boundary v1 core. Strict numeric parsing (A5/C4): values crossing the boundary parse strictly or quarantine — thousands separators, decimal commas, currency forms, scientific notation, booleans and non-finite numbers are named quarantine reasons, never coerced. The nz()-style fallback is legal only for fields explicitly declared optional and genuinely missing. Plausibility bounds on every quantity-bearing field; the deliveries bounds-guard returns the full A5 substitution plan (quarantined value, trailing-7-day-mean baseline from valid entries only, DATA_HEALTH task, UI banner naming the substitution). Normalization stage (C1/C2): unit spellings resolve against the injected tenant catalog — unresolved spellings raise data-health, never guesses; openPO waiting quantities convert to planning units at ingestion with MISSING/INVALID_CONVERSION_FACTOR refusals before the engine sees rows; money normalizes to tenant currency at ingestion (documentCurrency + tenantValue at the pinned usdToLocal rate; third currencies refused per Decision 7 local↔USD-only; unpinned days refuse RATE_NOT_PINNED; tenantCurrency is mandatory). Pure core: file IO, upserts, RLS and idempotency land with the M1 pipeline stages in the app layer.",
   "purity": "no-db, no-react, no-framework, no-io",
   "dependencies": [],
   "permissionScopes": ["ingest:read", "ingest:write", "quarantine:review"],
@@ -23,6 +23,7 @@
   ],
   "goldenTests": [
     { "suite": "test/parse.test.js", "count": 32 },
-    { "suite": "test/filebinding.test.js", "count": 16 }
+    { "suite": "test/filebinding.test.js", "count": 16 },
+    { "suite": "test/normalize.test.js", "count": 36 }
   ]
 }
