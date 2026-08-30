@@ -43,6 +43,8 @@ jobs:
         run: node packages/core/modules/calendar/test/dates.test.js
       - name: H9 working calendar — flat-tenant-identical + Ramadan adjustment (29)
         run: node packages/core/modules/calendar/test/calendar.test.js
+      - name: Plan service — engine live wiring + sealed snapshots (41)
+        run: node packages/plan-service/test/plan.test.js
 
   ingestion-tests:
     name: Ingestion boundary suites (strict parse + file binding)
@@ -91,6 +93,10 @@ jobs:
         run: npm install --prefix packages/db pg@8 --no-save --no-audit --no-fund
       - name: RLS deny matrix (live)
         run: node packages/db/test/rls-deny-matrix.js
+        env:
+          DATABASE_URL_ADMIN: postgres://postgres:postgres@127.0.0.1:5432/postgres
+      - name: Plan-seal live — engine run, replay, divergent-replay disclosure, RLS (14)
+        run: node packages/db/test/plan-seal-live.js
         env:
           DATABASE_URL_ADMIN: postgres://postgres:postgres@127.0.0.1:5432/postgres
 
