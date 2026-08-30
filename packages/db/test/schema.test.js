@@ -19,7 +19,14 @@ const fs = require('fs');
 const path = require('path');
 
 const DB = path.join(__dirname, '..');
-const migration = fs.readFileSync(path.join(DB, 'migrations/0001_init/migration.sql'), 'utf8');
+/* All migrations, applied order — the contract is the CONCATENATION: every
+ * structural check below must hold across every migration ever shipped,
+ * not just 0001. Directory names sort by their 000N prefix. */
+const migration = fs.readdirSync(path.join(DB, 'migrations'))
+  .filter((d) => /^\d{4}_/.test(d))
+  .sort()
+  .map((d) => fs.readFileSync(path.join(DB, 'migrations', d, 'migration.sql'), 'utf8'))
+  .join('\n');
 const prismaSchema = fs.readFileSync(path.join(DB, 'prisma/schema.prisma'), 'utf8');
 
 let passed = 0, failed = 0;
@@ -33,6 +40,7 @@ const TENANT_SCOPED = [
   'warehouse', 'stock_line', 'open_po_line', 'consumption_balance',
   'delivery_day', 'planning_param', 'category_owner', 'ingest_file',
   'quarantine_record', 'data_health_task', 'idempotency_key', 'fx_rate_pin',
+  'plan_seal',
 ];
 
 console.log('\nRLS coverage (ADR-0002)');
@@ -107,6 +115,7 @@ test('control-plane uniques are tenant-leading too (H6 structural)', () => {
     'unit_catalog_entry_tenant_id_code_key',
     'unit_alias_tenant_id_alias_key',
     'category_owner_tenant_id_category_key',
+    'plan_seal_tenant_id_seal_date_key',
   ];
   for (const k of keys) {
     assert.ok(migration.includes(`CREATE UNIQUE INDEX "${k}"`), `${k} missing`);

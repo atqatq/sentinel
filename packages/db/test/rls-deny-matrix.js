@@ -29,13 +29,19 @@ const { Client } = require('pg');
 
 const ADMIN_URL = process.env.DATABASE_URL_ADMIN || 'postgres://postgres@127.0.0.1:5433/postgres';
 const MATRIX_DB = 'sentinel_rls_matrix';
-const MIGRATION = fs.readFileSync(path.join(__dirname, '..', 'migrations/0001_init/migration.sql'), 'utf8');
+/* ALL migrations, applied order — the matrix must prove the contract across
+ * every migration ever shipped, not just 0001. */
+const MIGRATION = fs.readdirSync(path.join(__dirname, '..', 'migrations'))
+  .filter((d) => /^\d{4}_/.test(d)).sort()
+  .map((d) => fs.readFileSync(path.join(__dirname, '..', 'migrations', d, 'migration.sql'), 'utf8'))
+  .join('\n');
 
 const TENANT_SCOPED = [
   'ownership_grant', 'unit_catalog_entry', 'unit_alias', 'supplier', 'item',
   'warehouse', 'stock_line', 'open_po_line', 'consumption_balance',
   'delivery_day', 'planning_param', 'category_owner', 'ingest_file',
   'quarantine_record', 'data_health_task', 'idempotency_key', 'fx_rate_pin',
+  'plan_seal',
 ];
 
 let passed = 0, failed = 0;

@@ -61,6 +61,7 @@ model Tenant {
   dataHealthTasks   DataHealthTask[]
   idempotencyKeys   IdempotencyKey[]
   fxRatePins        FxRatePin[]
+  planSeals         PlanSeal[]
 
   @@map("tenant")
 }
@@ -398,6 +399,27 @@ model FxRatePin {
 
   @@unique([tenantId, day])
   @@map("fx_rate_pin")
+}
+
+// ---- Engine-live sealed snapshot (M2 unit 3, build spec §11 daily seal) --------
+// One seal per tenant per seal_date (H6-style unique); payload carries the
+// full computed state; payload_hash = SHA256(canonicalJson(payload)).
+// Restatement of a sealed day is M8 semantics — not permitted here yet.
+model PlanSeal {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  sealDate      DateTime @map("seal_date") @db.Date
+  engineVersion String   @map("engine_version")
+  schemaVersion String   @map("schema_version")
+  payload       Json     @db.JsonB
+  payloadHash   String   @map("payload_hash")
+  sealedAt      DateTime @default(now()) @map("sealed_at") @db.Timestamptz(6)
+  sealedBy      String?  @map("sealed_by")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, sealDate])
+  @@map("plan_seal")
 }
 
 // ---- Enums ---------------------------------------------------------------------

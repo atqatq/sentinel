@@ -1,0 +1,29 @@
+{
+  "id": "plan-service",
+  "version": "0.3.0",
+  "description": "Engine live wiring + sealed snapshots. Orchestrates the planning-engine canon over tenant-loaded inputs (ports-injected, no direct I/O), maps the portfolio through the kpi-catalog dataState envelope, and seals one immutable snapshot per tenant-day (plan_seal) with a SHA-256 payload hash and the ENGINE_VERSION/SCHEMA_VERSION stamps (L-07). H8 refuses the rate seed before any ref is computed; H6-style replay returns the stored seal untouched — a divergent replay is disclosed, never applied (M8 owns restatement).",
+  "dependencies": [
+    "planning-engine",
+    "kpi-catalog",
+    "calendar",
+    "ingestion"
+  ],
+  "permissionScopes": [
+    "db:read:planning",
+    "db:write:plan_seal"
+  ],
+  "ingestionKinds": [],
+  "uiSurfacePoints": [
+    "plan-dashboard",
+    "kpi-strip"
+  ],
+  "ledgerEventTypes": [
+    "ENGINE_RUN_SEALED"
+  ],
+  "goldenTests": [
+    {
+      "suite": "test/plan.test.js",
+      "count": 41
+    }
+  ]
+}

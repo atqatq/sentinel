@@ -9,6 +9,12 @@
 const WD = 22;   // working days per month  (Master Data H2 = G2/22 ; J2 = L2/22)
 const WK = 4;    // weeks per month         (Master Data K2 = L2/4)
 
+/* L-07 · version stamp. Bumped on every engine-logic change; the plan-service
+ * stamps it into every sealed snapshot (plan_seal.engine_version) so any
+ * production behavior question resolves to an exact logic state (delivery
+ * spec §6.2). Additive contract — golden outputs are unaffected. */
+const ENGINE_VERSION = '1.0.0';
+
 const nz = (x) => { const n = Number(x); return Number.isFinite(n) ? n : 0; };
 const round = (x) => Math.round(nz(x));
 
@@ -394,7 +400,7 @@ function displayStatus(c) {
 }
 
 module.exports = {
-  WD, WK, nz, round,
+  WD, WK, nz, round, ENGINE_VERSION,
   reconcileConsumptionUnit, seedConsPerDelivery,
   computeRef, statusOf, supplyStatus, resolveParam, activeParams,
   resolveOrderingSku, effectiveDeliveriesPerDay, normalizeDeliveries, DELIVERY_BASIS,
