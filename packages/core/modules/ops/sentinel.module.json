@@ -1,0 +1,24 @@
+{
+  "id": "ops",
+  "version": "0.3.0",
+  "description": "M9 freshness SLO + missing-deliveries alarm. Evaluates DAT-01 (hours since the last successful per-tenant seal, worst across file types; <=26h fresh, >36h red + alarm) against injected seal stamps — a file type with no seal ever is ALARM with a null age, never fresh by silence. The deliveries dataset (the demand primitive) carries its own MISSING_DELIVERIES channel with a tenant-amendable cadence threshold (daily preferred default), because the engine's H8 gate refuses rate seeding on silent deliveries and DTA must hear it before the morning run, not from the refusal. Pure and deterministic: the clock is injected; alarms carry the DATA_HEALTH task + banner conventions verbatim; the 26/36 bands are bound by test to the kpi-catalog DAT-01 target text.",
+  "dependencies": [
+    "kpi-catalog",
+    "ingestion"
+  ],
+  "permissionScopes": [],
+  "ingestionKinds": [],
+  "uiSurfacePoints": [
+    "stale-data-banner",
+    "data-health-screens"
+  ],
+  "ledgerEventTypes": [
+    "FRESHNESS_ALARM_RAISED"
+  ],
+  "goldenTests": [
+    {
+      "suite": "test/freshness.test.js",
+      "count": 19
+    }
+  ]
+}
