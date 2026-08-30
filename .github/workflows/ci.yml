@@ -22,6 +22,8 @@ jobs:
         run: node scripts/guards/sds-token-parity.mjs
       - name: UI primitives scope (packages/ui only)
         run: bash scripts/guards/ui-primitives-scope.sh
+      - name: Golden fixture checksums (H12)
+        run: bash scripts/check-fixtures.sh
 
   golden-tests:
     name: Golden tests (117)
