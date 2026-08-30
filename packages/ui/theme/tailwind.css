@@ -86,3 +86,15 @@
  */
 @custom-variant theme-light (&:where([data-sds-theme="light"] *));
 @custom-variant compact (&:where([data-sds-density="compact"] *));
+
+/*
+ * sds-pop-in — the dropdown entrance from README §Menubar: "entering with a
+ * 120ms fade-and-4px-rise" (motion: fast 120ms, easing cubic-bezier(0.2, 0,
+ * 0, 1) throughout). Used by the vendored dropdown-menu content; opacity
+ * carries the fade so prefers-reduced-motion can drop the transform without
+ * losing the state change (app globals own the reduce override).
+ */
+@keyframes sds-pop-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}

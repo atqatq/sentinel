@@ -10,9 +10,26 @@ reviewed diffs (golden-UI + axe a11y suites green + a DECISIONS.md entry).
 - `src/button.tsx` and `src/lib/utils.ts` are vendored from
   [shadcn/ui](https://ui.shadcn.com) (new-york style), licensed **MIT**.
   Upstream copyright stays with the shadcn/ui authors.
+- `src/dropdown-menu.tsx` is vendored from [shadcn/ui](https://ui.shadcn.com)
+  (new-york style, Radix `@radix-ui/react-dropdown-menu` underneath), licensed
+  **MIT**, and trimmed to the surface the SDS menubar needs
+  (Root/Trigger/Portal/Content/Item) — checkable items, checkboxes,
+  radio items, sub-menus and labels are absent until a screen needs them.
 - `src/status-pill.tsx` is original code written against the design handoff
   README §Status pill recipe (docs/design/README.md) — the recipe is copied
   in the file header so the two can be compared directly.
+
+## Documented adaptations to the vendored dropdown-menu (A12 order: SDS wins)
+
+| Upstream binding | Vendored binding | Authority |
+|---|---|---|
+| `bg-popover` / `text-popover-foreground` | `bg-raised` / `text-text` | README: `--raised` is "popovers, modals, inputs" |
+| `border` (untracked) | `border-line-strong` | README §Menubar: "1px --line-strong" |
+| `rounded-md` | `rounded-md` (SDS radius-md 10) | README §Menubar: dropdown panel radius 10; README §Spacing: radius `md 10` = cards/panels — modals/palette class |
+| `shadow-md` | `shadow-popover` | README: popover shadow `0 18px 44px rgba(0,0,0,.5)` |
+| `w-72` (fixed) | `min-w-[264px]` | README §Menubar: "min-width 264px" |
+| `p-1` | `p-1.5` (6px) | README §Menubar: "6px padding" |
+| animate plugin classes | `animate-[sds-pop-in_120ms_...]` keyframes in the theme css | README §Menubar: "entering with a 120ms fade-and-4px-rise"; §Motion easing |
 
 ## Documented adaptations to the vendored button (A12 order: SDS wins)
 

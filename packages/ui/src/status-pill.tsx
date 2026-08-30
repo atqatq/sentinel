@@ -1,6 +1,7 @@
 import * as React from "react"
 
 import { cn } from "./lib/utils"
+import type { StatusTone } from "./status"
 
 /*
  * SDS status pill — implements the pill recipe in docs/design/README.md
@@ -14,9 +15,14 @@ import { cn } from "./lib/utils"
  * pending, muted). The pill's visible text is the label — colour is never
  * the sole carrier of meaning (dot is aria-hidden). Raw ladder status binds
  * to displayStatus before it reaches this component (M1 contract).
+ *
+ * Screens do not import this raw pill for the status axes: the vocabulary
+ * components InventoryStatus/SupplyStatus are the only label→tone binding
+ * (ui/status-vocabulary-binding). StatusTone now lives with the vocabulary
+ * (status.ts) and is re-exported here for compatibility.
  */
 
-export type StatusTone = "ok" | "warn" | "critical" | "info" | "pending" | "muted"
+export type { StatusTone } from "./status"
 
 function StatusPill({
   tone,
