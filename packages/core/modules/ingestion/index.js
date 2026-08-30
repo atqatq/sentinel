@@ -16,4 +16,5 @@ module.exports = {
   normalize: require('./src/normalize.js'),
   window: require('./src/window.js'),
   hardening: require('./src/hardening.js'),
+  idempotency: require('./src/idempotency.js'),
 };
