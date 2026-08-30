@@ -263,6 +263,15 @@ test('determinism: identical inputs produce deep-equal output', () => {
   assert.deepStrictEqual(JSON.parse(JSON.stringify(a)), a);
 });
 
+test('binding: the freshness surface re-exports the ingestion-derived kind list unmutated', () => {
+  /* The app's data-health composition builds its seal-stamp array from the
+   * re-export (one core surface for the whole freshness contract). It must
+   * be the SAME list the evaluator enforces — a copy would let the surface
+   * and the validation vocabulary drift apart silently. */
+  assert.deepStrictEqual([...F.DATASET_KINDS], [...KINDS]);
+  assert.ok(Object.isFrozen(F.DATASET_KINDS), 'the re-export stays frozen');
+});
+
 /* ---------------------------------------------------------------- report -- */
 
 console.log(`\n  ops/freshness: ${passed} passed, ${failed} failed`);

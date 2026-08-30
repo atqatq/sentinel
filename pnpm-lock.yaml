@@ -13,6 +13,9 @@ importers:
       '@sentinel/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@sentinel/module-ops':
+        specifier: workspace:*
+        version: link:../../packages/core/modules/ops
       '@sentinel/plan-service':
         specifier: workspace:*
         version: link:../../packages/plan-service
@@ -56,6 +59,8 @@ importers:
   packages/core/modules/execution-feedback: {}
 
   packages/core/modules/ingestion: {}
+
+  packages/core/modules/ops: {}
 
   packages/core/modules/planning-engine: {}
 

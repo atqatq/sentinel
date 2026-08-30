@@ -258,5 +258,12 @@ module.exports = {
   STATES,
   ALARM_CODES,
   BREACH_REASONS,
+  /* Re-export of the pipeline vocabulary this module consumes (read from
+   * ingestion's public surface above). Consumers of the freshness facts —
+   * the app's data-health composition — build their seal-stamp arrays over
+   * these kinds; they read the list here so the app needs one core surface,
+   * and the ops suite binds the re-export to ingestion's manifest so the
+   * two can never drift. */
+  DATASET_KINDS,
   evaluateFreshness,
 };

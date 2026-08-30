@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@sentinel/db": "workspace:*",
+    "@sentinel/module-ops": "workspace:*",
     "@sentinel/plan-service": "workspace:*",
     "@sentinel/ui": "workspace:*",
     "next": "15.5.24",
