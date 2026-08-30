@@ -90,12 +90,16 @@ function optBool(row, field, where) {
  * --------------------------------------------------------------------------- */
 
 function upsertItem(t, row, where) {
+  /* The five flags are NOT NULL DEFAULT false in the schema — a DEFAULT only
+   * applies when the column is OMITTED, and a fixed-shape INSERT omits
+   * nothing: COALESCE at the SQL boundary, so an unstated flag takes the
+   * schema's default instead of violating the constraint (caught live). */
   const text = `
     INSERT INTO item (tenant_id, sku, name, unit_code, conversion_factor, converted_unit, category,
                       ingredient_family, recipe_ref, brand, size, case_count, price, currency_code,
                       business_unit, shelf_life_days, preferred_for_recipe_ref, nutrition_approved,
                       production_approved, is_banned, is_inactive)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,COALESCE($17,false),COALESCE($18,false),COALESCE($19,false),COALESCE($20,false),COALESCE($21,false))
     ON CONFLICT (tenant_id, sku) DO UPDATE SET
       name=EXCLUDED.name, unit_code=EXCLUDED.unit_code, conversion_factor=EXCLUDED.conversion_factor,
       converted_unit=EXCLUDED.converted_unit, category=EXCLUDED.category,
@@ -125,6 +129,10 @@ function upsertSupplier(t, row, where) {
   };
   const cols = `tenant_id, external_id, name, is_active, delivery_period_days, moq_value,
                 payment_terms_text, payment_term_days, currency_code, country, is_banned`;
+  /* is_active is NOT NULL DEFAULT true, is_banned NOT NULL DEFAULT false —
+   * same COALESCE discipline as upsertItem (an unstated flag takes the
+   * schema's default, never an explicit NULL). */
+  const vals = `VALUES ($1,$2,$3,COALESCE($4,true),$5,$6,$7,$8,$9,$10,COALESCE($11,false))`;
   const sets = `name=EXCLUDED.name, is_active=EXCLUDED.is_active, delivery_period_days=EXCLUDED.delivery_period_days,
                 moq_value=EXCLUDED.moq_value, payment_terms_text=EXCLUDED.payment_terms_text,
                 payment_term_days=EXCLUDED.payment_term_days, currency_code=EXCLUDED.currency_code,
@@ -132,12 +140,12 @@ function upsertSupplier(t, row, where) {
   if (row.supplierExternalId !== undefined && row.supplierExternalId !== null) {
     /* H7 identity key: the partial unique (tenant_id, external_id) WHERE external_id IS NOT NULL */
     const ext = reqStr(row, 'supplierExternalId', where);
-    return { text: `INSERT INTO supplier (${cols}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+    return { text: `INSERT INTO supplier (${cols}) ${vals}
       ON CONFLICT (tenant_id, external_id) WHERE external_id IS NOT NULL DO UPDATE SET ${sets}`,
       values: [t, ext, name, common.isActive, common.lead, common.moq, common.terms, common.termDays, common.currency, common.country, common.banned] };
   }
   /* Interim identity per ingestion spec §4 / migration comment: (tenant_id, name) */
-  return { text: `INSERT INTO supplier (${cols}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+  return { text: `INSERT INTO supplier (${cols}) ${vals}
     ON CONFLICT (tenant_id, name) DO UPDATE SET ${sets}`,
     values: [t, null, name, common.isActive, common.lead, common.moq, common.terms, common.termDays, common.currency, common.country, common.banned] };
 }
