@@ -2,7 +2,8 @@
   "name": "@sentinel/web",
   "version": "0.3.0",
   "private": true,
-  "description": "Sentinel web app — Next.js 15 App Router shell (SDS top-bar menubar), the two-axis status language, and the HTTP transport for the plan-service (delivery spec §6.3 M2).",
+  "type": "module",
+  "description": "Sentinel web app — Next.js 15 App Router shell (SDS top-bar menubar), the two-axis status language, the HTTP transport for the plan-service, and the /data-health facts surface (delivery spec §6.3 M2).",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

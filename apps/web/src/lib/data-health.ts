@@ -210,6 +210,10 @@ function severityRank(severity: string): number {
 }
 
 function toRegisterRow(t: TaskRow): RegisterRow {
+  /* Fail-closed BEFORE any rendering decision: an unknown severity throws
+   * even for a single-row register (a sort comparator alone would never be
+   * invoked for one element — the binding must not depend on sort arity). */
+  severityRank(t.severity)
   const p = (t.payload ?? {}) as Record<string, unknown>
   const name = typeof p.name === "string" && p.name !== "" ? p.name : t.taskType
   const countText = typeof p.count === "string" && p.count !== "" ? p.count : "—"
