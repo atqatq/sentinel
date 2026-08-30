@@ -597,7 +597,7 @@
               <span style="font-size:12.5px;font-weight:500">Owner A</span>
               <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--text3)">2026-08-28 17:41</span>
             </div>
-            <span style="font-size:12.5px;color:var(--text2);text-wrap:pretty">Pinning the Supplier A SKU. Supplier C is cheaper per kilo but 8 days slower and we are already below safety.</span>
+            <span style="font-size:12.5px;color:var(--text2);text-wrap:pretty">Pinning the Supplier A SKU. Supplier B is cheaper per kilo but 8 days slower and we are already below safety.</span>
           </div>
         </div>
         <div style="display:flex;gap:6px">
@@ -708,6 +708,114 @@
           <span style="font-size:12px;color:var(--text3);text-wrap:pretty">{{ s.note }}</span>
         </div>
       </sc-for>
+    </div>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3)">08</span>
+      <h2 style="margin:0;font-size:22px;line-height:28px;font-weight:600;letter-spacing:-.011em">Module registry &amp; KPI catalog</h2>
+      <span style="font-size:12.5px;color:var(--text3)">Origin-only surfaces. State pills are plain — the round/square marker language belongs to the two-axis stock statuses.</span>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:start">
+      <sc-for list="{{ moduleCards }}" as="m" hint-placeholder-count="5">
+        <div style="background:var(--surface);border:1px solid {{ m.frame }};border-radius:10px;overflow:hidden">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:14px 16px 12px">
+            <div style="display:flex;flex-direction:column;gap:3px;min-width:0">
+              <span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--text3)">{{ m.id }}</span>
+              <div style="display:flex;align-items:baseline;gap:8px">
+                <span style="font-size:14px;font-weight:600">{{ m.name }}</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text2)">{{ m.version }}</span>
+              </div>
+            </div>
+            <span style="display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 9px;border-radius:999px;background:{{ m.stateBg }};color:{{ m.stateFg }};font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:500;white-space:nowrap;flex:none"><span style="width:5px;height:5px;border-radius:999px;background:{{ m.stateFg }}"></span>{{ m.state }}</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:9px;padding:0 16px 14px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);width:52px;flex:none">Probe</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:{{ m.probeColor }}">{{ m.probe }}</span>
+            </div>
+            <div style="display:flex;align-items:flex-start;gap:8px">
+              <span style="font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);width:52px;flex:none;padding-top:2px">Fault</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:11px;line-height:16px;color:{{ m.faultColor }};text-wrap:pretty">{{ m.fault }}</span>
+            </div>
+            <div style="display:flex;align-items:flex-start;gap:8px">
+              <span style="font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);width:52px;flex:none;padding-top:2px">Deps</span>
+              <div style="display:flex;flex-wrap:wrap;gap:5px">
+                <sc-for list="{{ m.deps }}" as="d" hint-placeholder-count="2">
+                  <span style="display:inline-flex;align-items:center;height:20px;padding:0 8px;border:1px solid {{ d.border }};border-radius:6px;color:{{ d.fg }};font-family:'JetBrains Mono',monospace;font-size:10.5px">{{ d.id }}</span>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+          <div style="padding:11px 16px;border-top:1px solid var(--line);background:var(--raised)">
+            <span style="font-size:12px;line-height:17px;color:var(--text3);text-wrap:pretty">{{ m.note }}</span>
+          </div>
+        </div>
+      </sc-for>
+
+      <div style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px">
+        <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Staged upgrade track</span>
+        <div style="display:flex;flex-direction:column;gap:0">
+          <sc-for list="{{ upgradeTrack }}" as="s" hint-placeholder-count="5">
+            <div style="display:flex;align-items:center;gap:11px;padding:5px 0">
+              <span style="width:14px;height:14px;border-radius:999px;flex:none;background:{{ s.dot }};border:1px solid {{ s.ring }}"></span>
+              <span style="flex:1;font-family:'JetBrains Mono',monospace;font-size:12px;color:{{ s.color }}">{{ s.label }}</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text3)">{{ s.meta }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <span style="font-size:12px;line-height:17px;color:var(--text3);text-wrap:pretty">{{ upgradeNote }}</span>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;align-items:start">
+      <sc-for list="{{ kpiDemo }}" as="k" hint-placeholder-count="4">
+        <div style="background:{{ k.bg }};border:1px solid {{ k.frame }};border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px">
+            <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">{{ k.name }}</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text3)">{{ k.code }}</span>
+          </div>
+          <div style="display:flex;align-items:baseline;gap:8px">
+            <span style="font-family:'JetBrains Mono',monospace;font-size:25px;line-height:30px;font-weight:500;font-variant-numeric:tabular-nums">{{ k.value }}</span>
+            <div style="flex:1"></div>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:500;color:{{ k.deltaColor }}">{{ k.delta }}</span>
+          </div>
+          {{ k.spark }}
+          <div style="display:flex;flex-direction:column;gap:3px;padding-top:8px;border-top:1px solid var(--line)">
+            <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--text3)">{{ k.target }}</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:{{ k.freshColor }}">{{ k.fresh }}</span>
+          </div>
+          <sc-if value="{{ k.badge }}" hint-placeholder-val="{{ false }}">
+            <span style="display:inline-flex;align-items:center;height:22px;padding:0 9px;border:1px solid color-mix(in srgb,var(--crit) 34%,transparent);border-radius:6px;background:color-mix(in srgb,var(--crit) 12%,transparent);color:var(--crit);font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:500;width:fit-content">{{ k.badge }}</span>
+          </sc-if>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start">
+      <div style="background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden">
+        <div style="display:flex;flex-direction:column;gap:4px;padding:16px 18px;border-bottom:1px solid var(--line)">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3)">SRC-01 · catalog row</span>
+          <span style="font-size:16px;font-weight:600;letter-spacing:-.011em">Proposals actioned</span>
+        </div>
+        <div style="display:flex;flex-direction:column;padding:4px 18px 16px">
+          <sc-for list="{{ kpiDefRows }}" as="r" hint-placeholder-count="6">
+            <div style="display:flex;flex-direction:column;gap:3px;padding:11px 0;border-bottom:1px solid var(--line)">
+              <span style="font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">{{ r.label }}</span>
+              <span style="font:{{ r.font }};color:var(--text);text-wrap:pretty">{{ r.value }}</span>
+            </div>
+          </sc-for>
+          <span style="font-size:12px;line-height:17px;color:var(--text3);padding-top:12px;text-wrap:pretty">{{ kpiDefNote }}</span>
+        </div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:10px">
+        <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Copy rules for module surfaces</span>
+        <span style="font-size:13px;line-height:20px;color:var(--text2);text-wrap:pretty">Module copy is as plain as the domain copy. “Nothing below runs while the module is paused.” “Disabled modules keep no routes and run no jobs.” Governed copy is never paraphrased.</span>
+        <span style="font-size:13px;line-height:20px;color:var(--text2);text-wrap:pretty">A dependent surface renders the unavailable state in place of its figure. A zero would be a lie, so the state is rendered instead — and nothing that is not running may show a skeleton or a progress bar.</span>
+        <span style="font-size:13px;line-height:20px;color:var(--text2);text-wrap:pretty">Every transition carries a reason and lands in the ledger. Removal arms only once the module id is typed.</span>
+      </div>
     </div>
   </section>
 
@@ -885,7 +993,7 @@ class Component extends DCLogic {
 
   boxplot(w, h) {
     w = w || 300; h = h || 118;
-    const rows = [['Supplier A', 8, 14, 19, 26, 31], ['Supplier C', 6, 9, 11, 14, 22], ['Supplier B', 3, 5, 6, 8, 11]];
+    const rows = [['Supplier A', 8, 14, 19, 26, 31], ['Supplier B', 6, 9, 11, 14, 22], ['Supplier C', 3, 5, 6, 8, 11]];
     const max = 34, x = v => 62 + v / max * (w - 74);
     return E('svg', { viewBox: `0 0 ${w} ${h}`, style: { display: 'block', width: '100%' } },
       [0, 10, 20, 30].map(v => E('g', { key: v },
@@ -964,8 +1072,8 @@ class Component extends DCLogic {
       { label: 'Open in Item 360', meta: '↗', bg: 'transparent', color: 'var(--text2)' },
     ];
     V.notifications = [
-      { text: 'Proposal PR-2291 approved', when: '09:14 · Owner D', dot: 'var(--ok)', bg: mix('var(--info)', 5) },
-      { text: 'Lead-time suggestion rejected · Supplier C', when: 'yesterday · Owner A', dot: 'var(--pend)', bg: 'transparent' },
+      { text: 'Proposal PR-2291 approved', when: '09:14 · Owner C', dot: 'var(--ok)', bg: mix('var(--info)', 5) },
+      { text: 'Lead-time suggestion rejected · Supplier B', when: 'yesterday · Owner A', dot: 'var(--pend)', bg: 'transparent' },
       { text: 'Ingest failed validation — 12 rows', when: 'yesterday 06:14', dot: 'var(--crit)', bg: 'transparent' },
     ];
 
@@ -1048,7 +1156,7 @@ class Component extends DCLogic {
       { kind: 'status pill', demo: this.pill('Below Safety', 'var(--crit)', false) },
       { kind: 'supply pill', demo: this.pill('Proposal open', 'var(--info)', true) },
       { kind: 'trend', demo: this.spark('var(--mut)', [8, 6, 7, 5, 4, 3, 2, 1], 72, 20) },
-      { kind: 'owner', demo: E('span', { style: { display: 'flex', alignItems: 'center', gap: 7 } }, E('span', { style: { width: 20, height: 20, borderRadius: 999, background: '#2A6FA6', color: '#E8EBED', font: `500 9.5px/20px ${SANS}`, textAlign: 'center' } }, 'AL'), E('span', { style: { font: `400 12.5px ${SANS}`, color: 'var(--text2)' } }, 'Owner A')) },
+      { kind: 'owner', demo: E('span', { style: { display: 'flex', alignItems: 'center', gap: 7 } }, E('span', { style: { width: 20, height: 20, borderRadius: 999, background: '#2A6FA6', color: '#E8EBED', font: `500 9.5px/20px ${SANS}`, textAlign: 'center' } }, 'OA'), E('span', { style: { font: `400 12.5px ${SANS}`, color: 'var(--text2)' } }, 'Owner A')) },
     ];
     V.expandDetail = [
       { label: 'Daily usage', value: '294.0 KG', color: 'var(--text)' },
@@ -1063,8 +1171,8 @@ class Component extends DCLogic {
     // ── 03 data entry ──
     V.comboItems = [
       { label: 'Supplier A', meta: '42 refs', bg: 'var(--hover)', color: 'var(--text)' },
-      { label: 'Supplier A', meta: '8 refs', bg: 'transparent', color: 'var(--text)' },
-      { label: 'Al Supplier A', meta: 'no refs', bg: 'transparent', color: 'var(--text2)' },
+      { label: 'Supplier A Trading', meta: '8 refs', bg: 'transparent', color: 'var(--text)' },
+      { label: 'Supplier A Supplies', meta: 'no refs', bg: 'transparent', color: 'var(--text2)' },
     ];
     V.scopeTokens = [{ label: 'BahrainMP' }, { label: 'Protein Items' }, { label: 'Dry Goods' }];
     V.datePresets = [
@@ -1131,15 +1239,15 @@ class Component extends DCLogic {
     }));
     const actBtn = (label, primary) => E('span', { style: { display: 'inline-flex', alignItems: 'center', height: 26, padding: '0 10px', borderRadius: 6, border: primary ? '1px solid var(--text)' : '1px solid var(--lineS)', background: primary ? 'var(--text)' : 'var(--raised)', color: primary ? 'var(--inv)' : 'var(--text2)', font: `500 12px/1 ${SANS}`, cursor: 'pointer', flex: 'none' } }, label);
     V.approvals = [
-      { initials: 'NA', role: 'Buyer — Owner D', meta: 'approved 2026-08-29 08:02', avatarBg: '#2A6FA6', bg: mix('var(--ok)', 7), border: mix('var(--ok)', 24), action: this.pill('DONE', 'var(--ok)', false) },
-      { initials: 'AL', role: 'Director — Owner A', meta: 'waiting · 2nd of 2', avatarBg: '#5B4B8A', bg: mix('var(--info)', 7), border: mix('var(--info)', 24), action: E('span', { style: { display: 'inline-flex', gap: 6 } }, actBtn('Reject', false), actBtn('Approve', true)) },
-      { initials: 'SK', role: 'Planner — Owner E', meta: 'notified only', avatarBg: '#3F5C4A', bg: 'transparent', border: 'var(--line)', action: this.pill('FYI', 'var(--mut)', true) },
+      { initials: 'OC', role: 'Buyer — Owner C', meta: 'approved 2026-08-29 08:02', avatarBg: '#2A6FA6', bg: mix('var(--ok)', 7), border: mix('var(--ok)', 24), action: this.pill('DONE', 'var(--ok)', false) },
+      { initials: 'OA', role: 'Director — Owner A', meta: 'waiting · 2nd of 2', avatarBg: '#5B4B8A', bg: mix('var(--info)', 7), border: mix('var(--info)', 24), action: E('span', { style: { display: 'inline-flex', gap: 6 } }, actBtn('Reject', false), actBtn('Approve', true)) },
+      { initials: 'OB', role: 'Planner — Owner B', meta: 'notified only', avatarBg: '#3F5C4A', bg: 'transparent', border: 'var(--line)', action: this.pill('FYI', 'var(--mut)', true) },
     ];
     V.audit = [
-      { text: 'Safety days 5 → 7 on Beef Topside', who: 'Owner E', when: '2026-08-29 09:14', hash: 'a41f…9c2', dot: 'var(--info)' },
-      { text: 'Proposal PR-2291 approved', who: 'Owner D', when: '2026-08-29 08:02', hash: '7b30…41e', dot: 'var(--ok)' },
+      { text: 'Safety days 5 → 7 on Beef Topside', who: 'Owner B', when: '2026-08-29 09:14', hash: 'a41f…9c2', dot: 'var(--info)' },
+      { text: 'Proposal PR-2291 approved', who: 'Owner C', when: '2026-08-29 08:02', hash: '7b30…41e', dot: 'var(--ok)' },
       { text: 'Ingest rejected — 12 validation failures', who: 'system', when: '2026-08-27 06:14', hash: 'c982…0aa', dot: 'var(--crit)' },
-      { text: 'Preferred SKU pinned on Feta Cheese', who: 'Owner B', when: '2026-08-26 15:38', hash: '1de4…77b', dot: 'var(--info)' },
+      { text: 'Preferred SKU pinned on Feta Cheese', who: 'Owner D', when: '2026-08-26 15:38', hash: '1de4…77b', dot: 'var(--info)' },
     ];
     V.diffs = [
       { field: 'Available (KG)', from: '980.0', to: '412.5', color: 'var(--crit)' },
@@ -1173,6 +1281,13 @@ class Component extends DCLogic {
     const body = (t) => E('span', { style: { font: `400 12px/17px ${SANS}`, color: 'var(--text2)', maxWidth: '34ch', textWrap: 'pretty' } }, t);
     const btn = (t, primary) => E('span', { style: { display: 'inline-flex', alignItems: 'center', height: 28, padding: '0 11px', borderRadius: 6, border: primary ? '1px solid var(--text)' : '1px solid var(--lineS)', background: primary ? 'var(--text)' : 'var(--raised)', color: primary ? 'var(--inv)' : 'var(--text)', font: `500 12px/1 ${SANS}`, cursor: 'pointer' } }, t);
 
+    const MOD_NOTES = {
+      REGISTERED: 'Installed, never enabled. No routes, no jobs, no state.',
+      ENABLED: 'Running normally.',
+      PAUSED: 'Quiesced. In-flight jobs drain, the queue is held, state is kept.',
+      DISABLED: 'Cold. Disabled modules keep no routes and run no jobs.',
+      FAULTED: 'Circuit open. Calls fail fast until recovered.',
+    };
     V.states = [
       {
         kind: 'LOADING', dot: 'var(--info)', frame: 'var(--line)',
@@ -1204,7 +1319,64 @@ class Component extends DCLogic {
         body: centered([title('Export is denied for your role'), body('Viewer cannot export. Deny always wins over an inherited allow — ask a director to change the matrix.')]),
         note: 'Explains the rule rather than hiding the control, so the user knows what to request.',
       },
+      {
+        kind: 'MODULE DISABLED', dot: 'var(--mut)', frame: 'var(--line)',
+        body: centered([title('Unavailable — module disabled by Origin'), body('Order Proposals was disabled by Origin · staging a schema change · 2026-08-29 04:12. No proposals are being raised.')]),
+        note: 'Neutral, not an error. States who disabled it and why, with no retry — nothing is broken.',
+      },
+      {
+        kind: 'MODULE PAUSED', dot: 'var(--warn)', frame: mix('var(--warn)', 30),
+        body: centered([title('Jobs are held — maintenance or upgrade in progress'), body('Order Proposals was paused by Origin at 2026-08-29 04:12 · staging 3.3.7 upgrade. Counts resume when it does.')]),
+        note: 'No skeleton and no progress bar — nothing is in flight, so nothing may look like it is.',
+      },
+      {
+        kind: 'MODULE FAULTED', dot: 'var(--crit)', frame: mix('var(--crit)', 30),
+        body: centered([title('Failed 5 times — circuit open'), body('Intelligence stopped responding at 2026-08-30 02:41.'), E('div', { style: { display: 'flex', gap: 6, paddingTop: 2 } }, btn('Retry once', true), btn('Data Health', false))]),
+        note: 'One retry hint and a link to Data Health. A dependent surface renders this in place, never a zero.',
+      },
     ];
+
+    // ── 08 · module registry + KPI catalog ──
+    const MODS = [
+      ['core.ledger', 'Ledger & Audit', '4.2.1', 'ENABLED', 'var(--ok)', ['—'], '1m ago', 'var(--ok)', 'no faults on record', 'var(--text3)'],
+      ['imports.landed', 'Landed Cost', '0.9.3', 'REGISTERED', 'var(--mut)', ['buying.proposals'], 'never probed', 'var(--text3)', 'no faults on record', 'var(--text3)'],
+      ['buying.proposals', 'Order Proposals', '3.3.7', 'PAUSED', 'var(--warn)', ['planning.mrp', 'supplier.registry'], '6m ago', 'var(--ok)', '2026-08-29 04:12 · paused for 3.3.7 upgrade', 'var(--crit)'],
+      ['legacy.exporter', 'Legacy Exporter', '1.4.0', 'DISABLED', 'var(--mut)', ['core.ledger'], '—', 'var(--text3)', '2026-06-01 09:00 · superseded by PDF export', 'var(--text3)'],
+      ['intel.reports', 'Intelligence', '1.0.1', 'FAULTED', 'var(--crit)', ['analytics.kpi'], '34m ago', 'var(--crit)', '2026-08-30 02:41 · worker exceeded memory ceiling', 'var(--crit)'],
+    ];
+    V.moduleCards = MODS.map(([id, name, version, state, color, deps, probe, probeColor, fault, faultColor]) => ({
+      id, name, version: 'v' + version, state, stateFg: color, stateBg: mix(color, 14),
+      frame: state === 'FAULTED' ? mix('var(--crit)', 30) : 'var(--line)',
+      probe, probeColor, fault, faultColor,
+      note: MOD_NOTES[state],
+      deps: deps.map(d => ({ id: d, fg: d === '—' ? 'var(--text3)' : 'var(--text2)', border: 'var(--lineS)' })),
+    }));
+    V.upgradeTrack = ['compatibility check', 'paused', 'swap', 'golden tests', 'resumed'].map((label, i) => {
+      const done = i < 3, cur = i === 3;
+      return {
+        label,
+        color: cur ? 'var(--crit)' : done ? 'var(--ok)' : 'var(--text3)',
+        dot: cur ? 'var(--crit)' : done ? 'var(--ok)' : 'transparent',
+        ring: cur ? 'var(--crit)' : done ? 'var(--ok)' : 'var(--lineS)',
+        meta: cur ? 'failed 2 of 41' : done ? 'done' : 'waiting',
+      };
+    });
+    V.upgradeNote = 'A failed golden stage leaves the module PAUSED and names the failure. It is never auto-resumed, and the pinned version stays available for rollback.';
+    V.kpiDemo = [
+      { code: 'SRC-01', name: 'Proposals actioned', value: '84.0%', delta: '+6pp', deltaColor: 'var(--crit)', target: 'target 90 – 100% · buyer roles', fresh: 'sealed ingest 2026-08-30 06:00', freshColor: 'var(--text3)', frame: 'var(--line)', bg: 'transparent', badge: '', spark: this.spark('var(--crit)', [72, 76, 79, 78, 81, 83, 82, 84]) },
+      { code: 'DAT-03', name: 'Ingest freshness', value: '2.0', delta: '+1.0d', deltaColor: 'var(--crit)', target: 'target under 1.0d · data steward', fresh: 'Stale — computed on a 2-day-old ingest', freshColor: 'var(--warn)', frame: mix('var(--warn)', 26), bg: mix('var(--warn)', 5), badge: '', spark: this.spark('var(--warn)', [0.4, 0.5, 0.4, 0.6, 1.0, 1.4, 1.8, 2.0]) },
+      { code: 'INV-04', name: 'Shortages', value: '10', delta: '+6', deltaColor: 'var(--crit)', target: 'target 0 · supply-chain roles', fresh: 'sealed ingest 2026-08-30 06:00', freshColor: 'var(--text3)', frame: mix('var(--crit)', 26), bg: 'transparent', badge: 'Red 2 reviews — task raised', spark: this.spark('var(--crit)', [4, 6, 5, 8, 7, 11, 9, 10]) },
+      { code: 'TM-03', name: 'Overdue tasks', value: '0', delta: '—', deltaColor: 'var(--text3)', target: 'target 0 · director', fresh: 'sealed ingest 2026-08-30 06:00', freshColor: 'var(--text3)', frame: 'var(--line)', bg: 'transparent', badge: '', spark: this.spark('var(--mut)', [3, 2, 2, 1, 1, 0, 0, 0]) },
+    ];
+    V.kpiDefRows = [
+      ['Definition', 'Share of raised proposals a buyer accepted, rejected or dismissed within the review window.', false],
+      ['Formula', 'actioned proposals ÷ proposals raised, rolling 7d', true],
+      ['Source dataset', 'order_proposals', true],
+      ['Owner role', 'buyer roles', false],
+      ['Refresh cadence', 'hourly', true],
+      ['Target band', '90 – 100%', true],
+    ].map(([label, value, mono]) => ({ label, value, font: mono ? "400 12.5px/20px 'JetBrains Mono', monospace" : "400 13px/20px 'IBM Plex Sans', sans-serif" }));
+    V.kpiDefNote = 'Changing a formula is a spec amendment plus a module version bump. The drawer renders the catalog row read-only.';
 
     return V;
   }

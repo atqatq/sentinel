@@ -199,7 +199,19 @@
           <div style="display:flex;flex-direction:column;gap:16px">
             <div style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px">
               <span style="font-size:14px;font-weight:600">Open work</span>
-              <sc-for list="{{ openWork }}" as="w" hint-placeholder-count="4">
+              <sc-if value="{{ openWorkUnavailable }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;flex-direction:column;gap:8px;padding:18px 14px;border-radius:6px;background:{{ openWorkBg }};border:1px solid {{ openWorkBorder }}">
+                  <span style="display:inline-flex;align-items:center;gap:8px;font-size:12.5px;font-weight:500;color:{{ openWorkFg }}"><span style="width:6px;height:6px;border-radius:999px;background:{{ openWorkFg }}"></span>{{ openWorkTitle }}</span>
+                  <span style="font-size:12.5px;line-height:18px;color:var(--text2);text-wrap:pretty">{{ openWorkBody }}</span>
+                  <div style="display:flex;gap:6px;margin-top:2px">
+                    <sc-if value="{{ openWorkHasRetry }}" hint-placeholder-val="{{ false }}">
+                      <button onClick="{{ openWorkRetry }}" style="height:26px;padding:0 10px;border:1px solid var(--lineS);border-radius:6px;background:var(--raised);color:var(--text);font-size:12px;font-weight:500;cursor:pointer">Retry once</button>
+                    </sc-if>
+                    <button onClick="{{ goModules }}" style="height:26px;padding:0 10px;border:1px solid var(--lineS);border-radius:6px;background:var(--raised);color:var(--info);font-size:12px;font-weight:500;cursor:pointer">Module Management</button>
+                  </div>
+                </div>
+              </sc-if>
+              <sc-for list="{{ openWorkRows }}" as="w" hint-placeholder-count="4">
                 <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding-bottom:9px;border-bottom:1px solid var(--line)">
                   <div style="display:flex;flex-direction:column;gap:1px">
                     <span style="font-size:12.5px">{{ w.label }}</span>
@@ -2259,6 +2271,194 @@
       </div>
     </sc-if>
 
+    <!-- ══════ MODULE MANAGEMENT ══════ -->
+    <sc-if value="{{ isModules }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px">
+          <sc-for list="{{ moduleKpis }}" as="k" hint-placeholder-count="4">
+            <div style="background:var(--surface);border:1px solid {{ k.frame }};border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:8px">
+              <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">{{ k.label }}</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:25px;line-height:30px;font-weight:500;font-variant-numeric:tabular-nums;color:{{ k.color }}">{{ k.value }}</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--text3)">{{ k.meta }}</span>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:10px;background:var(--surface);border:1px solid var(--line)">
+          <span style="width:6px;height:6px;border-radius:999px;background:var(--info);flex:none"></span>
+          <span style="font-size:12.5px;color:var(--text2)">{{ moduleNote }}</span>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start">
+          <sc-for list="{{ modules }}" as="m" hint-placeholder-count="10">
+            <div style="background:var(--surface);border:1px solid {{ m.frame }};border-radius:10px;overflow:hidden">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 16px 12px">
+                <div style="display:flex;flex-direction:column;gap:3px;min-width:0">
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text3)">{{ m.id }}</span>
+                  <div style="display:flex;align-items:baseline;gap:9px">
+                    <span style="font-size:15px;font-weight:600;letter-spacing:-.011em">{{ m.name }}</span>
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--text2)">{{ m.version }}</span>
+                  </div>
+                </div>
+                <span style="display:inline-flex;align-items:center;gap:7px;height:24px;padding:0 10px;border-radius:999px;background:{{ m.stateBg }};color:{{ m.stateFg }};font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:500;white-space:nowrap;flex:none"><span style="width:6px;height:6px;border-radius:999px;background:{{ m.stateFg }}"></span>{{ m.state }}</span>
+              </div>
+
+              <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 16px;padding:0 16px 12px">
+                <div style="display:flex;flex-direction:column;gap:3px">
+                  <span style="font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Health probe</span>
+                  <span style="display:inline-flex;align-items:center;gap:7px;font-family:'JetBrains Mono',monospace;font-size:12px;color:{{ m.probeColor }}"><span style="width:6px;height:6px;border-radius:999px;background:{{ m.probeDot }}"></span>{{ m.probe }}</span>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:3px">
+                  <span style="font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Pinned</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text2)">{{ m.pinned }}</span>
+                </div>
+              </div>
+
+              <div style="display:flex;flex-direction:column;gap:4px;padding:0 16px 12px">
+                <span style="font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Last fault</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:17px;color:{{ m.faultColor }};text-wrap:pretty">{{ m.fault }}</span>
+              </div>
+
+              <div style="display:flex;flex-direction:column;gap:7px;padding:0 16px 14px">
+                <span style="font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Dependencies</span>
+                <div style="display:flex;flex-wrap:wrap;gap:6px">
+                  <sc-for list="{{ m.deps }}" as="d" hint-placeholder-count="2">
+                    <button onClick="{{ d.go }}" style="display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 9px;border:1px solid {{ d.border }};border-radius:6px;background:{{ d.bg }};color:{{ d.fg }};font-family:'JetBrains Mono',monospace;font-size:11px;cursor:pointer"><span style="width:5px;height:5px;border-radius:999px;background:{{ d.fg }}"></span>{{ d.id }}</button>
+                  </sc-for>
+                  <sc-if value="{{ m.noDeps }}" hint-placeholder-val="{{ false }}">
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--text3)">none — root module</span>
+                  </sc-if>
+                </div>
+                <sc-if value="{{ m.hasDepWarn }}" hint-placeholder-val="{{ false }}">
+                  <span style="font-size:12px;line-height:17px;color:var(--warn);text-wrap:pretty">{{ m.depWarn }}</span>
+                </sc-if>
+              </div>
+
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 16px;border-top:1px solid var(--line);background:var(--raised)">
+                <button onClick="{{ m.toggleDrawer }}" style="border:none;background:transparent;color:var(--info);font-size:12.5px;cursor:pointer;padding:0">{{ m.drawerLabel }}</button>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+                  <sc-for list="{{ m.actions }}" as="a" hint-placeholder-count="2">
+                    <button onClick="{{ a.go }}" style="height:28px;padding:0 11px;border:1px solid {{ a.border }};border-radius:6px;background:{{ a.bg }};color:{{ a.fg }};font-size:12.5px;font-weight:500;cursor:pointer;white-space:nowrap;flex:none">{{ a.label }}</button>
+                  </sc-for>
+                </div>
+              </div>
+
+              <sc-if value="{{ m.drawerOpen }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;flex-direction:column;gap:0;padding:4px 16px 14px;border-top:1px solid var(--line)">
+                  <span style="font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);padding:12px 0 8px">Ledger history</span>
+                  <sc-for list="{{ m.ledger }}" as="l" hint-placeholder-count="3">
+                    <div style="display:grid;grid-template-columns:128px 158px minmax(0,1fr);align-items:baseline;gap:10px;padding:7px 0;border-top:1px solid var(--line)">
+                      <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3)">{{ l.when }}</span>
+                      <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:500;color:{{ l.eventColor }}">{{ l.event }}</span>
+                      <span style="font-size:12px;line-height:17px;color:var(--text2);text-wrap:pretty">{{ l.reason }} · {{ l.actor }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ══════ KPI DASHBOARD ══════ -->
+    <sc-if value="{{ isKpi }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">
+          <sc-for list="{{ kpiTabs }}" as="t" hint-placeholder-count="7">
+            <button onClick="{{ t.go }}" style="display:inline-flex;align-items:center;gap:8px;height:30px;padding:0 11px;border:1px solid {{ t.border }};border-radius:6px;background:{{ t.bg }};color:{{ t.fg }};font-size:12.5px;font-weight:500;cursor:pointer;white-space:nowrap">
+              <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--text3)">{{ t.code }}</span>{{ t.label }}
+            </button>
+          </sc-for>
+          <div style="flex:1"></div>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--text3)">{{ kpiScopeLabel }}</span>
+        </div>
+
+        <sc-if value="{{ kpiUnavailable }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:10px;padding:72px 24px;background:{{ kpiUnavailBg }};border:1px solid {{ kpiUnavailBorder }};border-radius:10px">
+            <span style="width:8px;height:8px;border-radius:999px;background:{{ kpiUnavailFg }}"></span>
+            <span style="font-size:15px;font-weight:600;color:{{ kpiUnavailFg }}">{{ kpiUnavailTitle }}</span>
+            <span style="max-width:56ch;font-size:12.5px;color:var(--text2);text-align:center;text-wrap:pretty">{{ kpiUnavailBody }}</span>
+            <sc-if value="{{ kpiUnavailHasRetry }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;gap:8px;margin-top:4px">
+                <button onClick="{{ kpiUnavailRetry }}" style="height:30px;padding:0 12px;border:1px solid var(--lineS);border-radius:6px;background:var(--raised);color:var(--text);font-size:12.5px;font-weight:500;cursor:pointer">Retry once</button>
+                <button onClick="{{ kpiUnavailLink }}" style="height:30px;padding:0 12px;border:1px solid var(--lineS);border-radius:6px;background:var(--raised);color:var(--info);font-size:12.5px;font-weight:500;cursor:pointer">Data Health</button>
+              </div>
+            </sc-if>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ kpiShowCards }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;align-items:baseline;gap:12px">
+              <span style="font-size:14px;font-weight:600">{{ kpiGroupName }}</span>
+              <span style="font-size:12.5px;color:var(--text3)">{{ kpiGroupOwner }}</span>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px">
+              <sc-for list="{{ kpiCards }}" as="k" hint-placeholder-count="4">
+                <div onClick="{{ k.open }}" style="background:var(--surface);border:1px solid {{ k.frame }};border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:10px;cursor:pointer">
+                  <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px">
+                    <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">{{ k.name }}</span>
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text3)">{{ k.code }}</span>
+                  </div>
+                  <div style="display:flex;align-items:baseline;gap:8px">
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:25px;line-height:30px;font-weight:500;font-variant-numeric:tabular-nums;color:{{ k.valueColor }}">{{ k.value }}</span>
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--text3)">{{ k.unit }}</span>
+                    <div style="flex:1"></div>
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:500;color:{{ k.deltaColor }}">{{ k.delta }}</span>
+                  </div>
+                  {{ k.spark }}
+                  <div style="display:flex;flex-direction:column;gap:3px;padding-top:2px;border-top:1px solid var(--line)">
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--text3);padding-top:8px">{{ k.target }} · {{ k.owner }}</span>
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:{{ k.freshColor }}">{{ k.freshness }}</span>
+                  </div>
+                  <sc-if value="{{ k.escalated }}" hint-placeholder-val="{{ false }}">
+                    <button onClick="{{ k.openTask }}" style="display:inline-flex;align-items:center;gap:7px;height:24px;padding:0 9px;border:1px solid color-mix(in srgb,var(--crit) 34%,transparent);border-radius:6px;background:color-mix(in srgb,var(--crit) 12%,transparent);color:var(--crit);font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:500;cursor:pointer;width:fit-content">{{ k.escalationLabel }}</button>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ kpiShowCh }}" hint-placeholder-val="{{ false }}">
+          <div style="display:grid;grid-template-columns:270px minmax(0,1fr);gap:16px;align-items:start">
+            <div style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:2px">
+              <span style="font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);padding:6px 8px 8px">Tenant → warehouse</span>
+              <sc-for list="{{ kpiWhRail }}" as="w" hint-placeholder-count="8">
+                <button onClick="{{ w.go }}" style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 9px;border:1px solid {{ w.border }};border-radius:6px;background:{{ w.bg }};color:{{ w.fg }};font-size:12.5px;text-align:start;cursor:pointer">
+                  <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ w.label }}</span>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;font-variant-numeric:tabular-nums;flex:none">{{ w.value }}</span>
+                </button>
+              </sc-for>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:16px">
+              <div style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:14px">
+                <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px">
+                  <div style="display:flex;flex-direction:column;gap:3px">
+                    <span style="font-size:14px;font-weight:600">{{ chTitle }}</span>
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3)">{{ chMeta }}</span>
+                  </div>
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:500;font-variant-numeric:tabular-nums">{{ chValue }}</span>
+                </div>
+                {{ chChart }}
+              </div>
+              <div style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px">
+                <span style="font-size:14px;font-weight:600">Value by warehouse</span>
+                <sc-for list="{{ chBars }}" as="b" hint-placeholder-count="7">
+                  <div style="display:grid;grid-template-columns:210px minmax(0,1fr) 62px;align-items:center;gap:10px">
+                    <span style="font-size:12.5px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ b.label }}</span>
+                    <div style="height:8px;border-radius:2px;background:var(--hover)"><div style="height:8px;width:{{ b.pct }};border-radius:2px;background:{{ b.color }}"></div></div>
+                    <span style="font-family:'JetBrains Mono',monospace;font-size:12px;text-align:end;font-variant-numeric:tabular-nums">{{ b.value }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+      </div>
+    </sc-if>
+
     <!-- ══════ STUB / FIRST-RUN EMPTY ══════ -->
     <sc-if value="{{ isStub }}" hint-placeholder-val="{{ false }}">
       <div style="display:flex;flex-direction:column;align-items:center;gap:12px;padding:96px 24px;background:var(--surface);border:1px solid var(--line);border-radius:10px">
@@ -2344,6 +2544,91 @@
     </div>
   </sc-if>
 
+  <!-- ══════ MODULE TRANSITION CONFIRM ══════ -->
+  <sc-if value="{{ modPending }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ cancelPending }}" style="position:fixed;inset:0;z-index:95;display:flex;align-items:center;justify-content:center;padding:32px;background:rgba(11,13,15,.8)">
+      <div style="width:min(520px,100%);background:var(--surface);border:1px solid var(--lineS);border-radius:14px;box-shadow:0 30px 80px rgba(0,0,0,.6);overflow:hidden">
+        <div style="display:flex;flex-direction:column;gap:5px;padding:20px 24px 16px;border-bottom:1px solid var(--line)">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--text3)">{{ pendId }}</span>
+          <span style="font-size:17px;font-weight:600;letter-spacing:-.011em">{{ pendTitle }}</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:14px;padding:18px 24px">
+          <span style="font-size:13px;line-height:20px;color:var(--text2);text-wrap:pretty">{{ pendBody }}</span>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <span style="font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Reason — recorded in the ledger</span>
+            <input placeholder="Why this transition is happening" style="height:34px;padding:0 11px;border:1px solid var(--lineS);border-radius:6px;background:var(--raised);color:var(--text);font-size:13px;outline:none" />
+          </div>
+          <sc-if value="{{ pendDestructive }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:6px;padding:12px;border-radius:6px;background:color-mix(in srgb,var(--crit) 8%,transparent);border:1px solid color-mix(in srgb,var(--crit) 30%,transparent)">
+              <span style="font-size:12.5px;color:var(--crit)">Type the module id to confirm removal.</span>
+              <input value="{{ pendConfirmText }}" onChange="{{ onPendConfirmText }}" placeholder="{{ pendId }}" style="height:32px;padding:0 10px;border:1px solid color-mix(in srgb,var(--crit) 40%,transparent);border-radius:6px;background:var(--raised);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12.5px;outline:none" />
+            </div>
+          </sc-if>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:14px 24px;border-top:1px solid var(--line);background:var(--raised)">
+          <button onClick="{{ cancelPending }}" style="height:32px;padding:0 14px;border:1px solid var(--lineS);border-radius:6px;background:var(--surface);color:var(--text);font-size:13px;font-weight:500;cursor:pointer">Cancel</button>
+          <button onClick="{{ confirmPending }}" style="height:32px;padding:0 14px;border:1px solid {{ pendArmBorder }};border-radius:6px;background:{{ pendArmBg }};color:{{ pendArmFg }};font-size:13px;font-weight:500;cursor:pointer">{{ pendCta }}</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ══════ STAGED UPGRADE TRACK ══════ -->
+  <sc-if value="{{ modUpgradeOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;inset-inline-end:24px;bottom:24px;z-index:96;width:min(420px,calc(100vw - 48px));background:var(--surface);border:1px solid var(--lineS);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,.55);overflow:hidden;animation:sdsIn 200ms cubic-bezier(.2,0,0,1)">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line)">
+        <div style="display:flex;flex-direction:column;gap:3px">
+          <span style="font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">Staged upgrade</span>
+          <span style="font-size:14px;font-weight:600">{{ upgradeTitle }}</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3)">{{ upgradePinned }}</span>
+        </div>
+        <button onClick="{{ upgradeClose }}" style="width:26px;height:26px;border:1px solid var(--lineS);border-radius:6px;background:var(--raised);color:var(--text2);font-size:13px;cursor:pointer;flex:none">×</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:0;padding:12px 16px">
+        <sc-for list="{{ upgradeStages }}" as="s" hint-placeholder-count="5">
+          <div style="display:flex;align-items:center;gap:11px;padding:6px 0">
+            <span style="width:14px;height:14px;border-radius:999px;flex:none;background:{{ s.dot }};border:1px solid {{ s.ring }}"></span>
+            <span style="flex:1;font-family:'JetBrains Mono',monospace;font-size:12.5px;color:{{ s.color }}">{{ s.label }}</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--text3)">{{ s.meta }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="padding:0 16px 12px">
+        <span style="font-size:12.5px;line-height:18px;color:{{ upgradeNoteColor }};text-wrap:pretty">{{ upgradeNote }}</span>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:12px 16px;border-top:1px solid var(--line);background:var(--raised)">
+        <sc-if value="{{ upgradeCanRollback }}" hint-placeholder-val="{{ true }}">
+          <button onClick="{{ upgradeRollback }}" style="height:30px;padding:0 12px;border:1px solid var(--lineS);border-radius:6px;background:var(--surface);color:var(--text);font-size:12.5px;font-weight:500;cursor:pointer">Roll back to pinned</button>
+        </sc-if>
+        <button onClick="{{ upgradeAdvance }}" style="height:30px;padding:0 12px;border:1px solid var(--text);border-radius:6px;background:var(--text);color:var(--inv);font-size:12.5px;font-weight:500;cursor:pointer">Advance stage</button>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ══════ KPI DEFINITION DRAWER ══════ -->
+  <sc-if value="{{ kpiDrawer }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeKpiDrawer }}" style="position:fixed;inset:0;z-index:95;display:flex;align-items:stretch;justify-content:flex-end;background:rgba(11,13,15,.72)">
+      <div style="width:min(480px,100%);height:100%;overflow:auto;background:var(--surface);border-inline-start:1px solid var(--lineS);box-shadow:-24px 0 60px rgba(0,0,0,.5)">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:22px 24px 18px;border-bottom:1px solid var(--line)">
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--text3)">{{ dkCode }} · catalog row</span>
+            <span style="font-size:18px;font-weight:600;letter-spacing:-.011em">{{ dkName }}</span>
+          </div>
+          <button onClick="{{ closeKpiDrawer }}" style="width:30px;height:30px;border:1px solid var(--lineS);border-radius:6px;background:var(--raised);color:var(--text2);font-size:14px;cursor:pointer;flex:none">×</button>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:0;padding:8px 24px 20px">
+          <sc-for list="{{ dkRows }}" as="r" hint-placeholder-count="6">
+            <div style="display:flex;flex-direction:column;gap:4px;padding:13px 0;border-bottom:1px solid var(--line)">
+              <span style="font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)">{{ r.label }}</span>
+              <span style="font:{{ r.font }};color:var(--text);text-wrap:pretty">{{ r.value }}</span>
+            </div>
+          </sc-for>
+          <span style="font-size:12.5px;line-height:18px;color:var(--text3);padding-top:14px;text-wrap:pretty">{{ dkNote }}</span>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
   <!-- ══════ COMMAND PALETTE ══════ -->
   <sc-if value="{{ palette }}" hint-placeholder-val="{{ false }}">
     <div onClick="{{ closePalette }}" style="position:fixed;inset:0;z-index:100;display:flex;align-items:flex-start;justify-content:center;padding:12vh 24px;background:rgba(11,13,15,.72)">
@@ -2380,7 +2665,7 @@
   </sc-if>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440},&quot;startScreen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;command&quot;,&quot;options&quot;:[&quot;command&quot;,&quot;mrp&quot;,&quot;compare&quot;,&quot;profiles&quot;,&quot;optimize&quot;,&quot;proposals&quot;,&quot;upload&quot;,&quot;health&quot;,&quot;suppliers&quot;,&quot;tasks&quot;,&quot;audit&quot;,&quot;bootstrap&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Demo state&quot;},&quot;exceptionHeavy&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Demo state&quot;},&quot;showStaleBanner&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Demo state&quot;}}">
+<script type="text/x-dc" data-dc-script data-props="{&quot;startScreen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;command&quot;,&quot;options&quot;:[&quot;command&quot;,&quot;kpi&quot;,&quot;mrp&quot;,&quot;compare&quot;,&quot;profiles&quot;,&quot;optimize&quot;,&quot;proposals&quot;,&quot;modules&quot;,&quot;bootstrap&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Demo state&quot;},&quot;originSession&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Demo state&quot;,&quot;label&quot;:&quot;Origin session (shows Module Management)&quot;},&quot;proposalsModuleState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;PAUSED&quot;,&quot;options&quot;:[&quot;ENABLED&quot;,&quot;PAUSED&quot;,&quot;DISABLED&quot;,&quot;FAULTED&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Demo state&quot;,&quot;label&quot;:&quot;Order Proposals module state&quot;},&quot;exceptionHeavy&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Demo state&quot;},&quot;showStaleBanner&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Demo state&quot;}}">
 const E = React.createElement;
 const mix = (v, p) => `color-mix(in srgb, ${v} ${p}%, transparent)`;
 const S = { OK: 'var(--ok)', 'Below Reorder': 'var(--warn)', 'Below Safety': 'var(--crit)', 'Zero Stock': 'var(--crit)', 'Over Stock': 'var(--info)', Inactive: 'var(--mut)' };
@@ -2402,7 +2687,7 @@ const REFS = [
   'Blue Roll Wiper', 'Sanitiser Spray'];
 const CATS = ['Protein Items', 'Dairy & Poultry', 'Fresh Fruits & Vegetables', 'Dry Goods', 'Spices', 'Packaging – Local', 'Packaging – Imported', 'Cafe Packaging', 'Baked Items', 'Kitchen & Cleaning Supplies'];
 const WHS = ['Dry food and consumables WH', 'Fresh fruits & veg / Dairy Chiller', 'Pastry, Bakery Freezer', 'Protien items Freezer', 'Packaging and paper tissue', 'External 3PL', 'Marketplace – Consignment'];
-const PEOPLE = ['Owner A', 'Owner E', 'Owner D', 'Owner B', 'Owner C', 'Owner F', 'Owner G', 'Owner H'];
+const PEOPLE = ['Owner A', 'Owner B', 'Owner C', 'Owner D', 'Owner E', 'Owner F', 'Owner G', 'Owner H'];
 const UOMS = ['KG', 'CS', 'PCS', 'LTR'];
 // Index-for-index with REFS. Mass for solids, LTR for liquids, PCS/CS for discrete items.
 // Cross-checked against the units hardcoded on other screens: Beef Topside KG (Proposals),
@@ -2423,18 +2708,109 @@ const HERO = {
 };
 
 const NAV = [
-  ['Overview', [['command', 'Command Center'], ['analytics', 'Analytics'], ['consolidated', 'Consolidated'], ['item360', 'Item 360']]],
+  ['Overview', [['command', 'Command Center'], ['analytics', 'Analytics'], ['kpi', 'KPI Dashboard'], ['consolidated', 'Consolidated'], ['item360', 'Item 360']]],
   ['Planning', [['mrp', 'MRP Board'], ['compare', 'Calm vs exception'], ['mrpfuture', 'MRP Future'], ['profiles', 'Planning Profiles'], ['optimize', 'Parameter Optimization'], ['demand', 'Demand & Forecast'], ['tsrc', 'Demand Profile (TSRC)'], ['coverage', 'Coverage']]],
   ['Buying', [['proposals', 'Order Proposals'], ['pos', 'Purchase Orders'], ['prs', 'Purchase Requests'], ['approvals', 'Approvals'], ['imports', 'Imports & Landed Cost'], ['pricing', 'Pricing'], ['savings', 'Savings']]],
   ['Inventory', [['explorer', 'Inventory Explorer'], ['transfers', 'Transfers & Staging'], ['quarantine', 'Quarantine'], ['cyclecount', 'Cycle Count Schedule'], ['ira', 'IRA'], ['whcost', 'Warehouse Cost'], ['lifecycle', 'Lifecycle'], ['continuity', 'Business Continuity']]],
   ['Suppliers', [['suppliers', 'Suppliers'], ['scorecards', 'Supplier Scorecards'], ['buyerscore', 'Buyer Scorecard'], ['leadtime', 'Lead-time Suggestions'], ['preferred', 'Preferred SKU']]],
   ['Work', [['tasks', 'Tasks'], ['projects', 'Projects & Meetings'], ['adherence', 'Proposal Adherence'], ['missed', 'Missed Shortages']]],
   ['Data', [['upload', 'Data Upload'], ['health', 'Data Health'], ['deliveries', 'Deliveries Entry'], ['audit', 'Audit & Time Machine'], ['intel', 'Intelligence']]],
-  ['Admin', [['users', 'Users & Permissions'], ['bootstrap', 'Origin Bootstrap'], ['settings', 'Reference & Settings']]],
+  ['Admin', [['users', 'Users & Permissions'], ['modules', 'Module Management'], ['bootstrap', 'Origin Bootstrap'], ['settings', 'Reference & Settings']]],
 ];
 const BUILT = ['command', 'mrp', 'compare', 'profiles', 'optimize', 'proposals', 'bootstrap', 'upload', 'health', 'suppliers', 'scorecards', 'tasks', 'audit', 'item360', 'coverage', 'pos', 'explorer', 'users', 'mrpfuture', 'demand', 'tsrc', 'whcost', 'cyclecount', 'ira', 'transfers',
   'analytics', 'consolidated', 'pricing', 'savings', 'approvals', 'prs', 'missed', 'adherence', 'preferred',
-  'imports', 'quarantine', 'lifecycle', 'continuity', 'buyerscore', 'leadtime', 'deliveries', 'projects', 'intel', 'settings'];
+  'imports', 'quarantine', 'lifecycle', 'continuity', 'buyerscore', 'leadtime', 'deliveries', 'projects', 'intel', 'settings',
+  'modules', 'kpi'];
+// Origin-only screens are removed from nav and palette for non-Origin sessions — never shown disabled.
+const ORIGIN_ONLY = ['modules'];
+
+// ── Module registry ──────────────────────────────────────────────────────────
+// [id, name, version, pinnedVersion, state, deps, probeAgeMin, lastFault]
+const MODULES = [
+  ['core.ledger', 'Ledger & Audit', '4.2.1', '4.1.9', 'ENABLED', [], 1, null],
+  ['core.identity', 'Identity & Access', '3.8.0', '3.7.4', 'ENABLED', ['core.ledger'], 2, null],
+  ['catalog.units', 'Unit Catalog', '1.6.2', '1.6.0', 'ENABLED', [], 4, null],
+  ['data.ingest', 'Ingest Pipeline', '2.9.4', '2.8.8', 'ENABLED', ['core.ledger'], 1, null],
+  ['supplier.registry', 'Supplier Registry', '2.4.0', '2.3.6', 'ENABLED', ['core.ledger'], 3, null],
+  ['planning.mrp', 'MRP Engine', '5.1.0', '5.0.7', 'ENABLED', ['data.ingest', 'catalog.units'], 1, null],
+  ['analytics.kpi', 'KPI Catalog', '1.2.0', '1.1.8', 'ENABLED', ['data.ingest', 'planning.mrp'], 2, null],
+  ['buying.proposals', 'Order Proposals', '3.3.7', '3.3.2', 'PAUSED', ['planning.mrp', 'supplier.registry'], 6, '2026-08-29 04:12 · paused for 3.3.7 upgrade'],
+  ['imports.landed', 'Landed Cost', '0.9.3', null, 'REGISTERED', ['buying.proposals'], null, null],
+  ['intel.reports', 'Intelligence', '1.0.1', '1.0.0', 'FAULTED', ['analytics.kpi'], 34, '2026-08-30 02:41 · report worker exceeded memory ceiling, 5 consecutive failures'],
+];
+const MOD_STATE = {
+  REGISTERED: { color: 'var(--mut)', note: 'Installed, never enabled. No routes, no jobs, no state.' },
+  ENABLED: { color: 'var(--ok)', note: 'Running normally.' },
+  PAUSED: { color: 'var(--warn)', note: 'Quiesced. In-flight jobs drain, queue held, state kept.' },
+  DISABLED: { color: 'var(--mut)', note: 'Cold. Disabled modules keep no routes and run no jobs.' },
+  FAULTED: { color: 'var(--crit)', note: 'Circuit open. Calls fail fast until recovered.' },
+};
+const UPGRADE_STAGES = ['compatibility check', 'paused', 'swap', 'golden tests', 'resumed'];
+const MOD_LEDGER = {
+  'buying.proposals': [
+    ['2026-08-29 04:12', 'MODULE_PAUSED', 'Owner A', 'Staging 3.3.7 upgrade'],
+    ['2026-08-22 09:30', 'MODULE_UPGRADED', 'Owner A', '3.3.2 → 3.3.6'],
+    ['2026-07-14 11:02', 'MODULE_ENABLED', 'Owner A', 'Initial enable after golden tests'],
+  ],
+  'intel.reports': [
+    ['2026-08-30 02:41', 'MODULE_FAULT', 'system', 'Report worker exceeded memory ceiling, 5 consecutive failures'],
+    ['2026-08-19 16:20', 'MODULE_RECOVERED', 'Owner C', 'Restarted worker, circuit closed'],
+    ['2026-08-19 15:52', 'MODULE_FAULT', 'system', 'Upstream KPI Catalog timeout'],
+    ['2026-06-02 08:15', 'MODULE_ENABLED', 'Owner A', 'Initial enable'],
+  ],
+};
+const MOD_LEDGER_DEFAULT = [
+  ['2026-07-14 11:02', 'MODULE_ENABLED', 'Owner A', 'Initial enable after golden tests'],
+  ['2026-07-14 10:58', 'MODULE_UPGRADED', 'Owner A', 'Registered at current version'],
+];
+
+// ── KPI catalog ──────────────────────────────────────────────────────────────
+// Every KPI is defined once as data. Changing a formula is a spec amendment plus
+// a module version bump, so the definition drawer renders this row read-only.
+const KPI_GROUPS = [
+  ['SRC', 'Sourcing', 'buyer roles'],
+  ['INV', 'Inventory', 'supply-chain roles'],
+  ['DAT', 'Data Health', 'data steward'],
+  ['TM', 'Team Productivity', 'director'],
+  ['PM', 'Project Milestones', 'director'],
+  ['FP', 'Food Philosophy & Production Adherence', 'production lead'],
+  ['CH', 'Inventory Value', 'supply-chain roles'],
+];
+// [group, code, name, value, unit, delta, goodWhenDown, target, formula, dataset, cadence, definition, trend, stale, escalated]
+const KPI_CATALOG = [
+  ['SRC', 'SRC-01', 'Proposals actioned', '84.0', '%', 6.0, false, '90 – 100%', 'actioned proposals ÷ proposals raised, rolling 7d', 'order_proposals', 'hourly', 'Share of raised proposals a buyer accepted, rejected or dismissed within the review window.', [72, 76, 79, 78, 81, 83, 82, 84], false, false],
+  ['SRC', 'SRC-02', 'Median response time', '1.4', 'd', -0.3, true, 'under 1.0d', 'median(actioned_at − raised_at)', 'order_proposals', 'hourly', 'Median elapsed time between Sentinel raising a proposal and a buyer acting on it.', [2.1, 1.9, 1.8, 1.7, 1.6, 1.5, 1.5, 1.4], false, false],
+  ['SRC', 'SRC-03', 'Price variance vs baseline', '2.4', '%', 1.1, true, '−2 – +2%', 'volume-weighted(unit_price) ÷ baseline_12m − 1', 'purchase_orders', 'daily', 'Movement against a twelve-month volume-weighted baseline. Positive is a cost increase.', [0.8, 1.1, 1.4, 1.9, 2.0, 2.2, 2.3, 2.4], false, true],
+  ['SRC', 'SRC-04', 'Single-source refs', '218', '', 12, true, 'under 150', 'count(refs with exactly one mapped SKU)', 'preferred_sku', 'daily', 'Refs with no qualified alternate. The whole business-continuity register derives from this.', [196, 201, 205, 209, 212, 214, 216, 218], false, false],
+  ['INV', 'INV-01', 'Inventory value', '109,138', '', 2.4, true, 'under 105,000', 'sum(available × last_unit_cost)', 'stock_lines', 'hourly', 'Value of stock on hand at last known unit cost, excluding held and consignment stock.', [88, 92, 97, 95, 103, 99, 106, 109], false, false],
+  ['INV', 'INV-02', 'DIO', '38.2', 'd', -1.6, true, 'under 34.0d', 'avg(inventory_value) ÷ cogs_per_day', 'stock_lines', 'daily', 'Days inventory outstanding. How long stock sits before it is consumed.', [44, 43, 41, 42, 40, 39, 39, 38], false, false],
+  ['INV', 'INV-03', 'Service level', '96.8', '%', 0.4, false, 'over 98.0%', '1 − (stockout_lines ÷ demand_lines)', 'stock_lines', 'daily', 'Share of demand lines satisfied from stock without substitution.', [95, 96, 95, 97, 96, 97, 96, 97], false, false],
+  ['INV', 'INV-04', 'Shortages', '10', '', 6, true, '0', 'count(status in Below Safety, Zero Stock)', 'stock_lines', 'hourly', 'Refs below safety stock or at zero. Counted on the shared status rule, so it matches the MRP Board exactly.', [4, 6, 5, 8, 7, 11, 9, 10], false, true],
+  ['DAT', 'DAT-01', 'Suppliers missing lead time', '193', '', -4, true, 'under 20', 'count(suppliers where lead_time_days is null)', 'supplier_registry', 'daily', 'Suppliers with no lead time on file. The largest single cause of missed shortages.', [214, 209, 205, 201, 199, 197, 195, 193], false, false],
+  ['DAT', 'DAT-02', 'Unresolved units', '46', '', -2, true, '0', 'count(distinct uom not in unit_catalog)', 'unit_catalog', 'hourly', 'Units seen in exports with no conversion factor. A ref using one is excluded from planning.', [58, 55, 53, 51, 50, 48, 47, 46], false, false],
+  ['DAT', 'DAT-03', 'Ingest freshness', '2.0', 'd', 1.0, true, 'under 1.0d', 'now − max(sealed_at)', 'ingest_runs', 'hourly', 'Age of the most recent sealed ingest. Everything downstream inherits this staleness.', [0.4, 0.5, 0.4, 0.6, 1.0, 1.4, 1.8, 2.0], true, false],
+  ['DAT', 'DAT-04', 'Unmapped SKUs', '318', '', -12, true, 'under 50', 'count(skus with no recipe_ref)', 'sku_master', 'daily', 'SKUs received but never mapped to a recipe ref. Their stock is invisible to planning.', [356, 348, 341, 335, 330, 326, 322, 318], false, false],
+  ['TM', 'TM-01', 'Tasks closed on time', '78.0', '%', 3.0, false, 'over 85%', 'closed_before_due ÷ closed', 'tasks', 'daily', 'Share of tasks closed on or before their due date.', [70, 72, 71, 74, 75, 76, 77, 78], false, false],
+  ['TM', 'TM-02', 'Open tasks per owner', '4.2', '', -0.4, true, 'under 5.0', 'open_tasks ÷ active_owners', 'tasks', 'daily', 'Mean open task count per active owner. A load measure, not a performance one.', [5.4, 5.1, 4.9, 4.8, 4.6, 4.4, 4.3, 4.2], false, false],
+  ['TM', 'TM-03', 'Overdue tasks', '0', '', 0, true, '0', 'count(tasks where due < today and state is open)', 'tasks', 'hourly', 'Tasks past their due date and still open.', [3, 2, 2, 1, 1, 0, 0, 0], false, false],
+  ['PM', 'PM-01', 'Milestones on track', '6', '', 1, false, 'all', 'count(milestones where forecast <= due)', 'projects', 'weekly', 'Milestones whose forecast completion falls on or before the committed date.', [4, 4, 5, 5, 5, 6, 6, 6], false, false],
+  ['PM', 'PM-02', 'Milestones slipped', '2', '', 1, true, '0', 'count(milestones where forecast > due)', 'projects', 'weekly', 'Milestones forecast to land after their committed date.', [0, 0, 1, 1, 1, 1, 2, 2], false, false],
+  ['PM', 'PM-03', 'Mean slip', '9.0', 'd', 2.0, true, 'under 5.0d', 'mean(forecast − due) over slipped milestones', 'projects', 'weekly', 'Average slip across milestones already forecast late. Sample is small by design.', [4, 5, 6, 6, 7, 8, 8, 9], false, false],
+  ['FP', 'FP-01', 'Recipe adherence', '94.0', '%', 1.0, false, 'over 95%', 'produced_to_spec ÷ produced_batches', 'production_runs', 'daily', 'Share of production batches made to the published recipe with no substitution.', [90, 91, 92, 92, 93, 93, 94, 94], false, false],
+  ['FP', 'FP-02', 'Unapproved substitutions', '11', '', 4, true, '0', 'count(substitutions with no approval)', 'production_runs', 'daily', 'Ingredient substitutions made without a recorded approval.', [4, 5, 6, 7, 8, 9, 10, 11], false, false],
+  ['FP', 'FP-03', 'Waste rate', '2.8', '%', -0.2, true, 'under 3.0%', 'waste_qty ÷ issued_qty', 'stock_movements', 'daily', 'Share of issued quantity written off as waste or spoilage.', [3.4, 3.3, 3.1, 3.0, 3.0, 2.9, 2.9, 2.8], false, false],
+];
+// Inventory value by warehouse, for the CH tenant-warehouse drill-down.
+const KPI_CH = [
+  ['All warehouses', 109138, [88, 92, 97, 95, 103, 99, 106, 109]],
+  ['Dry food and consumables WH', 38240, [30, 32, 34, 33, 36, 35, 37, 38]],
+  ['Protien items Freezer', 24910, [22, 23, 24, 23, 25, 24, 25, 25]],
+  ['Packaging and paper tissue', 17420, [12, 13, 14, 15, 16, 16, 17, 17]],
+  ['Fresh fruits & veg / Dairy Chiller', 12080, [11, 11, 12, 12, 12, 12, 12, 12]],
+  ['External 3PL', 8410, [7, 7, 8, 8, 8, 8, 8, 8]],
+  ['Pastry, Bakery Freezer', 5320, [4, 5, 5, 5, 5, 5, 5, 5]],
+  ['Marketplace – Consignment', 2758, [2, 2, 3, 3, 3, 3, 3, 3]],
+];
 const TITLES = {};
 NAV.forEach(([g, items]) => items.forEach(([id, label]) => { TITLES[id] = { label, group: g }; }));
 
@@ -2515,6 +2891,9 @@ class Component extends DCLogic {
     ingested: false, supplier: 0, taskFilter: null, snapshotIdx: 82,
     item: 0, poFilter: null, wh: 0, matrixRole: 'PLANNER', horizon: 1,
     ship: 0, leadDecisions: {}, receipts: {}, settingsTab: 0,
+    origin: true, modStates: {}, modDrawer: null, modPending: null, modConfirmText: '',
+    modUpgrade: null, upgradeStage: 0, upgradeFailed: false,
+    kpiGroup: 0, kpiDrawer: null, kpiWh: 0,
   };
 
   // Box plot: stated marker against the observed distribution, width scaled by sample size.
@@ -2646,6 +3025,8 @@ class Component extends DCLogic {
     if (p.startScreen && p.startScreen !== this.state.screen) init.screen = p.startScreen;
     if (p.showStaleBanner === false) init.stale = false;
     if (p.exceptionHeavy === false) init.statusFilter = 'OK';
+    if (p.originSession === false) { init.origin = false; if ((init.screen || this.state.screen) === 'modules') init.screen = 'command'; }
+    if (p.proposalsModuleState) init.modStates = { 'buying.proposals': p.proposalsModuleState };
     if (Object.keys(init).length) this.setState(init);
     this.applyRoot();
     this.key = (e) => {
@@ -2713,7 +3094,8 @@ class Component extends DCLogic {
     const V = {};
 
     // ── nav ──
-    V.navGroups = NAV.map(([name, items]) => ({
+    const navVisible = (id) => st.origin || !ORIGIN_ONLY.includes(id);
+    V.navGroups = NAV.map(([name, items]) => [name, items.filter(([id]) => navVisible(id))]).filter(([, items]) => items.length).map(([name, items]) => ({
       name,
       open: st.navOpen === name,
       bg: st.navOpen === name ? 'var(--hover)' : 'transparent',
@@ -2795,6 +3177,8 @@ class Component extends DCLogic {
       deliveries: 'Daily receipt entry against open PO lines. Variance is computed as you type; nothing changes stock until you post.',
       projects: 'Work in flight and what was decided. Every item has an owner.',
       intel: 'Generated analyses of what moved and why. Each one states its evidence and leaves the decision to a human.',
+      modules: 'Every capability is a module with a manifest and a lifecycle. This registry is where Origin sees the chain and moves it.',
+      kpi: 'The weekly review surface. Every KPI is defined once in the catalog — the figure and its definition come from the same row.',
       settings: 'Reference data behind every screen. An unresolved unit silently excludes a ref from planning, so unresolved entries are shown first.',
     };
     V.pageSub = subs[st.screen] || `Sentinel ships empty. This screen needs ${MISSING[st.screen] || 'ingested data'} before it can show anything.`;
@@ -2835,6 +3219,8 @@ class Component extends DCLogic {
     else if (st.screen === 'leadtime') V.pageActions = [btn('Recompute from receipts', true, () => this.fire('Observed lead times recomputed', 'info'))];
     else if (st.screen === 'deliveries') V.pageActions = [btn('Yesterday', false, () => this.fire('Showing 2026-08-28'))];
     else if (st.screen === 'projects' || st.screen === 'intel') V.pageActions = [seg('Projects', 'Intelligence', st.screen === 'projects' ? 'Projects' : 'Intelligence', () => this.go('projects'), () => this.go('intel')), btn('New', true, () => this.fire(st.screen === 'intel' ? 'Analysis queued' : 'Project created'))];
+    else if (st.screen === 'modules') V.pageActions = [btn('Export manifest', false, () => this.fire('Module manifest exported')), btn('Ledger', true, () => this.go('audit'))];
+    else if (st.screen === 'kpi') V.pageActions = [seg('Cards', 'Catalog', 'Cards', () => {}, () => this.fire('Catalog view is the definition drawer on each card', 'info')), btn('Export review pack', true, () => this.fire('W-16 review pack exported'))];
     else if (st.screen === 'settings') V.pageActions = [btn('Resolve 2 units', true, () => this.fire('Unit resolution needs a factor for BAG and TRAY', 'warn'))];
     else V.pageActions = [];
 
@@ -2862,17 +3248,251 @@ class Component extends DCLogic {
     V.isDeliveries = st.screen === 'deliveries';
     V.isProjects = st.screen === 'projects' || st.screen === 'intel';
     V.isSettings = st.screen === 'settings';
+    V.isModules = st.screen === 'modules' && st.origin;
+    V.isKpi = st.screen === 'kpi';
+
+    // ── module registry ──
+    const modState = (id) => st.modStates[id] || (MODULES.find(m => m[0] === id) || [])[4] || 'REGISTERED';
+    const modName = (id) => (MODULES.find(m => m[0] === id) || [null, id])[1];
+    const ledgerFor = (id) => (st.modStates[id] ? [[ '2026-08-30 09:14', 'MODULE_' + ({ ENABLED: 'ENABLED', PAUSED: 'PAUSED', DISABLED: 'DISABLED', FAULTED: 'FAULT', REGISTERED: 'REMOVED' })[st.modStates[id]], 'Owner A', st.modReasons && st.modReasons[id] || 'Origin action'] ] : [])
+      .concat(MOD_LEDGER[id] || MOD_LEDGER_DEFAULT);
+    const stateCounts = {};
+    MODULES.forEach(m => { const s = modState(m[0]); stateCounts[s] = (stateCounts[s] || 0) + 1; });
+    V.moduleKpis = [
+      { label: 'Modules registered', value: String(MODULES.length), color: 'var(--text)', meta: 'manifest + lifecycle', frame: 'var(--line)' },
+      { label: 'Enabled', value: String(stateCounts.ENABLED || 0), color: 'var(--text)', meta: 'routes live, jobs running', frame: 'var(--line)' },
+      { label: 'Paused', value: String(stateCounts.PAUSED || 0), color: (stateCounts.PAUSED || 0) ? 'var(--warn)' : 'var(--text)', meta: (stateCounts.PAUSED || 0) ? 'queue held, state kept' : 'nothing quiesced', frame: (stateCounts.PAUSED || 0) ? mix('var(--warn)', 26) : 'var(--line)' },
+      { label: 'Faulted', value: String(stateCounts.FAULTED || 0), color: (stateCounts.FAULTED || 0) ? 'var(--crit)' : 'var(--text)', meta: (stateCounts.FAULTED || 0) ? 'circuit open' : 'no open circuits', frame: (stateCounts.FAULTED || 0) ? mix('var(--crit)', 26) : 'var(--line)' },
+    ];
+    V.moduleNote = 'Every transition is an Origin action, carries a reason, and lands in the ledger. Nothing here applies silently.';
+    V.modules = MODULES.map(([id, name, version, pinned, , deps, probe, fault]) => {
+      const s = modState(id);
+      const c = MOD_STATE[s].color;
+      const brokenDep = deps.some(d => ['DISABLED', 'FAULTED'].includes(modState(d)));
+      const act = (action, label, primary) => ({
+        label, action,
+        bg: primary ? 'var(--text)' : 'var(--raised)',
+        fg: primary ? 'var(--inv)' : 'var(--text)',
+        border: primary ? 'var(--text)' : 'var(--lineS)',
+        go: () => this.setState({ modPending: { id, action }, modConfirmText: '' }),
+      });
+      const actions = s === 'ENABLED' ? [act('pause', 'Pause'), act('disable', 'Disable'), act('upgrade', 'Upgrade', true)]
+        : s === 'PAUSED' ? [act('disable', 'Disable'), act('resume', 'Resume', true)]
+          : s === 'DISABLED' ? [act('remove', 'Remove'), act('enable', 'Enable', true)]
+            : s === 'FAULTED' ? [act('disable', 'Disable'), act('resume', 'Recover', true)]
+              : [act('remove', 'Remove'), act('enable', 'Enable', true)];
+      return {
+        id, name, version: 'v' + version,
+        state: s, stateFg: c, stateBg: mix(c, 14),
+        frame: s === 'FAULTED' ? mix('var(--crit)', 30) : brokenDep ? mix('var(--warn)', 26) : 'var(--line)',
+        probe: probe == null ? 'never probed' : probe + 'm ago',
+        probeColor: probe == null ? 'var(--text3)' : probe > 15 ? 'var(--crit)' : 'var(--ok)',
+        probeDot: probe == null ? 'var(--text3)' : probe > 15 ? 'var(--crit)' : 'var(--ok)',
+        pinned: pinned ? 'pinned v' + pinned : 'no pinned version',
+        fault: fault || 'no faults on record',
+        faultColor: fault ? 'var(--crit)' : 'var(--text3)',
+        deps: deps.length ? deps.map(d => {
+          const ds = modState(d);
+          return { id: d, fg: MOD_STATE[ds].color, bg: mix(MOD_STATE[ds].color, 12), border: mix(MOD_STATE[ds].color, 30), go: () => this.setState({ modDrawer: d }) };
+        }) : [],
+        noDeps: !deps.length,
+        depWarn: brokenDep ? 'Dependency ' + deps.filter(d => ['DISABLED', 'FAULTED'].includes(modState(d))).map(modName).join(', ') + ' is not running — this module cannot serve.' : '',
+        hasDepWarn: brokenDep,
+        actions,
+        drawerLabel: st.modDrawer === id ? 'Hide history' : 'History',
+        toggleDrawer: () => this.setState(s2 => ({ modDrawer: s2.modDrawer === id ? null : id })),
+        drawerOpen: st.modDrawer === id,
+        ledger: ledgerFor(id).map(([when, event, actor, reason]) => ({
+          when, event, actor, reason,
+          eventColor: /FAULT|REMOVED|DISABLED/.test(event) ? 'var(--crit)' : /PAUSED/.test(event) ? 'var(--warn)' : /ENABLED|RECOVERED|UPGRADED/.test(event) ? 'var(--ok)' : 'var(--text2)',
+        })),
+        upgradeOpen: st.modUpgrade === id,
+      };
+    });
+
+    // pending transition confirm
+    const pend = st.modPending;
+    V.modPending = !!pend;
+    if (pend) {
+      const destructive = pend.action === 'remove';
+      const nameOf = modName(pend.id);
+      V.pendTitle = pend.action.charAt(0).toUpperCase() + pend.action.slice(1) + ' ' + nameOf;
+      V.pendId = pend.id;
+      V.pendBody = {
+        pause: 'Nothing below runs while the module is paused. In-flight jobs drain, the queue is held, and state is kept.',
+        resume: 'Queued jobs release in order. Surfaces owned by this module return to normal.',
+        disable: 'Disabled modules keep no routes and run no jobs. State is kept but nothing reads it.',
+        enable: 'Routes register and scheduled jobs resume at the next tick.',
+        remove: 'Removal drops the manifest, its routes and its state. This cannot be undone from the registry.',
+        upgrade: 'The module pauses, swaps, runs golden tests, then resumes. The pinned version stays available for rollback.',
+      }[pend.action];
+      V.pendDestructive = destructive;
+      V.pendConfirmText = st.modConfirmText;
+      V.onPendConfirmText = (e) => this.setState({ modConfirmText: e.target.value });
+      V.pendArmed = !destructive || st.modConfirmText === pend.id;
+      V.pendArmBg = (!destructive || st.modConfirmText === pend.id) ? (destructive ? 'var(--crit)' : 'var(--text)') : 'var(--raised)';
+      V.pendArmFg = (!destructive || st.modConfirmText === pend.id) ? (destructive ? '#FFFFFF' : 'var(--inv)') : 'var(--text3)';
+      V.pendArmBorder = (!destructive || st.modConfirmText === pend.id) ? (destructive ? 'var(--crit)' : 'var(--text)') : 'var(--lineS)';
+      V.pendCta = pend.action === 'upgrade' ? 'Start upgrade' : V.pendTitle;
+      V.cancelPending = () => this.setState({ modPending: null, modConfirmText: '' });
+      V.confirmPending = () => {
+        if (destructive && st.modConfirmText !== pend.id) return;
+        const next = { enable: 'ENABLED', resume: 'ENABLED', pause: 'PAUSED', disable: 'DISABLED', remove: 'REGISTERED' }[pend.action];
+        if (pend.action === 'upgrade') {
+          this.setState({ modPending: null, modUpgrade: pend.id, upgradeStage: 0, upgradeFailed: false, modStates: Object.assign({}, st.modStates, { [pend.id]: 'PAUSED' }) });
+          this.fire(nameOf + ' — upgrade staged, module paused', 'warn');
+        } else {
+          this.setState({ modPending: null, modConfirmText: '', modStates: Object.assign({}, st.modStates, { [pend.id]: next }) });
+          this.fire(nameOf + ' is now ' + next, next === 'ENABLED' ? 'ok' : next === 'PAUSED' ? 'warn' : 'info');
+        }
+      };
+    }
+
+    // staged upgrade track
+    V.modUpgradeOpen = !!st.modUpgrade;
+    if (st.modUpgrade) {
+      const uid = st.modUpgrade;
+      const m = MODULES.find(x => x[0] === uid);
+      const stage = st.upgradeStage;
+      const failed = st.upgradeFailed;
+      V.upgradeTitle = m[1] + ' — v' + m[3] + ' → v' + m[2];
+      V.upgradePinned = 'pinned v' + m[3] + ' held for rollback';
+      V.upgradeStages = UPGRADE_STAGES.map((label, i) => {
+        const done = i < stage, cur = i === stage;
+        const isFail = failed && i === 3;
+        const c = isFail ? 'var(--crit)' : done ? 'var(--ok)' : cur ? 'var(--info)' : 'var(--text3)';
+        return {
+          label, color: c,
+          dot: isFail ? 'var(--crit)' : done ? 'var(--ok)' : cur ? mix('var(--info)', 40) : 'transparent',
+          ring: isFail ? 'var(--crit)' : done || cur ? c : 'var(--lineS)',
+          meta: isFail ? 'failed' : done ? 'done' : cur ? 'running' : 'waiting',
+        };
+      });
+      V.upgradeNote = failed
+        ? 'Golden tests failed on 2 of 41 cases. The module stays PAUSED — it is never auto-resumed after a failed stage.'
+        : stage >= UPGRADE_STAGES.length
+          ? 'Upgrade complete. The module is running on v' + m[2] + '; the pinned version stays available.'
+          : 'Stage ' + (stage + 1) + ' of ' + UPGRADE_STAGES.length + ' — ' + UPGRADE_STAGES[stage] + '.';
+      V.upgradeNoteColor = failed ? 'var(--crit)' : stage >= UPGRADE_STAGES.length ? 'var(--ok)' : 'var(--text2)';
+      V.upgradeCanRollback = stage < UPGRADE_STAGES.length || failed;
+      V.upgradeAdvance = () => {
+        if (failed) return;
+        const nx = st.upgradeStage + 1;
+        if (nx === 4 && uid === 'intel.reports') { this.setState({ upgradeFailed: true }); this.fire('Golden tests failed — module left paused', 'warn'); return; }
+        if (nx >= UPGRADE_STAGES.length) {
+          this.setState({ upgradeStage: nx, modStates: Object.assign({}, st.modStates, { [uid]: 'ENABLED' }) });
+          this.fire(m[1] + ' upgraded to v' + m[2] + ' and resumed');
+        } else this.setState({ upgradeStage: nx });
+      };
+      V.upgradeRollback = () => {
+        this.setState({ modUpgrade: null, upgradeStage: 0, upgradeFailed: false, modStates: Object.assign({}, st.modStates, { [uid]: 'ENABLED' }) });
+        this.fire(m[1] + ' rolled back to v' + m[3], 'warn');
+      };
+      V.upgradeClose = () => this.setState({ modUpgrade: null, upgradeStage: 0, upgradeFailed: false });
+      V.upgradeDone = stage >= UPGRADE_STAGES.length;
+    }
+
+    // ── KPI dashboard ──
+    const gi = Math.min(st.kpiGroup, KPI_GROUPS.length - 1);
+    const gcode = KPI_GROUPS[gi][0];
+    const kpiModState = modState('analytics.kpi');
+    V.kpiUnavailable = kpiModState !== 'ENABLED';
+    if (V.kpiUnavailable) {
+      const tone = kpiModState === 'FAULTED' ? 'var(--crit)' : kpiModState === 'PAUSED' ? 'var(--warn)' : 'var(--mut)';
+      V.kpiUnavailTitle = kpiModState === 'FAULTED' ? 'Failed 5 times — circuit open'
+        : kpiModState === 'PAUSED' ? 'Jobs are held — maintenance or upgrade in progress'
+          : 'Unavailable — module disabled by Origin';
+      V.kpiUnavailBody = kpiModState === 'FAULTED' ? 'KPI Catalog stopped responding at 2026-08-30 02:41. Retry once, then check Data Health.'
+        : kpiModState === 'PAUSED' ? 'KPI Catalog was paused by Origin at 2026-08-29 04:12. Figures resume when it does.'
+          : 'KPI Catalog was disabled by Origin · staging a schema change · 2026-08-29 04:12.';
+      V.kpiUnavailFg = tone; V.kpiUnavailBg = mix(tone, 10); V.kpiUnavailBorder = mix(tone, 30);
+      V.kpiUnavailHasRetry = kpiModState === 'FAULTED';
+      V.kpiUnavailRetry = () => this.fire('Retry queued — circuit still open', 'warn');
+      V.kpiUnavailLink = () => this.go('health');
+    }
+    V.kpiTabs = KPI_GROUPS.map(([code, label, owner], i) => ({
+      code, label, owner,
+      bg: i === gi ? 'var(--hover)' : 'transparent',
+      fg: i === gi ? 'var(--text)' : 'var(--text2)',
+      border: i === gi ? 'var(--lineS)' : 'var(--line)',
+      go: () => this.setState({ kpiGroup: i, kpiDrawer: null }),
+    }));
+    V.kpiGroupName = KPI_GROUPS[gi][1];
+    V.kpiGroupOwner = 'grant-scoped to ' + KPI_GROUPS[gi][2];
+    V.kpiIsCh = gcode === 'CH';
+    V.kpiScopeLabel = st.tenant + ' · weekly review W-16';
+    const cards = KPI_CATALOG.filter(k => k[0] === gcode);
+    V.kpiCards = cards.map(k => {
+      const [, code, name, value, unit, delta, goodWhenDown, target, formula, dataset, cadence, definition, trend, stale, escalated] = k;
+      const zero = value === '0';
+      const good = delta === 0 ? null : goodWhenDown ? delta < 0 : delta > 0;
+      const dColor = delta === 0 ? 'var(--text3)' : good ? 'var(--ok)' : 'var(--crit)';
+      const sparkColor = zero ? 'var(--mut)' : good === false ? 'var(--crit)' : 'var(--mut)';
+      return {
+        code, name, value: value + (unit === '%' ? '%' : ''), unit: unit === '%' ? '' : unit,
+        valueColor: zero ? 'var(--text)' : 'var(--text)',
+        delta: delta === 0 ? '—' : (delta > 0 ? '+' : '\u2212') + Math.abs(delta) + (unit === '%' ? 'pp' : unit || ''),
+        deltaColor: dColor,
+        target: 'target ' + target,
+        owner: KPI_GROUPS[gi][2],
+        stale, freshness: stale ? 'Stale — computed on a 2-day-old ingest' : 'sealed ingest 2026-08-30 06:00',
+        freshColor: stale ? 'var(--warn)' : 'var(--text3)',
+        frame: stale ? mix('var(--warn)', 26) : escalated ? mix('var(--crit)', 26) : 'var(--line)',
+        bg: stale ? mix('var(--warn)', 5) : 'transparent',
+        escalated, escalationLabel: escalated ? 'Red 2 reviews — task raised' : '',
+        spark: this.spark(sparkColor, trend, 88, 26),
+        open: () => this.setState({ kpiDrawer: code }),
+        openTask: () => this.go('tasks'),
+      };
+    });
+    V.kpiEmpty = !V.kpiIsCh && cards.length === 0;
+    V.kpiShowCards = !V.kpiUnavailable && !V.kpiIsCh;
+    V.kpiShowCh = !V.kpiUnavailable && V.kpiIsCh;
+    // CH group: charts per tenant and per tenant warehouse
+    V.kpiWhRail = KPI_CH.map(([label, value, trend], i) => ({
+      label, value: num(value / 1000, 1) + 'k',
+      bg: i === st.kpiWh ? 'var(--hover)' : 'transparent',
+      fg: i === st.kpiWh ? 'var(--text)' : 'var(--text2)',
+      border: i === st.kpiWh ? 'var(--lineS)' : 'transparent',
+      go: () => this.setState({ kpiWh: i }),
+    }));
+    const chSel = KPI_CH[Math.min(st.kpiWh, KPI_CH.length - 1)];
+    V.chTitle = chSel[0];
+    V.chValue = num(chSel[1], 0) + ' ' + (st.currency === 'usd' ? 'USD' : V.localCode);
+    V.chMeta = st.kpiWh === 0 ? 'tenant total · all warehouses' : 'warehouse drill-down · ' + st.tenant;
+    V.chChart = this.areaChart();
+    V.chBars = KPI_CH.slice(1).map(([label, value]) => ({
+      label, value: num(value / 1000, 1) + 'k',
+      pct: (value / KPI_CH[1][1] * 100).toFixed(0) + '%',
+      color: label === chSel[0] ? 'var(--info)' : 'var(--mut)',
+    }));
+    // definition drawer
+    const dk = KPI_CATALOG.find(k => k[1] === st.kpiDrawer);
+    V.kpiDrawer = !!dk;
+    if (dk) {
+      V.dkCode = dk[1]; V.dkName = dk[2];
+      V.dkRows = [
+        ['Definition', dk[11], false],
+        ['Formula', dk[8], true],
+        ['Source dataset', dk[9], true],
+        ['Owner role', KPI_GROUPS.find(g => g[0] === dk[0])[2], false],
+        ['Refresh cadence', dk[10], true],
+        ['Target band', dk[7], true],
+      ].map(([label, value, mono]) => ({ label, value, font: mono ? "400 12.5px/20px 'JetBrains Mono', monospace" : "400 13px/20px 'IBM Plex Sans', sans-serif" }));
+      V.dkNote = 'Changing a formula is a spec amendment plus a module version bump. This drawer renders the catalog row read-only.';
+      V.closeKpiDrawer = (e) => { if (e) e.stopPropagation(); this.setState({ kpiDrawer: null }); };
+    } else V.closeKpiDrawer = () => this.setState({ kpiDrawer: null });
     V.isStub = !BUILT.includes(st.screen);
     V.goProfiles = () => this.go('profiles');
 
     // ── imports & landed cost ──
     const SHIP = [
-      ['SH-0912', 'Delta Imports', 'AT SEA', '2026-09-06', 38400, 0.184, false],
-      ['SH-0908', 'Iberia Foods', 'CUSTOMS', '2026-08-31', 21200, 0.212, true],
-      ['SH-0904', 'Gulf Packaging Co', 'IN TRANSIT', '2026-09-02', 15200, 0.096, false],
-      ['SH-0898', 'Almed Trading', 'CLEARED', '2026-08-27', 9600, 0.141, false],
-      ['SH-0891', 'Delta Imports', 'AT SEA', '2026-09-14', 44100, 0.178, false],
-      ['SH-0884', 'Iberia Foods', 'RECEIVED', '2026-08-21', 18900, 0.203, false],
+      ['SH-0912', 'Supplier F', 'AT SEA', '2026-09-06', 38400, 0.184, false],
+      ['SH-0908', 'Supplier E', 'CUSTOMS', '2026-08-31', 21200, 0.212, true],
+      ['SH-0904', 'Supplier G', 'IN TRANSIT', '2026-09-02', 15200, 0.096, false],
+      ['SH-0898', 'Supplier D', 'CLEARED', '2026-08-27', 9600, 0.141, false],
+      ['SH-0891', 'Supplier F', 'AT SEA', '2026-09-14', 44100, 0.178, false],
+      ['SH-0884', 'Supplier E', 'RECEIVED', '2026-08-21', 18900, 0.203, false],
     ];
     const shipTone = { 'AT SEA': 'var(--info)', CUSTOMS: 'var(--warn)', 'IN TRANSIT': 'var(--info)', CLEARED: 'var(--ok)', RECEIVED: 'var(--mut)' };
     V.impKpis = [
@@ -2969,10 +3589,10 @@ class Component extends DCLogic {
         ],
         rows: [
           ['Single-source protein', 'Supplier A', '64', '2026-08-12', 'Second supplier qualified but never ordered from. No price agreed.', 'HIGH', 'var(--crit)'],
-          ['Imported packaging lead time', 'Gulf Packaging Co', '38', '2026-07-29', 'Local alternate costs 12% more; approved only for shortage cover.', 'HIGH', 'var(--crit)'],
-          ['Cold chain single 3PL', 'Supplier C', '112', '2026-06-30', 'No secondary cold-store contract. Failure would spoil held stock.', 'HIGH', 'var(--crit)'],
-          ['Olive oil origin concentration', 'Delta Imports', '4', '2026-08-20', 'One origin, one shipper. Alternate origin identified, not qualified.', 'MEDIUM', 'var(--warn)'],
-          ['Customs clearance delays', 'Iberia Foods', '22', '2026-08-06', 'Broker change under review; buffer stock raised for the interim.', 'MEDIUM', 'var(--warn)'],
+          ['Imported packaging lead time', 'Supplier G', '38', '2026-07-29', 'Local alternate costs 12% more; approved only for shortage cover.', 'HIGH', 'var(--crit)'],
+          ['Cold chain single 3PL', 'Supplier B', '112', '2026-06-30', 'No secondary cold-store contract. Failure would spoil held stock.', 'HIGH', 'var(--crit)'],
+          ['Olive oil origin concentration', 'Supplier F', '4', '2026-08-20', 'One origin, one shipper. Alternate origin identified, not qualified.', 'MEDIUM', 'var(--warn)'],
+          ['Customs clearance delays', 'Supplier E', '22', '2026-08-06', 'Broker change under review; buffer stock raised for the interim.', 'MEDIUM', 'var(--warn)'],
           ['Cash-purchase dependency', 'Cash Purchases', '9', '2026-05-18', 'Spot buying covers gaps at 20% premium. Acceptable short-term.', 'LOW', 'var(--mut)'],
           ['Currency exposure — QAR', 'Group', '—', '2026-04-11', 'Pegged; reviewed annually. No action.', 'LOW', 'var(--mut)'],
         ],
@@ -2993,11 +3613,11 @@ class Component extends DCLogic {
 
     // ── buyer scorecard ──
     V.buyers = [
-      ['Owner D', 'NA', '#2A6FA6', 312, 94, '0.6d', 2, 0, [88, 91, 90, 93, 92, 94, 95, 94]],
-      ['Owner B', 'RK', '#2A5B6B', 268, 81, '1.4d', 6, 1, [72, 76, 74, 79, 78, 80, 82, 81]],
-      ['Owner C', 'NM', '#6B4A2A', 204, 68, '3.1d', 11, 2, [78, 74, 71, 70, 69, 68, 67, 68]],
-      ['Owner F', 'MI', '#4A2A5B', 186, 77, '1.8d', 4, 0, [70, 72, 74, 75, 76, 76, 78, 77]],
-      ['Owner E', 'SK', '#5B4B8A', 425, 89, '0.9d', 3, 1, [84, 86, 85, 88, 89, 88, 90, 89]],
+      ['Owner C', 'OC', '#2A6FA6', 312, 94, '0.6d', 2, 0, [88, 91, 90, 93, 92, 94, 95, 94]],
+      ['Owner D', 'OD', '#2A5B6B', 268, 81, '1.4d', 6, 1, [72, 76, 74, 79, 78, 80, 82, 81]],
+      ['Owner E', 'OE', '#6B4A2A', 204, 68, '3.1d', 11, 2, [78, 74, 71, 70, 69, 68, 67, 68]],
+      ['Owner F', 'OF', '#4A2A5B', 186, 77, '1.8d', 4, 0, [70, 72, 74, 75, 76, 76, 78, 77]],
+      ['Owner B', 'OB', '#5B4B8A', 425, 89, '0.9d', 3, 1, [84, 86, 85, 88, 89, 88, 90, 89]],
     ].map(([name, initials, avatarBg, refs, actioned, response, gaps, stockouts, trend]) => {
       const aColor = actioned >= 85 ? 'var(--ok)' : actioned >= 75 ? 'var(--warn)' : 'var(--crit)';
       const rDays = parseFloat(response);
@@ -3015,11 +3635,11 @@ class Component extends DCLogic {
     // ── lead-time suggestions ──
     const LEAD = [
       ['Supplier A', 14, 19, 42, 64],
-      ['Supplier C', 14, 11, 58, 112],
-      ['Gulf Packaging Co', 30, 34, 24, 38],
-      ['Delta Imports', 21, 27, 9, 12],
-      ['Bahrain Fresh Produce', 3, 3, 77, 46],
-      ['Iberia Foods', 28, 41, 6, 22],
+      ['Supplier B', 14, 11, 58, 112],
+      ['Supplier G', 30, 34, 24, 38],
+      ['Supplier F', 21, 27, 9, 12],
+      ['Supplier H', 3, 3, 77, 46],
+      ['Supplier E', 28, 41, 6, 22],
     ];
     V.leadRows = LEAD.map(([supplier, stated, observed, n, refs], i) => {
       const dec = st.leadDecisions[i];
@@ -3118,40 +3738,40 @@ class Component extends DCLogic {
 
     // ── projects & intelligence ──
     const intel = st.screen === 'intel';
-    const av = { AL: '#3F5C4A', SK: '#5B4B8A', NA: '#2A6FA6', RK: '#2A5B6B', NM: '#6B4A2A' };
+    const av = { OA: '#3F5C4A', OB: '#5B4B8A', OC: '#2A6FA6', OD: '#2A5B6B', OE: '#6B4A2A' };
     const mkPeople = (list) => list.map((k, i) => ({ initials: k, bg: av[k], offset: i ? '-7px' : '0' }));
     V.projects = (intel ? [
-      ['Why DIO rose in August', 'ANALYSIS', 'Inventory value rose 2.4% while consumption was flat. The increase is concentrated in Dry Goods, where four refs were reordered on stale parameters after their order frequency doubled.', '2026-08-29 06:00', ['SK'], [
+      ['Why DIO rose in August', 'ANALYSIS', 'Inventory value rose 2.4% while consumption was flat. The increase is concentrated in Dry Goods, where four refs were reordered on stale parameters after their order frequency doubled.', '2026-08-29 06:00', ['OB'], [
         [true, 'Identified 4 refs with order frequency changed but MOQ untouched', 'engine'],
-        [false, 'Propose MOQ reductions on those 4 refs', 'Owner E'],
-        [false, 'Confirm no menu change is driving the extra volume', 'Owner C'],
+        [false, 'Propose MOQ reductions on those 4 refs', 'Owner B'],
+        [false, 'Confirm no menu change is driving the extra volume', 'Owner E'],
       ]],
-      ['Shortage clustering by supplier', 'ANALYSIS', 'Of 14 current shortages, 9 sit with two suppliers whose observed p80 lead time exceeds their stated lead time by more than a week. The parameters, not the buyers, are the cause.', '2026-08-28 06:00', ['NA'], [
+      ['Shortage clustering by supplier', 'ANALYSIS', 'Of 14 current shortages, 9 sit with two suppliers whose observed p80 lead time exceeds their stated lead time by more than a week. The parameters, not the buyers, are the cause.', '2026-08-28 06:00', ['OC'], [
         [true, 'Cross-referenced shortages against lead-time gaps', 'engine'],
         [true, 'Raised lead-time suggestions for both suppliers', 'engine'],
-        [false, 'Accept or reject the two high-confidence suggestions', 'Owner D'],
+        [false, 'Accept or reject the two high-confidence suggestions', 'Owner C'],
       ]],
-      ['Packaging over-stock', 'ANALYSIS', 'Packaging holds 604 CBM against 900 capacity but 38.2k of value — the highest per-CBM value on site. Order quantities are set by pallet rounding rather than by demand.', '2026-08-26 06:00', ['RK'], [
+      ['Packaging over-stock', 'ANALYSIS', 'Packaging holds 604 CBM against 900 capacity but 38.2k of value — the highest per-CBM value on site. Order quantities are set by pallet rounding rather than by demand.', '2026-08-26 06:00', ['OD'], [
         [true, 'Quantified pallet-rounding surcharge avoided vs capital tied up', 'engine'],
-        [false, 'Decide whether the 4.2% surcharge is worth 61 days of cover', 'Owner B'],
+        [false, 'Decide whether the 4.2% surcharge is worth 61 days of cover', 'Owner D'],
       ]],
     ] : [
-      ['Precoro export automation', 'PROJECT', 'Daily export is manual and lands late, which is why the staleness banner is a permanent fixture. Scheduled pull would remove the dependency on someone remembering.', 'due 2026-09-15', ['AL', 'NA'], [
-        [true, 'Agree export schema with Precoro admin', 'Owner D'],
+      ['Precoro export automation', 'PROJECT', 'Daily export is manual and lands late, which is why the staleness banner is a permanent fixture. Scheduled pull would remove the dependency on someone remembering.', 'due 2026-09-15', ['OA', 'OC'], [
+        [true, 'Agree export schema with Precoro admin', 'Owner C'],
         [true, 'Build ingest pipeline against a sample export', 'Owner A'],
         [false, 'Schedule the daily pull and retire the manual step', 'Owner A'],
       ]],
-      ['Close the lead-time gap register', 'PROJECT', '193 of 230 suppliers have no lead time on file, which is the single largest cause of missed shortages. Observed lead times can backfill most of them.', 'due 2026-09-30', ['NA', 'RK'], [
+      ['Close the lead-time gap register', 'PROJECT', '193 of 230 suppliers have no lead time on file, which is the single largest cause of missed shortages. Observed lead times can backfill most of them.', 'due 2026-09-30', ['OC', 'OD'], [
         [true, 'Compute observed p80 from receipt history', 'engine'],
-        [false, 'Accept high-confidence suggestions in bulk', 'Owner D'],
-        [false, 'Chase the 37 suppliers with fewer than 12 receipts', 'Owner B'],
+        [false, 'Accept high-confidence suggestions in bulk', 'Owner C'],
+        [false, 'Chase the 37 suppliers with fewer than 12 receipts', 'Owner D'],
       ]],
-      ['Weekly planning review — 2026-08-27', 'MEETING', 'Agreed that parameter proposals will be reviewed weekly rather than accepted ad hoc, and that missed shortages are reported as engine defects, not buyer performance.', '2026-08-27 10:00', ['AL', 'SK', 'NA', 'RK'], [
+      ['Weekly planning review — 2026-08-27', 'MEETING', 'Agreed that parameter proposals will be reviewed weekly rather than accepted ad hoc, and that missed shortages are reported as engine defects, not buyer performance.', '2026-08-27 10:00', ['OA', 'OB', 'OC', 'OD'], [
         [true, 'Set weekly review slot for parameter proposals', 'Owner A'],
         [true, 'Reclassify missed shortages as engine defects', 'Owner A'],
-        [false, 'Draft the buyer scorecard definition so it excludes supplier lateness', 'Owner E'],
+        [false, 'Draft the buyer scorecard definition so it excludes supplier lateness', 'Owner B'],
       ]],
-      ['Cold-chain secondary contract', 'PROJECT', '112 refs depend on a single 3PL with no secondary cold store. Highest-severity item on the risk register and the oldest unreviewed.', 'due 2026-10-31', ['AL'], [
+      ['Cold-chain secondary contract', 'PROJECT', '112 refs depend on a single 3PL with no secondary cold store. Highest-severity item on the risk register and the oldest unreviewed.', 'due 2026-10-31', ['OA'], [
         [true, 'Quantify value at risk', 'engine'],
         [false, 'Shortlist secondary cold-store providers', 'Owner A'],
         [false, 'Price a standby contract', 'Owner A'],
@@ -3284,13 +3904,13 @@ class Component extends DCLogic {
       : 'Baseline is the 12-month volume-weighted average. Confidence is receipt count.';
     const PRICES = [
       ['Beef Topside', 'Supplier A', 3.42, 3.18, 42, [3.42, 3.40, 3.38, 3.31, 3.28, 3.22, 3.18]],
-      ['Tomato Peeled', 'Supplier C', 2.02, 2.14, 58, [2.02, 2.04, 2.06, 2.09, 2.11, 2.12, 2.14]],
+      ['Tomato Peeled', 'Supplier B', 2.02, 2.14, 58, [2.02, 2.04, 2.06, 2.09, 2.11, 2.12, 2.14]],
       ['Tender Chicken Breast', 'Supplier A', 4.10, 3.96, 31, [4.10, 4.08, 4.02, 3.99, 3.98, 3.97, 3.96]],
-      ['Basmati Rice', 'Almed Trading', 1.28, 1.44, 9, [1.28, 1.30, 1.33, 1.36, 1.40, 1.42, 1.44]],
-      ['Olive Oil', 'Delta Imports', 6.80, 7.90, 6, [6.80, 6.95, 7.10, 7.40, 7.62, 7.78, 7.90]],
-      ['Paper Meal Box', 'Gulf Packaging Co', 0.038, 0.036, 24, [0.038, 0.038, 0.037, 0.037, 0.036, 0.036, 0.036]],
-      ['Feta Cheese', 'Bahrain Fresh Produce', 3.05, 2.88, 77, [3.05, 3.02, 2.98, 2.94, 2.91, 2.89, 2.88]],
-      ['Napkins', 'Gulf Packaging Co', 0.012, 0.012, 18, [0.012, 0.012, 0.012, 0.012, 0.012, 0.012, 0.012]],
+      ['Basmati Rice', 'Supplier D', 1.28, 1.44, 9, [1.28, 1.30, 1.33, 1.36, 1.40, 1.42, 1.44]],
+      ['Olive Oil', 'Supplier F', 6.80, 7.90, 6, [6.80, 6.95, 7.10, 7.40, 7.62, 7.78, 7.90]],
+      ['Paper Meal Box', 'Supplier G', 0.038, 0.036, 24, [0.038, 0.038, 0.037, 0.037, 0.036, 0.036, 0.036]],
+      ['Feta Cheese', 'Supplier H', 3.05, 2.88, 77, [3.05, 3.02, 2.98, 2.94, 2.91, 2.89, 2.88]],
+      ['Napkins', 'Supplier G', 0.012, 0.012, 18, [0.012, 0.012, 0.012, 0.012, 0.012, 0.012, 0.012]],
     ];
     let saveTotal = 0, riseTotal = 0;
     const priceRows = PRICES.map(([name, supplier, base, cur, n, series]) => {
@@ -3334,9 +3954,9 @@ class Component extends DCLogic {
     // ── approvals / PRs ──
     const APPR = [
       ['PR-2291', 'Supplier A — 3 lines', '12,480.000', 2, 1, false, '', 'raised 2d ago'],
-      ['PR-2288', 'Supplier B — 2 lines', '4,214.500', 2, 2, false, '', 'raised 4d ago'],
-      ['PR-2284', 'Supplier C — 2 lines', '3,912.000', 2, 1, true, 'Preferred SKU unresolved', 'raised 6d ago'],
-      ['PR-2279', 'Gulf Packaging Co — 4 lines', '15,200.000', 3, 0, true, 'Over 10,000 — needs director', 'raised 8d ago'],
+      ['PR-2288', 'Supplier C — 2 lines', '4,214.500', 2, 2, false, '', 'raised 4d ago'],
+      ['PR-2284', 'Supplier B — 2 lines', '3,912.000', 2, 1, true, 'Preferred SKU unresolved', 'raised 6d ago'],
+      ['PR-2279', 'Supplier G — 4 lines', '15,200.000', 3, 0, true, 'Over 10,000 — needs director', 'raised 8d ago'],
     ];
     V.apprKpis = [
       { label: 'Awaiting me', value: '3', color: 'var(--pend)', meta: 'oldest 8 days', frame: mix('var(--pend)', 26) },
@@ -3344,7 +3964,7 @@ class Component extends DCLogic {
       { label: 'Value in queue', value: '35.8k', color: 'var(--text)', meta: V.localCode, frame: 'var(--line)' },
       { label: 'Median time to approve', value: '2.4d', color: 'var(--warn)', meta: 'target under 1 day', frame: 'var(--line)' },
     ];
-    const chainRoles = [['NA', 'Buyer', '#2A6FA6'], ['SK', 'Planner', '#5B4B8A'], ['AL', 'Director', '#3F5C4A']];
+    const chainRoles = [['OC', 'Buyer', '#2A6FA6'], ['OB', 'Planner', '#5B4B8A'], ['OA', 'Director', '#3F5C4A']];
     V.approvalQueue = APPR.map(([id, title, value, steps, done, blocked, blocker, ageLabel]) => {
       const complete = done >= steps;
       return {
@@ -3408,16 +4028,16 @@ class Component extends DCLogic {
     const PREF = [
       ['Beef Topside', 'Protein Items · 3 candidate SKUs', 'unresolved', [
         ['SKU-10412', 'Supplier A', 3.18, 19, 22, 'CANDIDATE'],
-        ['SKU-10942', 'Supplier C', 3.34, 11, 21, 'CANDIDATE'],
+        ['SKU-10942', 'Supplier B', 3.34, 11, 21, 'CANDIDATE'],
         ['SKU-11492', 'Cash Purchases', 3.98, 2, 3, 'SPOT'],
       ], 'Two candidates within one receipt of each other and a 16-fils price gap against an 8-day lead-time gap. A buyer has to decide which matters more here — Sentinel will not guess.'],
       ['Feta Cheese', 'Dairy & Poultry · 2 candidate SKUs', 'resolved', [
-        ['SKU-11045', 'Bahrain Fresh Produce', 2.88, 4, 61, 'PREFERRED'],
-        ['SKU-11311', 'Supplier C', 3.02, 9, 8, 'ALTERNATE'],
-      ], 'Pinned by Owner B on 2026-08-26 — best landed cost across 61 receipts and the shorter lead time. Clear on both axes.'],
+        ['SKU-11045', 'Supplier H', 2.88, 4, 61, 'PREFERRED'],
+        ['SKU-11311', 'Supplier B', 3.02, 9, 8, 'ALTERNATE'],
+      ], 'Pinned by Owner D on 2026-08-26 — best landed cost across 61 receipts and the shorter lead time. Clear on both axes.'],
       ['Cling Film', 'Packaging – Local · 2 candidate SKUs', 'unresolved', [
-        ['SKU-12201', 'Gulf Packaging Co', 0.09, 21, 12, 'CANDIDATE'],
-        ['SKU-12288', 'Almed Trading', 0.09, 10, 12, 'CANDIDATE'],
+        ['SKU-12201', 'Supplier G', 0.09, 21, 12, 'CANDIDATE'],
+        ['SKU-12288', 'Supplier D', 0.09, 10, 12, 'CANDIDATE'],
       ], 'Identical price and receipt count. This tie caused a missed shortage on 2026-07-28 — resolving it is on the gap register.'],
     ];
     V.prefGroups = PREF.map(([name, meta, state, skus, rationale]) => {
@@ -3662,7 +4282,7 @@ class Component extends DCLogic {
     const unresolvedItem = itemRow.nutrition;
     V.itemMembers = [
       { sku: 'SKU-' + (10400 + st.item), supplier: 'Supplier A', role: unresolvedItem ? 'CANDIDATE' : 'PREFERRED', roleBg: mix(unresolvedItem ? 'var(--warn)' : 'var(--ok)', 14), roleFg: unresolvedItem ? 'var(--warn)' : 'var(--ok)' },
-      { sku: 'SKU-' + (10930 + st.item), supplier: 'Supplier C', role: unresolvedItem ? 'CANDIDATE' : 'ALTERNATE', roleBg: mix('var(--mut)', 14), roleFg: 'var(--text3)' },
+      { sku: 'SKU-' + (10930 + st.item), supplier: 'Supplier B', role: unresolvedItem ? 'CANDIDATE' : 'ALTERNATE', roleBg: mix('var(--mut)', 14), roleFg: 'var(--text3)' },
       { sku: 'SKU-' + (11480 + st.item), supplier: 'Cash Purchases', role: 'SPOT', roleBg: mix('var(--mut)', 14), roleFg: 'var(--text3)' },
     ];
 
@@ -3707,14 +4327,14 @@ class Component extends DCLogic {
     // ── purchase orders ──
     const POS = [
       ['PO-18442', 'Supplier A', 3, 12480.0, '2026-08-20', 0, 'OVERDUE', 9],
-      ['PO-18397', 'Supplier B', 2, 4214.5, '2026-08-23', 40, 'OVERDUE', 6],
-      ['PO-18355', 'Supplier C', 5, 8930.0, '2026-08-25', 60, 'OVERDUE', 4],
+      ['PO-18397', 'Supplier C', 2, 4214.5, '2026-08-23', 40, 'OVERDUE', 6],
+      ['PO-18355', 'Supplier B', 5, 8930.0, '2026-08-25', 60, 'OVERDUE', 4],
       ['PO-18310', 'Cash Purchases', 1, 620.0, '2026-08-27', 0, 'OVERDUE', 2],
-      ['PO-18455', 'Bahrain Fresh Produce', 7, 3140.0, '2026-08-31', 0, 'OPEN', 0],
-      ['PO-18461', 'Gulf Packaging Co', 4, 15200.0, '2026-09-08', 0, 'OPEN', 0],
-      ['PO-18402', 'Supplier C', 3, 5410.0, '2026-08-26', 100, 'RECEIVED', 0],
+      ['PO-18455', 'Supplier H', 7, 3140.0, '2026-08-31', 0, 'OPEN', 0],
+      ['PO-18461', 'Supplier G', 4, 15200.0, '2026-09-08', 0, 'OPEN', 0],
+      ['PO-18402', 'Supplier B', 3, 5410.0, '2026-08-26', 100, 'RECEIVED', 0],
       ['PO-18388', 'Supplier A', 2, 7120.0, '2026-08-24', 100, 'RECEIVED', 0],
-      ['PO-18371', 'Almed Trading', 6, 2980.0, '2026-08-22', 100, 'RECEIVED', 0],
+      ['PO-18371', 'Supplier D', 6, 2980.0, '2026-08-22', 100, 'RECEIVED', 0],
     ];
     const poStateColor = { OVERDUE: 'var(--crit)', OPEN: 'var(--info)', RECEIVED: 'var(--mut)' };
     V.poFilters = [
@@ -3799,12 +4419,12 @@ class Component extends DCLogic {
 
     // ── users & permissions ──
     const USERS = [
-      ['Owner A', 'AL', '#3F5C4A', 'DIRECTOR', 'both', 'All categories', '2m ago', 'active'],
-      ['Owner E', 'SK', '#5B4B8A', 'PLANNER', 'BahrainMP', 'Protein, Dairy', '18m ago', 'active'],
-      ['Owner D', 'NA', '#2A6FA6', 'BUYER', 'BahrainMP', 'All categories', '1h ago', 'active'],
-      ['Owner B', 'RK', '#2A5B6B', 'BUYER', 'BahrainMP', 'Packaging', '3h ago', 'active'],
-      ['Owner C', 'NM', '#6B4A2A', 'PLANNER', 'QatarMP', 'Dry Goods, Spices', 'yesterday', 'active'],
-      ['Owner F', 'MI', '#4A2A5B', 'PLANNER', 'BahrainMP', 'Fresh, Bakery', '2d ago', 'active'],
+      ['Owner A', 'OA', '#3F5C4A', 'DIRECTOR', 'both', 'All categories', '2m ago', 'active'],
+      ['Owner B', 'OB', '#5B4B8A', 'PLANNER', 'BahrainMP', 'Protein, Dairy', '18m ago', 'active'],
+      ['Owner C', 'OC', '#2A6FA6', 'BUYER', 'BahrainMP', 'All categories', '1h ago', 'active'],
+      ['Owner D', 'OD', '#2A5B6B', 'BUYER', 'BahrainMP', 'Packaging', '3h ago', 'active'],
+      ['Owner E', 'OE', '#6B4A2A', 'PLANNER', 'QatarMP', 'Dry Goods, Spices', 'yesterday', 'active'],
+      ['Owner F', 'OF', '#4A2A5B', 'PLANNER', 'BahrainMP', 'Fresh, Bakery', '2d ago', 'active'],
       ['Owner G', 'JA', '#2A5B3F', 'VIEWER', 'both', 'All categories', '9d ago', 'idle'],
       ['Owner H', 'SS', '#5B3A2A', 'VIEWER', 'QatarMP', 'All categories', '41d ago', 'dormant'],
       ['procurement@company.example', '—', '#22272C', 'BUYER', 'BahrainMP', 'All categories', 'never', 'invited'],
@@ -3848,8 +4468,8 @@ class Component extends DCLogic {
       ]));
     V.accessLog = [
       { text: 'Viewer export changed from inherit to deny', meta: 'Owner A · 2026-08-26 10:04', dot: 'var(--crit)' },
-      { text: 'Owner C scoped to QatarMP only', meta: 'Owner A · 2026-08-21 14:22', dot: 'var(--info)' },
-      { text: 'procurement@company.example invited as Buyer', meta: 'Owner D · 2026-08-19 09:40', dot: 'var(--info)' },
+      { text: 'Owner E scoped to QatarMP only', meta: 'Owner A · 2026-08-21 14:22', dot: 'var(--info)' },
+      { text: 'procurement@company.example invited as Buyer', meta: 'Owner C · 2026-08-19 09:40', dot: 'var(--info)' },
       { text: 'Owner H flagged dormant — 41 days', meta: 'system · 2026-08-18 00:00', dot: 'var(--warn)' },
     ];
 
@@ -3920,14 +4540,14 @@ class Component extends DCLogic {
       { label: 'Closed this month', value: '12', color: 'var(--ok)', meta: 'was 41 in June' },
     ];
     V.gaps = [
-      ['Suppliers missing lead time', '193 / 230', '84%', 'Lead-time suggestions, MRP accuracy', 'Owner D', 'critical'],
+      ['Suppliers missing lead time', '193 / 230', '84%', 'Lead-time suggestions, MRP accuracy', 'Owner C', 'critical'],
       ['Unmapped SKUs', '318', '52%', 'Preferred SKU, proposals', 'Owner G', 'warn'],
-      ['Refs without preferred SKU', '112', '38%', 'Proposal approval', 'Owner B', 'warn'],
+      ['Refs without preferred SKU', '112', '38%', 'Proposal approval', 'Owner D', 'warn'],
       ['Unresolved units', '46', '21%', 'All planning — refs are excluded', '', 'critical'],
       ['Perishables without shelf life', '27', '12%', 'Over-stock detection', 'Owner F', 'info'],
-      ['Warehouses without CBM', '9', '35%', 'Warehouse cost', 'Owner C', 'info'],
+      ['Warehouses without CBM', '9', '35%', 'Warehouse cost', 'Owner E', 'info'],
       ['Refs without ABC class', '204', '15%', 'Cycle count schedule', 'Owner H', 'warn'],
-      ['Suppliers without MOQ', '88', '38%', 'Order proposals', 'Owner D', 'warn'],
+      ['Suppliers without MOQ', '88', '38%', 'Order proposals', 'Owner C', 'warn'],
     ].map(([label, count, pct, blocks, owner, sev]) => {
       const color = sev === 'critical' ? 'var(--crit)' : sev === 'warn' ? 'var(--warn)' : 'var(--info)';
       return {
@@ -3940,13 +4560,13 @@ class Component extends DCLogic {
     // ── suppliers ──
     const SUPS = [
       ['Supplier A', 42, 14, 19, '71%', 'n=42 high', 184.2],
-      ['Supplier C', 66, 12, 11, '92%', 'n=58 high', 241.6],
-      ['Supplier B', 18, 6, 6, '96%', 'n=31 high', 62.4],
-      ['Bahrain Fresh Produce', 51, 3, 4, '88%', 'n=77 high', 118.9],
-      ['Gulf Packaging Co', 24, 21, 27, '54%', 'n=9 low', 96.1],
+      ['Supplier B', 66, 12, 11, '92%', 'n=58 high', 241.6],
+      ['Supplier C', 18, 6, 6, '96%', 'n=31 high', 62.4],
+      ['Supplier H', 51, 3, 4, '88%', 'n=77 high', 118.9],
+      ['Supplier G', 24, 21, 27, '54%', 'n=9 low', 96.1],
       ['Cash Purchases', 12, 1, 2, '99%', 'n=140 high', 14.8],
-      ['Almed Trading', 31, 10, 10, '—', 'no data', 44.3],
-      ['Delta Imports', 8, 28, 34, '61%', 'n=6 low', 71.5],
+      ['Supplier D', 31, 10, 10, '—', 'no data', 44.3],
+      ['Supplier F', 8, 28, 34, '61%', 'n=6 low', 71.5],
     ];
     const supIdx = st.supplier == null ? 0 : st.supplier;
     V.suppliers = SUPS.map((s, i) => {
@@ -3991,19 +4611,19 @@ class Component extends DCLogic {
 
     // ── tasks ──
     const TASKS = [
-      ['blocked', 'Resolve preferred SKU for Beef Topside', 'Two SKUs have equal purchase history. Approval is blocked until one is pinned.', 'SK', '#5B4B8A', 'due 2026-08-27', 'BLOCKER', '2d late', 'var(--crit)'],
-      ['blocked', 'Fill lead time for 193 suppliers', 'MRP accuracy depends on it. Bulk entry is available from Suppliers.', 'NA', '#2A6FA6', 'due 2026-09-05', 'DATA GAP', 'open', 'var(--warn)'],
-      ['open', 'Review 7 parameter proposals', 'From the optimizer run on 2026-08-28. None applied.', 'AL', '#3F5C4A', 'due 2026-08-31', 'REVIEW', 'open', 'var(--pend)'],
-      ['open', 'Approve PR-2291 · Supplier A', '12,480.000 BHD, three lines, MOQ met.', 'AL', '#3F5C4A', 'due 2026-08-30', 'APPROVAL', 'open', 'var(--info)'],
-      ['open', 'Resolve 46 unresolved units', 'Refs are excluded from planning until units convert.', 'NM', '#6B4A2A', 'due 2026-09-12', 'DATA GAP', 'open', 'var(--warn)'],
-      ['done', 'Pin preferred SKU on Feta Cheese', 'Closed 2026-08-26 by Owner B.', 'RK', '#2A5B6B', 'closed 2026-08-26', 'DONE', 'done', 'var(--ok)'],
-      ['done', 'Investigate 3 missed shortages', 'Root cause: engine skipped refs with unresolved units.', 'AL', '#3F5C4A', 'closed 2026-08-24', 'DONE', 'done', 'var(--ok)'],
+      ['blocked', 'Resolve preferred SKU for Beef Topside', 'Two SKUs have equal purchase history. Approval is blocked until one is pinned.', 'OB', '#5B4B8A', 'due 2026-08-27', 'BLOCKER', '2d late', 'var(--crit)'],
+      ['blocked', 'Fill lead time for 193 suppliers', 'MRP accuracy depends on it. Bulk entry is available from Suppliers.', 'OC', '#2A6FA6', 'due 2026-09-05', 'DATA GAP', 'open', 'var(--warn)'],
+      ['open', 'Review 7 parameter proposals', 'From the optimizer run on 2026-08-28. None applied.', 'OA', '#3F5C4A', 'due 2026-08-31', 'REVIEW', 'open', 'var(--pend)'],
+      ['open', 'Approve PR-2291 · Supplier A', '12,480.000 BHD, three lines, MOQ met.', 'OA', '#3F5C4A', 'due 2026-08-30', 'APPROVAL', 'open', 'var(--info)'],
+      ['open', 'Resolve 46 unresolved units', 'Refs are excluded from planning until units convert.', 'OE', '#6B4A2A', 'due 2026-09-12', 'DATA GAP', 'open', 'var(--warn)'],
+      ['done', 'Pin preferred SKU on Feta Cheese', 'Closed 2026-08-26 by Owner D.', 'OD', '#2A5B6B', 'closed 2026-08-26', 'DONE', 'done', 'var(--ok)'],
+      ['done', 'Investigate 3 missed shortages', 'Root cause: engine skipped refs with unresolved units.', 'OA', '#3F5C4A', 'closed 2026-08-24', 'DONE', 'done', 'var(--ok)'],
     ];
     const tf = st.taskFilter;
-    const visible = TASKS.filter(t => !tf || (tf === 'Mine' ? t[3] === 'AL' : tf === 'Blocked' ? t[0] === 'blocked' : tf === 'Overdue' ? t[7].includes('late') : true));
+    const visible = TASKS.filter(t => !tf || (tf === 'Mine' ? t[3] === 'OA' : tf === 'Blocked' ? t[0] === 'blocked' : tf === 'Overdue' ? t[7].includes('late') : true));
     V.taskFilters = [
       { label: 'All', key: null, count: TASKS.length, dot: 'var(--text3)' },
-      { label: 'Mine', key: 'Mine', count: TASKS.filter(t => t[3] === 'AL').length, dot: 'var(--info)' },
+      { label: 'Mine', key: 'Mine', count: TASKS.filter(t => t[3] === 'OA').length, dot: 'var(--info)' },
       { label: 'Blocked', key: 'Blocked', count: TASKS.filter(t => t[0] === 'blocked').length, dot: 'var(--crit)' },
       { label: 'Overdue', key: 'Overdue', count: TASKS.filter(t => t[7].includes('late')).length, dot: 'var(--warn)' },
     ].map(f => {
@@ -4032,12 +4652,12 @@ class Component extends DCLogic {
 
     // ── audit ──
     V.auditRows = [
-      ['2026-08-29 09:14', 'Owner E', 'Safety days · Beef Topside', '5', '7', 'var(--warn)', 'a41f…9c2', 'var(--info)'],
-      ['2026-08-29 08:02', 'Owner D', 'Proposal PR-2291 approved', 'OPEN', 'APPROVED', 'var(--ok)', '7b30…41e', 'var(--ok)'],
-      ['2026-08-28 17:41', 'Owner A', 'Lead-time suggestion rejected · Supplier C', '11d', '12d', 'var(--text2)', '3c07…8fa', 'var(--pend)'],
+      ['2026-08-29 09:14', 'Owner B', 'Safety days · Beef Topside', '5', '7', 'var(--warn)', 'a41f…9c2', 'var(--info)'],
+      ['2026-08-29 08:02', 'Owner C', 'Proposal PR-2291 approved', 'OPEN', 'APPROVED', 'var(--ok)', '7b30…41e', 'var(--ok)'],
+      ['2026-08-28 17:41', 'Owner A', 'Lead-time suggestion rejected · Supplier B', '11d', '12d', 'var(--text2)', '3c07…8fa', 'var(--pend)'],
       ['2026-08-28 11:20', 'system', 'Recompute · 1,395 refs', '—', 'done', 'var(--text2)', '9ee1…b04', 'var(--mut)'],
       ['2026-08-27 06:14', 'system', 'Ingest rejected — 12 validation failures', '4,006', '0', 'var(--crit)', 'c982…0aa', 'var(--crit)'],
-      ['2026-08-26 15:38', 'Owner B', 'Preferred SKU pinned · Feta Cheese', 'none', 'SKU-11045', 'var(--ok)', '1de4…77b', 'var(--info)'],
+      ['2026-08-26 15:38', 'Owner D', 'Preferred SKU pinned · Feta Cheese', 'none', 'SKU-11045', 'var(--ok)', '1de4…77b', 'var(--info)'],
       ['2026-08-26 10:04', 'Owner A', 'Permission matrix · Viewer export', 'inherit', 'deny', 'var(--crit)', '5aa9…2c1', 'var(--warn)'],
       ['2026-08-25 14:02', 'system', 'Price list ingested', '—', '1,204 rows', 'var(--ok)', 'b731…e55', 'var(--mut)'],
       ['2026-08-24 09:47', 'Owner A', 'Proposal PR-2277 dismissed', 'OPEN', 'DISMISSED', 'var(--text2)', 'f0c3…19d', 'var(--mut)'],
@@ -4086,23 +4706,42 @@ class Component extends DCLogic {
       runout: r.available === 0 ? 'now' : num(r.runout, 1) + 'd', status: r.inv, color: S[r.inv], fill: mix(S[r.inv], 14), owner: r.owner,
     }));
     V.valueChart = this.areaChart();
+    // Open work aggregates buying.proposals. If that module is not running the card renders the
+    // unavailable state in place — a zero would be a lie.
+    const propState = st.modStates['buying.proposals'] || 'PAUSED';
+    V.openWorkAvailable = propState === 'ENABLED';
+    if (!V.openWorkAvailable) {
+      const tone = propState === 'FAULTED' ? 'var(--crit)' : propState === 'PAUSED' ? 'var(--warn)' : 'var(--mut)';
+      V.openWorkTitle = propState === 'FAULTED' ? 'Failed 5 times — circuit open'
+        : propState === 'PAUSED' ? 'Jobs are held — maintenance or upgrade in progress'
+          : 'Unavailable — module disabled by Origin';
+      V.openWorkBody = propState === 'FAULTED' ? 'Order Proposals stopped responding. Retry once, then check Data Health.'
+        : propState === 'PAUSED' ? 'Order Proposals was paused by Origin at 2026-08-29 04:12 · staging 3.3.7 upgrade. Counts resume when it does.'
+          : 'Order Proposals was disabled by Origin · 2026-08-29 04:12. No proposals are being raised.';
+      V.openWorkFg = tone; V.openWorkBg = mix(tone, 10); V.openWorkBorder = mix(tone, 30);
+      V.openWorkHasRetry = propState === 'FAULTED';
+      V.openWorkRetry = () => this.fire('Retry queued — circuit still open', 'warn');
+      V.goModules = () => this.go('modules');
+    } else V.goModules = () => this.go('modules');
     V.openWork = [
       { label: 'Order proposals awaiting approval', meta: '4 suppliers · 22,410 BHD', count: '9', color: 'var(--info)' },
       { label: 'Follow-ups with supplier', meta: 'oldest 6 days', count: '5', color: 'var(--pend)' },
       { label: 'Parameter proposals pending', meta: 'from optimizer run 2026-08-28', count: '7', color: 'var(--text)' },
       { label: 'Missed shortages — no proposal raised', meta: 'engine failure, not buyer behaviour', count: '3', color: 'var(--crit)' },
     ];
+    V.openWorkUnavailable = !V.openWorkAvailable;
+    V.openWorkRows = V.openWorkAvailable ? V.openWork : [];
     V.dataHealth = [
-      { label: 'Suppliers missing lead time', value: '193 / 230', pct: '84%', color: 'var(--crit)', owner: 'Owner D' },
-      { label: 'Refs without preferred SKU', value: '112', pct: '38%', color: 'var(--warn)', owner: 'Owner B' },
-      { label: 'Unresolved units', value: '46', pct: '21%', color: 'var(--warn)', owner: 'Owner C' },
+      { label: 'Suppliers missing lead time', value: '193 / 230', pct: '84%', color: 'var(--crit)', owner: 'Owner C' },
+      { label: 'Refs without preferred SKU', value: '112', pct: '38%', color: 'var(--warn)', owner: 'Owner D' },
+      { label: 'Unresolved units', value: '46', pct: '21%', color: 'var(--warn)', owner: 'Owner E' },
       { label: 'Unmapped SKUs', value: '318', pct: '52%', color: 'var(--warn)', owner: 'Owner G' },
       { label: 'Perishables without shelf life', value: '27', pct: '12%', color: 'var(--info)', owner: 'Owner F' },
     ];
     V.overdue = [
       { po: 'PO-18442', supplier: 'Supplier A', late: '9d late' },
-      { po: 'PO-18397', supplier: 'Supplier B', late: '6d late' },
-      { po: 'PO-18355', supplier: 'Supplier C', late: '4d late' },
+      { po: 'PO-18397', supplier: 'Supplier C', late: '6d late' },
+      { po: 'PO-18355', supplier: 'Supplier B', late: '4d late' },
       { po: 'PO-18310', supplier: 'Cash Purchases', late: '2d late' },
     ];
 
@@ -4327,11 +4966,11 @@ class Component extends DCLogic {
         ['Lamb Shoulder', '900', '500', '4.120', '3,708.000', 'Below Reorder'],
         ['Salmon Fillet', '150', '100', '7.600', '1,140.000', 'Below Reorder'],
       ]],
-      ['Supplier B', 'PR-2288 · 2 lines · lead p80 6d', 'Below MOQ — 1 line', 'var(--warn)', '4,214.500', 'APPROVED', [
+      ['Supplier C', 'PR-2288 · 2 lines · lead p80 6d', 'Below MOQ — 1 line', 'var(--warn)', '4,214.500', 'APPROVED', [
         ['Rolled Oats', '600', '750', '1.240', '744.000', 'Below Reorder'],
         ['Paper Meal Box', '96,000', '88,000', '0.036', '3,456.000', 'Zero Stock · no cover'],
       ]],
-      ['Supplier C', 'PR-2284 · 2 lines · lead p80 11d', 'Order total below free-freight 5,000', 'var(--warn)', '3,912.000', 'CONVERTED', [
+      ['Supplier B', 'PR-2284 · 2 lines · lead p80 11d', 'Order total below free-freight 5,000', 'var(--warn)', '3,912.000', 'CONVERTED', [
         ['Tomato Peeled', '1,200', '1,000', '2.140', '2,568.000', 'Zero Stock'],
         ['Chickpeas Dried', '800', '500', '1.680', '1,344.000', 'Below Reorder'],
       ]],
@@ -4457,13 +5096,13 @@ class Component extends DCLogic {
       V.modalName = mr.name;
       V.modalMeta = `${mr.category} · ${mr.warehouse} · ${num(mr.available, mr.dp)} ${mr.uom} available · run-out ${mr.available === 0 ? 'now' : num(mr.runout, 1) + 'd'}`;
       V.preferredTitle = unresolved ? 'Preferred SKU unresolved — approval blocked' : 'Preferred SKU · pinned';
-      V.preferredWhy = unresolved ? 'Two SKUs have equal purchase history and no pin. A buyer must choose before a proposal can be approved.' : 'Pinned by Owner E on 2026-04-11 — best landed cost across last 12 receipts.';
+      V.preferredWhy = unresolved ? 'Two SKUs have equal purchase history and no pin. A buyer must choose before a proposal can be approved.' : 'Pinned by Owner B on 2026-04-11 — best landed cost across last 12 receipts.';
       V.preferredColor = unresolved ? 'var(--crit)' : 'var(--ok)';
       V.preferredBg = mix(unresolved ? 'var(--crit)' : 'var(--ok)', 10);
       V.preferredBorder = mix(unresolved ? 'var(--crit)' : 'var(--ok)', 30);
       V.members = [
         { sku: 'SKU-' + (10400 + parseInt(mr.id.slice(1), 10)), supplier: 'Supplier A', available: num(mr.available * 0.62, 1), lead: '19d', leadColor: 'var(--warn)', price: '3.180', role: unresolved ? 'CANDIDATE' : 'PREFERRED', roleBg: mix(unresolved ? 'var(--warn)' : 'var(--ok)', 14), roleFg: unresolved ? 'var(--warn)' : 'var(--ok)' },
-        { sku: 'SKU-' + (10930 + parseInt(mr.id.slice(1), 10)), supplier: 'Supplier C', available: num(mr.available * 0.28, 1), lead: '11d', leadColor: 'var(--ok)', price: '3.340', role: unresolved ? 'CANDIDATE' : 'ALTERNATE', roleBg: mix(unresolved ? 'var(--warn)' : 'var(--mut)', 14), roleFg: unresolved ? 'var(--warn)' : 'var(--text3)' },
+        { sku: 'SKU-' + (10930 + parseInt(mr.id.slice(1), 10)), supplier: 'Supplier B', available: num(mr.available * 0.28, 1), lead: '11d', leadColor: 'var(--ok)', price: '3.340', role: unresolved ? 'CANDIDATE' : 'ALTERNATE', roleBg: mix(unresolved ? 'var(--warn)' : 'var(--mut)', 14), roleFg: unresolved ? 'var(--warn)' : 'var(--text3)' },
         { sku: 'SKU-' + (11480 + parseInt(mr.id.slice(1), 10)), supplier: 'Cash Purchases', available: num(mr.available * 0.10, 1), lead: '2d', leadColor: 'var(--ok)', price: '3.980', role: 'SPOT', roleBg: mix('var(--mut)', 14), roleFg: 'var(--text3)' },
       ];
       V.modalChart = this.spark('var(--info)', mr.trend.slice().reverse(), 320, 74);
@@ -4476,7 +5115,7 @@ class Component extends DCLogic {
     V.onPaletteQ = (e) => this.setState({ paletteQ: e.target.value });
     V.closePalette = (e) => { if (e) e.stopPropagation(); this.setState({ palette: false }); };
     const q = st.paletteQ.trim().toLowerCase();
-    const screenHits = Object.keys(TITLES).filter(id => !q || TITLES[id].label.toLowerCase().includes(q)).slice(0, 6)
+    const screenHits = Object.keys(TITLES).filter(id => navVisible(id)).filter(id => !q || TITLES[id].label.toLowerCase().includes(q)).slice(0, 6)
       .map(id => ({ kind: 'SCREEN', label: TITLES[id].label, meta: BUILT.includes(id) ? '' : 'empty', metaColor: 'var(--text3)', go: (e) => { e.stopPropagation(); this.go(id); } }));
     const refHits = (q ? ROWS.filter(r => r.name.toLowerCase().includes(q)) : ROWS.filter(r => r.inv === 'Below Safety' || r.inv === 'Zero Stock')).slice(0, 5)
       .map(r => ({ kind: 'REF', label: r.name, meta: r.inv, metaColor: S[r.inv], go: (e) => { e.stopPropagation(); this.setState({ palette: false, screen: 'mrp', modal: r.id }); } }));
