@@ -1,0 +1,6 @@
+DELIVERIES — Mode B template tab 6 shape, synthetic. The demand primitive at any granularity.
+Period Start,Granularity [daily|weekly|monthly|quarterly|ytd],Deliveries,Period End,Months Elapsed (YTD only),Business Unit
+2026-08-24,daily,120,2026-08-24,,Unit A
+2026-08-25,daily,110,2026-08-25,,Unit A
+2026-08-26,daily,90,2026-08-26,,Unit A
+2026-08-31,weekly,700,2026-09-06,,Unit A

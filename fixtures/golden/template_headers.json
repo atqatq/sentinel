@@ -1,0 +1,100 @@
+{
+ "1_ITEMS": [
+  "SKU *",
+  "Item Name *",
+  "Price *",
+  "Currency",
+  "Inactive * [1=Inactive 0=Active]",
+  "Unit",
+  "Supplier",
+  "Item Type *",
+  "Category Name (required if the Code field is empty)",
+  "Ingredient Family Name (required if the Code field is empty)",
+  "Recipe Ref Name (required if the Code field is empty)",
+  "Brand*",
+  "Size*",
+  "Case Count*",
+  "Conversion Factor*",
+  "Converted Unit Name (required if the Code field is empty)",
+  "Business Unit Name",
+  "Country of Origin Name",
+  "Shelf Life Days",
+  "Preferred SKU for Recipe Ref [1/0]",
+  "Nutrition Approved [1/0]",
+  "Production Approved [1/0]",
+  "Banned [1/0]"
+ ],
+ "2_INVENTORY": [
+  "Warehouse",
+  "SKU",
+  "Item Name",
+  "Unit",
+  "Quantity",
+  "Price",
+  "Item Currency",
+  "Gross Total, Document Currency",
+  "Warehouse Kind [COMPANY|3PL|STAGING|QUARANTINE|CONSIGNMENT|VIRTUAL|INACTIVE]"
+ ],
+ "3_CONSUMPTION": [
+  "SKU",
+  "Item Name",
+  "Unit",
+  "Start Balance",
+  "Transfers - Goods In",
+  "Transfers - Goods Out",
+  "Stock Changes for the Whole Period",
+  "End Balance",
+  "Period Start",
+  "Period End"
+ ],
+ "4_OPEN_POS": [
+  "Purchase Order #",
+  "Supplier",
+  "SKU",
+  "Item Name",
+  "Unit",
+  "Purchase Order Delivery Date",
+  "Receipt Dates",
+  "Ordered (Quantity)",
+  "Received (Quantity)",
+  "Waiting (Quantity)",
+  "Purchase Order Creation Date",
+  "Unit Price",
+  "Currency"
+ ],
+ "5_SUPPLIERS": [
+  "Name *",
+  "Active * [0=Inactive 1=Active]",
+  "Delivery Period",
+  "Minimum Order Total",
+  "Payment Terms",
+  "Currency code *",
+  "Country",
+  "Payment Term Days",
+  "Banned [1/0]"
+ ],
+ "6_DELIVERIES": [
+  "Period Start",
+  "Granularity [daily|weekly|monthly|quarterly|ytd]",
+  "Deliveries",
+  "Period End",
+  "Months Elapsed (YTD only)",
+  "Business Unit"
+ ],
+ "7_PLANNING_PARAMS": [
+  "Recipe Ref Name",
+  "Lead Time Days",
+  "Safety Days",
+  "Order Frequency Days",
+  "MOQ",
+  "Preferred SKU",
+  "Shelf Life Days"
+ ],
+ "8_CATEGORY_OWNERS": [
+  "Category Name",
+  "Tenant",
+  "Owner Name",
+  "Owner Email",
+  "Role"
+ ]
+}

@@ -1,0 +1,5 @@
+SUPPLIERS — synthetic export WITH banned banking/tax columns present on purpose.
+Golden test asserts the allow-list drops every one of them (INGESTION_FILE_SPEC section 2).
+Name *,Active * [0=Inactive 1=Active],Delivery Period,Minimum Order Total,Payment Terms,Currency code *,Bank Account Number,Account Holder Name,Bank Name,Sort Code,IBAN,SWIFT/BIC,ABA Routing Number,IFSC Code,Tax ID,PAN,Business Registration Number,Legal Address,Phone Number
+Supplier A,1,7,500.00,SOA +45 Days,SAR,000000000,Test Holder,Test Bank,00-00-00,SA00 0000 0000 0000 0000 0000,TESTBANK,000000000,TEST0000000,000-000-000,TESTPAN0000,REG000000,"1 Test Street, Test City",+00 000 000 0000
+Supplier B,1,14,250.00,Net 30,SAR,111111111,Test Holder B,Test Bank,11-11-11,SA11 1111 1111 1111 1111 1111,TESTBANK,111111111,TEST1111111,111-111-111,TESTPAN1111,REG111111,"2 Test Street, Test City",+00 111 111 1111

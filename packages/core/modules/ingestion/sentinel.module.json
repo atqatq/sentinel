@@ -21,5 +21,8 @@
     "QUARANTINE_RECORDED",
     "DATA_HEALTH_TASK_RAISED"
   ],
-  "goldenTests": { "suite": "test/parse.test.js", "count": 32 }
+  "goldenTests": [
+    { "suite": "test/parse.test.js", "count": 32 },
+    { "suite": "test/filebinding.test.js", "count": 16 }
+  ]
 }

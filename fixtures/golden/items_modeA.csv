@@ -1,0 +1,6 @@
+ITEM MASTER — synthetic export for golden tests only. No real tenant, supplier, or person data.
+Generated for the file-binding suite; bytes are checksum-pinned (H12 contract).
+SKU *,Item Name *,Price *,Currency,Inactive * [1=Inactive 0=Active],Unit,Supplier,Item Type *,Category Name (required if the Code field is empty),Ingredient Family Name (required if the Code field is empty),Recipe Ref Name (required if the Code field is empty),Brand*,Size*,Case Count*,Conversion Factor*,Converted Unit Name (required if the Code field is empty),Business Unit Name,Country of Origin Name,Shelf Life Days,Preferred SKU for Recipe Ref [1/0],Nutrition Approved [1/0],Production Approved [1/0],Banned [1/0]
+TS-0001,Test Ingredient One,12.5,SAR,0,kg,Supplier A,Ingredient,Test Category,Test Family,Test Ref Alpha,BrandA,1kg,10,1,kg,Unit A,Country X,180,1,1,1,0
+TS-0002,Test Ingredient Two,3.25,SAR,0,case,Supplier B,Ingredient,Test Category,Test Family,Test Ref Alpha,BrandB,12x500g,6,12,each,Unit A,Country X,90,0,1,1,0
+TS-0003,Test Ingredient Three,0.95,SAR,1,each,Supplier C,Consumable,Test Category,,,Test Ref Beta,BrandC,1each,1,1,each,Unit B,Country Y,0,0,0,0,1
