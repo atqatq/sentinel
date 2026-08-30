@@ -39,7 +39,7 @@ jobs:
         run: node packages/core/modules/execution-feedback/test/feedback.test.js
 
   ingestion-tests:
-    name: Ingestion boundary suite (strict parse)
+    name: Ingestion boundary suites (strict parse + file binding)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -48,6 +48,8 @@ jobs:
           node-version: 22
       - name: Strict parse + bounds + quarantine + deliveries guard (32)
         run: node packages/core/modules/ingestion/test/parse.test.js
+      - name: File-kind binding + allow-list + purge enforcement (16, checksum-pinned fixtures)
+        run: node packages/core/modules/ingestion/test/filebinding.test.js
 
   ui-checks:
     name: UI package (typecheck + theme compile)
