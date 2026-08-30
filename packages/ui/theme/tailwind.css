@@ -1,0 +1,84 @@
+/*
+ * SDS → Tailwind CSS 4 theme mapping (A12).
+ *
+ * `@theme inline` keeps each utility bound to the SDS custom property
+ * (e.g. bg-surface → background-color: var(--surface)), so utilities track
+ * the live token and follow [data-sds-theme] / [data-sds-density] switches
+ * at runtime. Values are never copied — the token layer in tokens.css stays
+ * the single source of truth and theme defaults never override the status
+ * language (delivery spec A12).
+ *
+ * Status colours are exposed as utilities but bind ONLY to displayStatus at
+ * the component layer (M1 contract): raw ladder status is never rendered.
+ * Never encode a non-status data series with a status colour; never rely on
+ * colour alone — pair with a label, a shape, or a position.
+ */
+
+@import "./tokens.css";
+
+@theme inline {
+  /* ---- Neutrals ---- */
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-hover: var(--hover);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-text: var(--text);
+  --color-text-2: var(--text-2);
+  --color-text-3: var(--text-3);
+  --color-text-disabled: var(--text-disabled);
+  --color-inv: var(--inv);
+
+  /* ---- Brand (never a generic button colour; never in a data context) ---- */
+  --color-brand: var(--brand);
+
+  /* ---- Status — semantic only, two-axis vocabulary ---- */
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-critical: var(--critical);
+  --color-info: var(--info);
+  --color-pending: var(--pending);
+  --color-muted: var(--muted);
+
+  /* ---- Data-visualisation palette ---- */
+  --color-dv-1: var(--dv-1);
+  --color-dv-2: var(--dv-2);
+  --color-dv-3: var(--dv-3);
+  --color-dv-4: var(--dv-4);
+  --color-dv-5: var(--dv-5);
+  --color-dv-6: var(--dv-6);
+  --color-dv-7: var(--dv-7);
+  --color-dv-8: var(--dv-8);
+  --color-dv-seq-1: var(--dv-seq-1);
+  --color-dv-seq-2: var(--dv-seq-2);
+  --color-dv-seq-3: var(--dv-seq-3);
+  --color-dv-seq-4: var(--dv-seq-4);
+  --color-dv-seq-5: var(--dv-seq-5);
+  --color-dv-div-low: var(--dv-div-low);
+  --color-dv-div-mid: var(--dv-div-mid);
+  --color-dv-div-high: var(--dv-div-high);
+
+  /* ---- Fonts (two families only) ---- */
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+
+  /* ---- Radius ---- */
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+
+  /* ---- Shadows (floating layers only; elevation is otherwise tonal) ---- */
+  --shadow-popover: var(--shadow-popover);
+  --shadow-modal: var(--shadow-modal);
+  --shadow-sticky-up: var(--shadow-sticky-up);
+}
+
+/*
+ * Custom variants for the two cascade axes (theme and density each cascade
+ * from a single root attribute — README §Design tokens).
+ *   theme-light:  subtree under the light-theme root
+ *   compact:      subtree under the compact-density root
+ */
+@custom-variant theme-light (&:where([data-sds-theme="light"] *));
+@custom-variant compact (&:where([data-sds-density="compact"] *));
