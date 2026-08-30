@@ -13,6 +13,12 @@
  *     Brand green is NOT a status colour and never appears in a data context.
  *   - Gate: scripts/guards/sds-token-parity.mjs verifies this file against the
  *     README tables — editing one without the other fails CI.
+ *
+ * Naming rule: tokens the README names verbatim (neutrals, status, brand, dv,
+ * density) keep their README names. Structural tokens the README describes only
+ * in prose (fonts, radii, shadows) carry an `--sds-` prefix when the natural
+ * name would collide with a Tailwind theme namespace (--font-*, --radius-*,
+ * --shadow-*), so `@theme inline` can alias them without circular references.
  */
 
 :root {
@@ -71,8 +77,8 @@
   /* ---- Typography ----
    * IBM Plex Sans for all UI text. JetBrains Mono for every figure, code, ID,
    * timestamp, unit, and status label. Two families only. */
-  --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --sds-font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --sds-font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
 
   /* Type roles (size / line-height, weight, tracking). See README §Typography. */
   --type-page-size: 32px;        --type-page-leading: 38px;
@@ -113,16 +119,16 @@
   --grid-gutter: 16px;          /* 12-column grid */
 
   /* ---- Radius ---- */
-  --radius-sm: 6px;             /* controls, inputs, cells, chips */
-  --radius-md: 10px;            /* cards, panels */
-  --radius-lg: 14px;            /* modals, palette */
-  --radius-full: 999px;         /* pills, dots, avatars */
+  --sds-radius-sm: 6px;             /* controls, inputs, cells, chips */
+  --sds-radius-md: 10px;            /* cards, panels */
+  --sds-radius-lg: 14px;            /* modals, palette */
+  --sds-radius-full: 999px;         /* pills, dots, avatars */
 
   /* ---- Elevation — tonal (canvas → surface → raised); real shadows only on
    *      floating layers ---- */
-  --shadow-popover: 0 18px 44px rgba(0, 0, 0, 0.5);
-  --shadow-modal: 0 30px 80px rgba(0, 0, 0, 0.6);
-  --shadow-sticky-up: 0 -8px 30px rgba(0, 0, 0, 0.35);
+  --sds-shadow-popover: 0 18px 44px rgba(0, 0, 0, 0.5);
+  --sds-shadow-modal: 0 30px 80px rgba(0, 0, 0, 0.6);
+  --sds-shadow-sticky-up: 0 -8px 30px rgba(0, 0, 0, 0.35);
 
   /* ---- Density (default: comfortable) ---- */
   --row: 44px;                  /* table row height */

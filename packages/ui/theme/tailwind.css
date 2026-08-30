@@ -16,6 +16,10 @@
 
 @import "./tokens.css";
 
+/* Always scan this package's own sources — vendored primitives' classes must
+ * generate wherever the theme is imported (app source detection covers apps). */
+@source "../src/**/*.{ts,tsx}";
+
 @theme inline {
   /* ---- Neutrals ---- */
   --color-canvas: var(--canvas);
@@ -60,18 +64,18 @@
   --color-dv-div-high: var(--dv-div-high);
 
   /* ---- Fonts (two families only) ---- */
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-mono);
+  --font-sans: var(--sds-font-sans);
+  --font-mono: var(--sds-font-mono);
 
   /* ---- Radius ---- */
-  --radius-sm: var(--radius-sm);
-  --radius-md: var(--radius-md);
-  --radius-lg: var(--radius-lg);
+  --radius-sm: var(--sds-radius-sm);
+  --radius-md: var(--sds-radius-md);
+  --radius-lg: var(--sds-radius-lg);
 
   /* ---- Shadows (floating layers only; elevation is otherwise tonal) ---- */
-  --shadow-popover: var(--shadow-popover);
-  --shadow-modal: var(--shadow-modal);
-  --shadow-sticky-up: var(--shadow-sticky-up);
+  --shadow-popover: var(--sds-shadow-popover);
+  --shadow-modal: var(--sds-shadow-modal);
+  --shadow-sticky-up: var(--sds-shadow-sticky-up);
 }
 
 /*
