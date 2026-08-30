@@ -1,6 +1,6 @@
 'use strict';
 /* ============================================================================
- * RLS deny-matrix — LIVE proof of the tenant-isolation contract (ADR-0001).
+ * RLS deny-matrix — LIVE proof of the tenant-isolation contract (ADR-0002).
  *
  * Requires a reachable PostgreSQL. Runs in CI against postgres:16; locally
  * against any server via DATABASE_URL_ADMIN. The script:

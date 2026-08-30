@@ -4,10 +4,10 @@
 // This file is the SOURCE OF TRUTH for tables and columns. The initial SQL
 // migration (migrations/0001_init/migration.sql) is hand-written to add what
 // Prisma cannot express — row-level security, fail-closed tenant policies,
-// roles and grants (ADR-0001). packages/db/test/schema.test.js enforces
+// roles and grants (ADR-0002). packages/db/test/schema.test.js enforces
 // schema↔SQL consistency so the two can never drift silently.
 //
-// Rules encoded here (build spec §8/§9, ingestion spec §4, ADR-0001):
+// Rules encoded here (build spec §8/§9, ingestion spec §4, ADR-0002):
 //   - NUMERIC for all money and quantities — never float.
 //   - Every tenant-scoped table carries tenant_id as its first column and is
 //     covered by a fail-closed RLS policy in the migration.

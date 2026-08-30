@@ -1,5 +1,5 @@
 -- ============================================================================
--- Sentinel — 0001_init: M1 data foundation + row-level security (ADR-0001).
+-- Sentinel — 0001_init: M1 data foundation + row-level security (ADR-0002).
 --
 -- Hand-written alongside prisma/schema.prisma (the typed contract). What SQL
 -- adds that Prisma cannot express:
@@ -346,7 +346,7 @@ $$;
 GRANT USAGE ON SCHEMA public TO "sentinel_app";
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO "sentinel_app";
 
--- ---- Row-level security (ADR-0001) -----------------------------------------------------
+-- ---- Row-level security (ADR-0002) -----------------------------------------------------
 -- Fail-closed tenant isolation on every tenant-scoped table:
 --   * current_setting('app.tenant_id', true) → NULL when the GUC is unset
 --     → comparison is NULL → zero rows on read, rejection on write.

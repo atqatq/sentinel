@@ -5,7 +5,7 @@
  * Verifies the migration contract WITHOUT a live server:
  *   1. Every tenant-scoped table is RLS-covered: ENABLE + FORCE + a
  *      tenant_isolation policy using the fail-closed
- *      current_setting('app.tenant_id', true) pattern (ADR-0001).
+ *      current_setting('app.tenant_id', true) pattern (ADR-0002).
  *   2. The app role is NOBYPASSRLS.
  *   3. No float types anywhere — NUMERIC only for money/quantities (§8).
  *   4. prisma/schema.prisma ↔ migration.sql consistency (table + column sets).
@@ -27,7 +27,7 @@ function test(name, fn){ try { fn(); passed++; console.log('  ✓ ' + name); }
   catch(e){ failed++; console.log('  ✗ ' + name + '\n      ' + e.message); } }
 
 /* Every table carrying tenant_id (all except tenant itself and app_user,
- * which are cross-tenant by design — see ADR-0001). */
+ * which are cross-tenant by design — see ADR-0002). */
 const TENANT_SCOPED = [
   'ownership_grant', 'unit_catalog_entry', 'unit_alias', 'supplier', 'item',
   'warehouse', 'stock_line', 'open_po_line', 'consumption_balance',
@@ -35,7 +35,7 @@ const TENANT_SCOPED = [
   'quarantine_record', 'data_health_task', 'idempotency_key', 'fx_rate_pin',
 ];
 
-console.log('\nRLS coverage (ADR-0001)');
+console.log('\nRLS coverage (ADR-0002)');
 
 test('every tenant-scoped table has ENABLE + FORCE + tenant_isolation policy', () => {
   for (const t of TENANT_SCOPED) {

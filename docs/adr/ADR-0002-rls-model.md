@@ -1,4 +1,4 @@
-# ADR-0001: Row-level security model for tenant isolation
+# ADR-0002: Row-level security model for tenant isolation
 
 * Status: accepted
 * Deciders: repository owner (mandated by SENTINEL_V1_DELIVERY_SPEC §2 — "Native RLS is the enforcement point for tenant isolation AND SoD")

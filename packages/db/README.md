@@ -2,7 +2,7 @@
 
 Prisma schema (typed contract) + hand-written SQL migrations carrying what
 Prisma cannot express: row-level security, roles, grants. RLS model is
-decided in [ADR-0001](../../docs/adr/ADR-0001-rls-model.md); the decision
+decided in [ADR-0002](../../docs/adr/ADR-0002-rls-model.md); the decision
 record is D-016.
 
 ## Layout
