@@ -1,0 +1,159 @@
+/*
+ * SDS tokens — single source of truth for the Sentinel design system.
+ *
+ * Ported VERBATIM from docs/design/README.md §Design tokens (the design handoff
+ * is the visual-truth authority; where it and the brief disagree, it wins on
+ * rendered visual detail).
+ *
+ * Contract (README, §Design tokens):
+ *   - Theme and density cascade from a single root attribute each:
+ *     [data-sds-theme="light"] and [data-sds-density] — never threaded through props.
+ *   - Dark is the default (cool graphite); light is an override.
+ *   - Status tokens are semantic only, two hexes per token (dark / light).
+ *     Brand green is NOT a status colour and never appears in a data context.
+ *   - Gate: scripts/guards/sds-token-parity.mjs verifies this file against the
+ *     README tables — editing one without the other fails CI.
+ */
+
+:root {
+  /* ---- Neutrals — dark (default, cool graphite) ---- */
+  --canvas: #0B0D0F;            /* app background */
+  --surface: #14171A;           /* cards, panels, table body */
+  --raised: #1B1F23;            /* popovers, modals, inputs */
+  --hover: #22272C;             /* hover / selected chrome fill */
+  --line: rgba(255, 255, 255, 0.07);       /* hairline dividers */
+  --line-strong: rgba(255, 255, 255, 0.12); /* emphasis dividers, input borders */
+  --text: #E8EBED;              /* primary text */
+  --text-2: #A2ABB3;            /* secondary */
+  --text-3: #6B757D;            /* tertiary, labels, units */
+  --text-disabled: #454D54;     /* disabled */
+  --inv: #0B0D0F;               /* text on a --text-filled surface (primary buttons) */
+
+  /* ---- Brand ----
+   * Wordmark, active-nav indicator, bootstrap progress, brand moments only.
+   * Never a generic button colour. Never in a data context. Close to --ok
+   * but distinct by design; do not resolve the tension by recolouring status. */
+  --brand: #38B675;
+
+  /* ---- Status — semantic only, two hexes per token (dark value here;
+   *      light override below). The two-axis status vocabulary. ---- */
+  --ok: #3FBF87;                /* OK */
+  --warn: #E8A33D;              /* Below Reorder; stale data; MOQ shortfall; unsaved edits */
+  --critical: #F1656B;          /* Below Safety; Zero Stock; failures */
+  --info: #4C9AF0;              /* Over Stock; selection; recompute; focus ring */
+  --pending: #A78BF5;           /* Follow-up with supplier; unaccepted proposals */
+  --muted: #6B757D;             /* Inactive; Covered */
+
+  /* ---- Data-visualisation palette ----
+   * Categorical, ordered for separation and deuteranopia-checked.
+   * Never encode a non-status data series with a status colour. */
+  --dv-1: #4C9AF0;
+  --dv-2: #3FBF87;
+  --dv-3: #E8A33D;
+  --dv-4: #A78BF5;
+  --dv-5: #40C4C4;
+  --dv-6: #F1656B;
+  --dv-7: #8FA0AE;
+  --dv-8: #D98BC8;
+
+  /* Sequential (value heat) */
+  --dv-seq-1: #132B44;
+  --dv-seq-2: #1D4B72;
+  --dv-seq-3: #2A6FA6;
+  --dv-seq-4: #4C9AF0;
+  --dv-seq-5: #9CC6F7;
+
+  /* Diverging (variance vs target) */
+  --dv-div-low: #F1656B;
+  --dv-div-mid: #6B757D;
+  --dv-div-high: #4C9AF0;
+
+  /* ---- Typography ----
+   * IBM Plex Sans for all UI text. JetBrains Mono for every figure, code, ID,
+   * timestamp, unit, and status label. Two families only. */
+  --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  /* Type roles (size / line-height, weight, tracking). See README §Typography. */
+  --type-page-size: 32px;        --type-page-leading: 38px;
+  --type-page-weight: 600;       --type-page-tracking: -0.011em;
+  --type-title-size: 22px;       --type-title-leading: 28px;
+  --type-title-weight: 600;      --type-title-tracking: -0.011em;
+  --type-card-size: 16px;        --type-card-leading: 22px;
+  --type-card-weight: 600;       /* 14/20 for dense cards */
+  --type-body-size: 13px;        --type-body-leading: 20px;
+  --type-body-weight: 400;
+  --type-body2-size: 12.5px;     --type-body2-leading: 18px;
+  --type-label-size: 11px;       --type-label-leading: 14px;
+  --type-label-weight: 600;      --type-label-tracking: 0.06em; /* uppercase, --text-3 */
+  --type-figure-size: 12.5px;    /* table cell figure, mono, tabular-nums */
+  --type-kpi-size: 25px;         --type-kpi-leading: 30px;
+  --type-kpi-weight: 500;        --type-kpi-tracking: -0.01em; /* mono, tabular-nums */
+  --type-micro-size: 10.5px;     --type-micro-leading: 14px;
+
+  /* Wordmark: IBM Plex Sans 600, all caps, wide tracking — do not tighten. */
+  --wordmark-tracking: 0.18em;
+  --wordmark-size-app: 13px;
+  --wordmark-size-sheet: 15px;
+
+  /* ---- Spacing — 8px base with a 4px sub-unit ---- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+
+  /* Layout constants */
+  --page-padding: 24px;         /* card padding 16; bootstrap panel 24 */
+  --card-padding: 16px;
+  --section-gap: 20px;
+  --control-gap: 8px;
+  --grid-gutter: 16px;          /* 12-column grid */
+
+  /* ---- Radius ---- */
+  --radius-sm: 6px;             /* controls, inputs, cells, chips */
+  --radius-md: 10px;            /* cards, panels */
+  --radius-lg: 14px;            /* modals, palette */
+  --radius-full: 999px;         /* pills, dots, avatars */
+
+  /* ---- Elevation — tonal (canvas → surface → raised); real shadows only on
+   *      floating layers ---- */
+  --shadow-popover: 0 18px 44px rgba(0, 0, 0, 0.5);
+  --shadow-modal: 0 30px 80px rgba(0, 0, 0, 0.6);
+  --shadow-sticky-up: 0 -8px 30px rgba(0, 0, 0, 0.35);
+
+  /* ---- Density (default: comfortable) ---- */
+  --row: 44px;                  /* table row height */
+  --rowf: 13px;                 /* cell figure size */
+}
+
+/* ---- Light theme override (single root attribute) ---- */
+[data-sds-theme="light"] {
+  --canvas: #F4F5F6;
+  --surface: #FFFFFF;
+  --raised: #FFFFFF;
+  --hover: #EDEEF0;
+  --line: rgba(11, 13, 15, 0.08);
+  --line-strong: rgba(11, 13, 15, 0.14);
+  --text: #14171A;
+  --text-2: #545C63;
+  --text-3: #7C858C;
+  --text-disabled: #A9B0B6;
+  --inv: #FFFFFF;
+
+  /* Status pairs — light values */
+  --ok: #0A7D4B;
+  --warn: #A66300;
+  --critical: #B3122B;
+  --info: #1266D6;
+  --pending: #5B3BC4;
+  --muted: #7C858C;
+}
+
+/* ---- Density override (single root attribute) ---- */
+[data-sds-density="compact"] {
+  --row: 36px;
+  --rowf: 12.5px;
+}
