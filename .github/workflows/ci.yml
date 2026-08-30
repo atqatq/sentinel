@@ -66,6 +66,8 @@ jobs:
         run: node packages/core/modules/ingestion/test/window.test.js
       - name: H10 inbound hardening — magic bytes, zip caps, formula stripping, XXE, AV (46)
         run: node packages/core/modules/ingestion/test/hardening.test.js
+      - name: H6 idempotent upsert wrapper — keys + replay plan (29)
+        run: node packages/core/modules/ingestion/test/idempotency.test.js
 
   db-rls:
     name: DB schema + RLS deny matrix (postgres 16)
@@ -91,6 +93,8 @@ jobs:
           node-version: 22
       - name: Structural schema tests (no server)
         run: node packages/db/test/schema.test.js
+      - name: Ingest adapter — plan execution via stub client (17)
+        run: node packages/db/test/ingest-adapter.test.js
       - name: Install pg client for the matrix
         run: npm install --prefix packages/db pg@8 --no-save --no-audit --no-fund
       - name: RLS deny matrix (live)
@@ -99,6 +103,10 @@ jobs:
           DATABASE_URL_ADMIN: postgres://postgres:postgres@127.0.0.1:5432/postgres
       - name: Plan-seal live — engine run, replay, divergent-replay disclosure, RLS (14)
         run: node packages/db/test/plan-seal-live.js
+        env:
+          DATABASE_URL_ADMIN: postgres://postgres:postgres@127.0.0.1:5432/postgres
+      - name: Ingest-replay live — per-tenant replay no-op, H7 merge, RLS (22)
+        run: node packages/db/test/ingest-replay-live.js
         env:
           DATABASE_URL_ADMIN: postgres://postgres:postgres@127.0.0.1:5432/postgres
 
