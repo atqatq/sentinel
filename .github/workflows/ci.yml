@@ -45,6 +45,8 @@ jobs:
         run: node packages/core/modules/calendar/test/calendar.test.js
       - name: Plan service — engine live wiring + sealed snapshots (41)
         run: node packages/plan-service/test/plan.test.js
+      - name: Ops freshness alarm — DAT-01 SLO + missing-deliveries channel (19)
+        run: node packages/core/modules/ops/test/freshness.test.js
 
   ingestion-tests:
     name: Ingestion boundary suites (strict parse + file binding)
