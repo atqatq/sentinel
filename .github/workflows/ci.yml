@@ -135,5 +135,7 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Build the shell (Next.js 15, SDS theme, plan route)
         run: pnpm -C apps/web build
+      - name: Data-health facts composition — freshness envelope + register rules (15)
+        run: node --experimental-strip-types apps/web/test/data-health-facts.test.ts
       - name: Status vocabulary guard
         run: bash scripts/guards/status-vocabulary-binding.sh
