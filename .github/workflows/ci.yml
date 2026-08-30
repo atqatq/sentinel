@@ -39,6 +39,10 @@ jobs:
         run: node packages/core/modules/execution-feedback/test/feedback.test.js
       - name: KPI catalog — dataState envelope, A1/A2 named proofs (24)
         run: node packages/core/modules/kpi-catalog/test/catalog.test.js
+      - name: H4 canonical date boundary — tenant-TZ explicit, day-unit math (25)
+        run: node packages/core/modules/calendar/test/dates.test.js
+      - name: H9 working calendar — flat-tenant-identical + Ramadan adjustment (29)
+        run: node packages/core/modules/calendar/test/calendar.test.js
 
   ingestion-tests:
     name: Ingestion boundary suites (strict parse + file binding)

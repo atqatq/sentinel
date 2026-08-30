@@ -130,6 +130,19 @@ recompute engine → seal day snapshot → fire auto-tasks → write import log`
 **Idempotency:** re-importing the same file changes nothing. Keys — Item `SKU`; Inventory `SKU+Warehouse`;
 PO `PO Number+SKU`; Supplier `Supplier ID` (H7/A8 identity key; `Name` is the interim until the amended R4 ships the column); Deliveries `Tenant+Date`; Params `Recipe Ref+Tenant`.
 
+**Day basis and canonical dates (H4/H9 — A10, normative):** the one canonical temporal form is
+**date-only, UTC, `YYYY-MM-DD`**. Date-only columns pass through unchanged; datetime columns are converted
+**at the boundary** using the **tenant timezone — an explicit tenant setting** (fixed offset or IANA), never
+the importing server's local zone; a datetime that carries no zone is read as tenant-local wall time by the
+same explicit setting, and a value that cannot be converted is quarantined, not guessed. Downstream (feedback,
+engine day math, calendars) everything works on these canonical dates in **integer day units** — no
+milliseconds, no half-day rounding. Deliveries are entered as **calendar-day actuals** (what really arrived on
+each date, including non-working days). The engine's working-month basis `WD` is **per-tenant and
+per-period, calendar-derived** from the tenant's week pattern and closures (Ramadan, holidays) — for a tenant
+without a real calendar it remains the workbook's flat convention of 22. The deliveries divisor and the
+magnification basis are always the **same** per-period count, so the conversion cancels exactly (§14.4b
+invariant), and a flat-calendar tenant produces byte-identical output to today.
+
 **Module isolation (rev 1.2 directive):** the Integration Gateway is a **module** in the Sentinel container
 (§8/§14.15 of the build spec). It owns its queue, watchdog and circuit breaker — a failing file kind, a
 poison row or a hung parser quarantines **that kind only** and never blocks the other kinds, the engine
