@@ -1,0 +1,13 @@
+{
+  "id": "kpi-catalog",
+  "version": "0.3.0",
+  "description": "KPI catalog (build spec §16, screen 34): every KPI defined once, as data — 28 entries carrying definition, formula reference, source dataset, owner role, cadence and target band. The dataState envelope renders engine output honestly: OK, WITHHELD (R1 fail-closed money — mixed currencies null the money strip with a reason, an operational event, never a poisoned sum), INSUFFICIENT_DATA (R2 — nothing plannable renders 'insufficient plannable data', never a fabricated 100%), STALE (a seal older than the entry's explicit threshold renders stale, never silent — the freshness stamp itself is mandatory). The module never re-implements a formula: the portfolio strip maps the engine's verified canon into the envelope, and the INV-04 grain difference (refs vs SKU-days) is disclosed, not silently reconciled.",
+  "purity": "no-db, no-react, no-framework, no-io",
+  "dependencies": [],
+  "permissionScopes": ["kpi:read"],
+  "ingestionKinds": [],
+  "ledgerEventTypes": [],
+  "goldenTests": [
+    { "suite": "test/catalog.test.js", "count": 24 }
+  ]
+}
