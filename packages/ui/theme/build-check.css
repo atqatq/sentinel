@@ -1,0 +1,12 @@
+/*
+ * Compile-verification input for the theme mapping (not shipped to apps).
+ *
+ * Apps compose their own globals.css as two imports:
+ *   1. "tailwindcss"         — preflight, default theme, utilities layer
+ *   2. "@sentinel/ui/theme"  — SDS tokens + @theme inline mapping
+ *
+ * This file exists so `pnpm -C packages/ui build:css` proves, in CI, that the
+ * mapping compiles and that utilities bind to the live SDS variables.
+ */
+@import "tailwindcss";
+@import "./tailwind.css";
