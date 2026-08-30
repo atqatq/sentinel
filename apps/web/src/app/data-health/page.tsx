@@ -10,9 +10,9 @@ import { StaleBanner } from "@sentinel/ui/stale-banner"
 import { PageHeader } from "@sentinel/ui/page-header"
 
 import { DensityControl } from "../shell-controls"
-import { getSentinelPool } from "../lib/pg"
-import { readDataHealthFacts } from "../lib/data-health-server"
-import { formatUtcMinutes, type DataHealthFacts, type RegisterRow } from "../lib/data-health"
+import { getSentinelPool } from "../../lib/pg"
+import { readDataHealthFacts } from "../../lib/data-health-server"
+import { formatUtcMinutes, type DataHealthFacts, type RegisterRow } from "../../lib/data-health"
 
 export const dynamic = "force-dynamic"
 
