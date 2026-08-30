@@ -1,0 +1,25 @@
+{
+  "id": "ingestion",
+  "version": "0.2.0",
+  "description": "Ingestion boundary v1 core. Strict numeric parsing (A5/C4): values crossing the boundary parse strictly or quarantine — thousands separators, decimal commas, currency forms, scientific notation, booleans and non-finite numbers are named quarantine reasons, never coerced. The nz()-style fallback is legal only for fields explicitly declared optional and genuinely missing. Plausibility bounds on every quantity-bearing field; the deliveries bounds-guard returns the full A5 substitution plan (quarantined value, trailing-7-day-mean baseline from valid entries only, DATA_HEALTH task, UI banner naming the substitution). Pure core: file IO, upserts, RLS and idempotency land with the M1 pipeline stages in the app layer.",
+  "purity": "no-db, no-react, no-framework, no-io",
+  "dependencies": [],
+  "permissionScopes": ["ingest:read", "ingest:write", "quarantine:review"],
+  "ingestionKinds": [
+    "items",
+    "inventory_all_dimensions",
+    "open_pos",
+    "consumption_balances",
+    "deliveries",
+    "suppliers",
+    "planning_params",
+    "category_owners"
+  ],
+  "ledgerEventTypes": [
+    "INGEST_FILE_ACCEPTED",
+    "INGEST_FILE_REJECTED",
+    "QUARANTINE_RECORDED",
+    "DATA_HEALTH_TASK_RAISED"
+  ],
+  "goldenTests": { "suite": "test/parse.test.js", "count": 32 }
+}

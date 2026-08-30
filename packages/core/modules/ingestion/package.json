@@ -1,0 +1,10 @@
+{
+  "name": "@sentinel/module-ingestion",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Sentinel module: ingestion boundary v1 core — strict numerics, plausibility bounds, quarantine records, deliveries-guard confirmation semantics (A5/C4)",
+  "main": "src/parse.js",
+  "scripts": {
+    "test": "node test/parse.test.js"
+  }
+}
