@@ -137,7 +137,7 @@ function upsertSupplier(t, row, where) {
       values: [t, ext, name, common.isActive, common.lead, common.moq, common.terms, common.termDays, common.currency, common.country, common.banned] };
   }
   /* Interim identity per ingestion spec §4 / migration comment: (tenant_id, name) */
-  return { text: `INSERT INTO supplier (${cols}) VALUES ($1,NULL,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+  return { text: `INSERT INTO supplier (${cols}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
     ON CONFLICT (tenant_id, name) DO UPDATE SET ${sets}`,
     values: [t, null, name, common.isActive, common.lead, common.moq, common.terms, common.termDays, common.currency, common.country, common.banned] };
 }
@@ -237,13 +237,21 @@ function makeIngestAdapter(client, tenantId) {
     WIRED_KINDS,
 
     /** The prior ingest_file row for (tenant, kind, checksum) — the wrapper's
-     * replay port. Returns { id, status, appliedAt } or null. */
+     * replay port. Returns { id, status, appliedAt } or null. applied_at is
+     * an int8: node-pg delivers bigint as a STRING, and the decision layer's
+     * port contract demands a finite epoch-ms NUMBER — convert at the
+     * boundary (null stays null: Number(null) is 0, which would lie). */
     async findFile(kind, checksum) {
       const r = await client.query(
         `SELECT id, status::text AS status, (extract(epoch from applied_at) * 1000)::bigint AS "appliedAt"
            FROM ingest_file WHERE tenant_id = $1 AND kind = $2 AND checksum_sha256 = $3`,
         [t, kind, checksum]);
-      return r.rows[0] || null;
+      if (!r.rows[0]) return null;
+      return {
+        id: r.rows[0].id,
+        status: r.rows[0].status,
+        appliedAt: r.rows[0].appliedAt === null ? null : Number(r.rows[0].appliedAt),
+      };
     },
 
     /** This tenant's registered keys for a kind — the wrapper's seen port. */

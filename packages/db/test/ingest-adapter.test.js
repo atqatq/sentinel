@@ -28,14 +28,21 @@ function throwsCode(name, fn, code) {
 }
 
 /* Stub client: records every statement; findFile/loadSeenKeys SELECTs get
- * scripted responses so apply() can run end-to-end without a server. */
+ * scripted responses so apply() can run end-to-end without a server. The
+ * scripted appliedAt is a STRING — node-pg delivers int8/bigint as strings,
+ * and the adapter must convert at the boundary (the live proof inherits the
+ * real behavior; this stub inherits the real shape). */
 function stubClient({ prior = null, seen = [] } = {}) {
   const calls = [];
   return {
     calls,
     async query(text, values) {
       calls.push({ text: text.replace(/\s+/g, ' ').trim(), values });
-      if (/FROM ingest_file/i.test(text)) return { rows: prior ? [prior] : [], rowCount: prior ? 1 : 0 };
+      if (/FROM ingest_file/i.test(text)) {
+        return prior
+          ? { rows: [{ id: prior.id, status: prior.status, appliedAt: prior.appliedAt === null || prior.appliedAt === undefined ? null : String(prior.appliedAt) }], rowCount: 1 }
+          : { rows: [], rowCount: 0 };
+      }
       if (/FROM idempotency_key/i.test(text)) return { rows: seen.map((idem_key) => ({ idem_key })), rowCount: seen.length };
       if (/RETURNING id/i.test(text)) return { rows: [{ id: 'file-uuid', appliedAt: 1756500000000 }], rowCount: 1 };
       return { rows: [], rowCount: 1 };
@@ -67,6 +74,15 @@ test('loadSeenKeys reads the register tenant-scoped, ordered', async () => {
   assert.deepStrictEqual(seen, []);
   assert.ok(c.calls[0].text.includes('FROM idempotency_key'));
   assert.ok(c.calls[0].text.includes('ORDER BY idem_key'));
+});
+test('findFile converts the int8 appliedAt to a finite epoch-ms NUMBER (pg ships bigint as a string)', async () => {
+  const c = stubClient({ prior: { id: 'f1', status: 'APPLIED', appliedAt: 1756500000000 } });
+  const prior = await makeIngestAdapter(c, T).findFile('items', SHA);
+  assert.strictEqual(typeof prior.appliedAt, 'number');
+  assert.strictEqual(prior.appliedAt, 1756500000000);
+  const c2 = stubClient({ prior: { id: 'f2', status: 'FAILED', appliedAt: null } });
+  const failed = await makeIngestAdapter(c2, T).findFile('items', SHA);
+  assert.strictEqual(failed.appliedAt, null); // Number(null) is 0 — the adapter must never lie
 });
 
 /* ---- apply(): statement sequence + conflict targets -------------------------- */
