@@ -1,4 +1,4 @@
-# Handoff: Sentinel — foundations, component sheet, and all 35 screens
+# Handoff: Sentinel — foundations, component sheet, and all 37 screens
 
 ## Overview
 
@@ -7,7 +7,7 @@ Sentinel is an inventory-planning application for a multi-tenant food operation 
 This bundle covers two deliverables:
 
 1. **Foundations + component sheet** — the full visual system: colour, type, spacing, elevation, motion, and every primitive and data component rendered in its real states.
-2. **The application** — a top-bar menubar spanning all ~35 screens, every one built at full fidelity. The first-run empty state is retained as a reachable pattern for screens whose datasets have not been ingested.
+2. **The application** — a top-bar menubar spanning all 37 screens, every one built at full fidelity. The first-run empty state is retained as a reachable pattern for screens whose datasets have not been ingested.
 
 The product's governing idea: **a calm screen means a healthy day.** Colour is reserved for status, data, and brand. Interactive chrome is neutral. An exception is unmissable because it is the only saturated thing on screen.
 
@@ -374,7 +374,7 @@ Each screen has its own dataset sentence — lead-time suggestions read "observe
 
 ## Component inventory
 
-`Sentinel Components.dc.html` is the second reference sheet and covers the machinery the screens are assembled from. Seven groups:
+`Sentinel Components.dc.html` is the second reference sheet and covers the machinery the screens are assembled from. Eight groups:
 
 **01 Overlays & menus** — dropdown menu (sections labelled, mono shortcut hints, destructive item separated and last), popover holding a form, three tooltip kinds (formula, chart series readout, blocked), decision dialog, destructive confirm (arms only when the count is typed), detail drawer, context menu, notification centre. Popovers hold forms, menus hold actions; never mixed.
 
@@ -388,7 +388,15 @@ Each screen has its own dataset sentence — lead-time suggestions read "observe
 
 **06 Charts** — six hand-built SVG targets: stock projection with a run-out crossing, inventory waterfall, lead-time box plot, KPI bullet bars (bullets, not gauges), shortage heat calendar, and a category donut. Rebuild these on the real charting library; the rule they encode is that only status-bearing marks get status colour.
 
-**07 Loading, empty, error** — the six states every data surface must ship: loading skeleton, first run (names the missing dataset), filtered-empty (data exists, query too narrow), error (states what failed and offers one retry), blocked (names who can clear it), and no-permission (explains the rule rather than hiding the control).
+**07 Loading, empty, error** — the nine states every data surface must ship (six original, three module-unavailable): loading skeleton, first run (names the missing dataset), filtered-empty (data exists, query too narrow), error (states what failed and offers one retry), blocked (names who can clear it), and no-permission (explains the rule rather than hiding the control).
+
+The three module-unavailable members complete the family. Every module-owned surface ships them, and a surface that aggregates another module's data renders the state **in place of its figure** — a zero would be a lie.
+
+- **Module disabled by Origin** — neutral, `--muted` dot, `--line` frame. States who and why: "Unavailable — module disabled by Origin · &lt;reason&gt; · &lt;timestamp&gt;". No retry, because nothing is broken.
+- **Module paused by Origin** — `--warn` dot and frame. "Jobs are held — maintenance or upgrade in progress", plus when the pause began. No skeleton and no progress bar: nothing is in flight, so nothing may look like it is.
+- **Module faulted** — `--critical` dot and frame. "Failed &lt;n&gt; times — circuit open", one retry hint, and a link to Data Health.
+
+**08 Module registry & KPI catalog** — the registry card in all five lifecycle states (REGISTERED, ENABLED, PAUSED, DISABLED, FAULTED) with probe, last fault and dependency chips; the staged upgrade track shown mid-failure; the KPI card in its four variants (normal, stale, escalated, zero-reads-neutral); and the KPI definition drawer. State pills here are **plain** — the round-versus-square marker language belongs to the two-axis stock statuses and does not apply.
 
 ## Overlays
 
@@ -441,10 +449,26 @@ Fixed bottom-inline-end, 24px inset, `z-index: 110`, `--raised`, 1px `color-mix(
 | Accept / Reject / Accept all / Reject all | Records a decision per proposal row; `ACTIVE` never changes until accepted |
 | Weight slider | Updates the readout and the interpretive note live |
 | Filter change | Re-filters and re-counts; zero results shows the empty state, never a spinner |
+| Module transition (enable / pause / resume / disable) | Confirm dialog with a reason field → state changes → toast naming module and resulting state → ledger event |
+| Module remove | Same, but the confirm arms only once the module id is typed |
+| Dependency chip click | Opens that dependency's history drawer, so a broken chain is traversable |
+| Upgrade start | Module pauses, staged track opens (compatibility → paused → swap → golden → resumed), pinned version stays visible |
+| Upgrade golden failure | Track stops at the failed stage, module stays PAUSED, failure named, rollback stays available |
+| Upgrade rollback | Reverts to the pinned version, module returns to ENABLED, toast confirms the version |
+| Module history toggle | Expands the per-card ledger drawer, newest first |
+| KPI group switch | Swaps the card grid; CH swaps to the chart drill-down instead |
+| KPI card click | Opens the definition drawer with the catalog row read-only |
+| KPI escalation badge click | Jumps to the auto-created task for that KPI's owner |
+| CH warehouse select | Re-renders the area chart and value for that warehouse; the ranked bar list highlights the selection |
+| Module not ENABLED | Every surface reading it renders the matching unavailable state in place of its figure |
 
 ## State
 
 Screen-level state in the prototype, as a guide to what the real implementation needs:
+
+**Module Management** — `origin` (session is Origin), `modStates` (id → lifecycle override), `modDrawer` (which history drawer is open), `modPending` ({id, action} awaiting confirm), `modConfirmText` (destructive arming), `modUpgrade` (module under upgrade), `upgradeStage`, `upgradeFailed`.
+
+**KPI Dashboard** — `kpiGroup` (active group index), `kpiDrawer` (KPI code whose definition is open), `kpiWh` (CH warehouse drill-down index). Freshness and stale flags are properties of the catalog row, not of view state — a KPI is stale because its ingest is, so the flag travels with the data.
 
 **Navigation & chrome** — `screen`, `navOpen`, `theme`, `density`, `tenant`, `currency`, `palette`, `paletteQ`, `stale`, `toast`, `modal`.
 
@@ -472,7 +496,7 @@ Fonts: **IBM Plex Sans** (400/500/600) and **JetBrains Mono** (400/500) — both
 
 | File | What it is |
 |---|---|
-| `Sentinel App.dc.html` | The application prototype — shell, all 35 screens, empty states, modal, palette, toasts |
+| `Sentinel App.dc.html` | The application prototype — shell, all 37 screens, empty states, modal, palette, toasts |
 | `Sentinel Foundations.dc.html` | Foundations sheet — every token and primitive in its real states |
 | `Sentinel Components.dc.html` | Application components — overlays, table machinery, data entry, ingestion, workflow/audit, charts, and the loading/empty/error triad |
 | `support.js` | Runtime for the two prototypes. **Design-tool infrastructure — do not port** |
@@ -536,6 +560,76 @@ The thirteen screens documented in detail above (Command Center through Audit & 
 **Projects & Meetings / Intelligence** — work in flight and generated analyses on a shared card shape. Every action item has an owner; every analysis states its evidence and leaves the decision to a human.
 
 **Reference & Settings** — six reference tables. Unresolved units are surfaced first and counted in critical, because an unresolved unit silently excludes a ref from planning — the root cause of one of the missed shortages on the register.
+
+## Screens added in the second tranche
+
+Both are built at full fidelity and carry no EMPTY tag. Menubar placement: **Overview** — Command Center · Analytics · KPI Dashboard · Consolidated · Item 360; **Admin** — Users & Permissions · Module Management · Origin Bootstrap · Reference & Settings.
+
+### 36. Module Management — Admin, Origin-only
+
+**Purpose.** Every capability is a module with a manifest (id, version, dependencies, permission scopes) and a lifecycle. This registry is where Origin sees the chain and moves it. Designed as a control-room switchboard, not a settings page: calm by default, with colour only where a module is not running.
+
+**Origin-only means removed, not disabled.** A non-Origin session never sees the nav item or the command-palette entry. Enforced through one predicate (`ORIGIN_ONLY`) applied to both the menubar and the palette, so the two cannot drift apart.
+
+**Layout.** Four KPI cards (modules registered, enabled, paused, faulted — the last two read neutral at zero), a one-line governance note, then a two-column grid of module cards.
+
+**Card anatomy.** Module id in mono above the human name and version; lifecycle pill top-right; a two-column block for health probe (dot + last probe time, critical past 15 minutes) and pinned version; last fault as a mono timestamp with a one-line reason; then the dependency map as inline chips. **Each chip is clickable and coloured by that dependency's own lifecycle state** — the map is the first place a broken chain is visible. A module with a disabled or faulted dependency also gets a warn-toned frame and a sentence naming the offender. The footer holds the History toggle and the state-appropriate transitions.
+
+**Lifecycle semantics**, quoted on the component sheet and never paraphrased:
+
+| State | Colour | Meaning |
+| --- | --- | --- |
+| REGISTERED | `--muted` | Installed, never enabled. No routes, no jobs, no state. |
+| ENABLED | `--ok` | Running normally. |
+| PAUSED | `--warn` | Quiesced. In-flight jobs drain, the queue is held, state is kept. |
+| DISABLED | `--muted` | Cold. Disabled modules keep no routes and run no jobs. |
+| FAULTED | `--critical` | Circuit open. Calls fail fast until recovered. |
+
+**Transitions.** Enable, pause, resume, disable, remove and upgrade are Origin actions. Each opens a confirm dialog carrying a **reason field recorded in the ledger**; the dialog body states the consequence in plain language ("Nothing below runs while the module is paused"). Remove arms only once the module id is typed, matching the existing destructive-confirm pattern. On confirm, a toast names the module and its resulting state. Ledger events: `MODULE_ENABLED`, `MODULE_DISABLED`, `MODULE_PAUSED`, `MODULE_RESUMED`, `MODULE_FAULT`, `MODULE_RECOVERED`, `MODULE_UPGRADED`, `MODULE_REMOVED`, each with actor, timestamp and reason.
+
+**Upgrade flow.** Choosing Upgrade pauses the module and opens a staged track — compatibility check → paused → swap → golden tests → resumed — reusing the Data Upload pipeline stepper. The pinned previous version stays visible throughout with an explicit rollback while the track is incomplete. **A failed golden stage leaves the module PAUSED with the failure named; it is never auto-resumed.**
+
+**History drawer.** Expands per card, listing that module's ledger events newest first: mono timestamp, event name toned by kind, then reason and actor.
+
+### 37. KPI Dashboard — Overview
+
+**Purpose.** The weekly review surface (Atlas workflow W-16). Per-tenant and grant-scoped: a user sees only the KPI groups their role grants. It renders the KPI catalog, where **every KPI is defined once as data** — definition, formula, source dataset, owner role, refresh cadence, target band.
+
+**Layout.** A group rail of seven tabs across the top (SRC, INV, DAT, TM, PM, FP, CH), the tenant and review-week scope on the right, then either a four-column card grid or, for CH, the chart drill-down.
+
+| Group | Name | Owner |
+| --- | --- | --- |
+| SRC | Sourcing | buyer roles |
+| INV | Inventory | supply-chain roles |
+| DAT | Data Health | data steward |
+| TM | Team Productivity | director |
+| PM | Project Milestones | director |
+| FP | Food Philosophy & Production Adherence | production lead |
+| CH | Inventory Value | supply-chain roles |
+
+**Card anatomy.** KPI name as the section label with its catalog code in mono; figure at mono 25/30, weight 500, tabular; delta **coloured by whether it is good news, not by sign** (a falling response time is `--ok` even though it is negative); an 88×26 sparkline; then a footer of target band, owner role, and a freshness stamp from the last sealed ingest.
+
+**Card states.**
+- **Stale** — warn tint and frame, the freshness stamp replaced by "Stale — computed on a 2-day-old ingest". Never a silent number.
+- **Escalated** — a KPI red for two consecutive reviews gets a critical frame and a badge, "Red 2 reviews — task raised", linking the auto-created task for its owner in the existing task-card language.
+- **Zero** — reads neutral, per the shared convention. Overdue tasks at 0 is not an exception.
+
+**Definition drawer.** Clicking a card opens a right-side drawer rendering that catalog row read-only: definition sentence, exact formula, source dataset, owner role, refresh cadence, target band. It closes with the note that changing a formula is a spec amendment plus a module version bump — the contract is visible on the surface that depends on it.
+
+**CH group.** Charts rather than cards. A warehouse rail on the left (tenant total first, then each warehouse by value) drives an area chart with its target reference line and a ranked bar list, so the tenant-to-warehouse drill-down is one click and the selected warehouse stays highlighted in the ranking.
+
+**Unavailable.** The dashboard reads `analytics.kpi`. If that module is not ENABLED, the whole surface renders the matching module-unavailable state instead of the grid.
+
+## Data governance
+
+The prototypes ship with synthetic content only. Real client brand, staff names, supplier names and domains are permanently retired. Canonical stand-ins, used consistently across all three files:
+
+- **People** — Owner A … Owner H
+- **Suppliers** — Supplier A … Supplier H, plus Cash Purchases and External 3PL
+- **Email / domain** — `procurement@company.example`
+- **Retained** — tenant names (BahrainMP, QatarMP) and generic role names (Origin owner, Director, Planner, Buyer, Viewer, DTA, SCM, SBR)
+
+The brief lists Supplier A–C; the prototypes need eight distinct suppliers, so the series continues to Supplier H on the same convention. All three files verified clean of retired identifiers.
 
 ## Shared conventions introduced by these screens
 
