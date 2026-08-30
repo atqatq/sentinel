@@ -13,10 +13,33 @@
 
 const nz = (x) => { const n = Number(x); return Number.isFinite(n) ? n : 0; };
 const pct = (a, b) => (nz(b) === 0 ? null : nz(a) / nz(b));
+/* H4 · canonical day-unit math. The old `(new Date(b) - new Date(a)) / 86400000`
+ * parsed through the RUNTIME's local zone: date-only strings read as UTC
+ * midnight but naive datetimes read as local time, so the same data on a UTC
+ * server and a UTC+3 server yielded different lead times, and a 12-hour gap
+ * rounded across the half-day boundary (L-14). Now: day UNITS on canonical
+ * values — date-only strings parse strictly (UTC), zone-carrying instants
+ * count on the UTC calendar date they fall on (deterministic, storage-
+ * canonical), and a naive datetime (no zone) returns null — the boundary
+ * (calendar module, toCanonicalDate) converts with the explicit tenant
+ * timezone; arriving here naive is a contract violation, never re-guessed. */
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const canonDay = (raw) => {
+  if (typeof raw === 'string' && DATE_RE.test(raw)) {
+    const ms = Date.UTC(Number(raw.slice(0, 4)), Number(raw.slice(5, 7)) - 1, Number(raw.slice(8, 10)));
+    return new Date(ms).toISOString().slice(0, 10) === raw ? Math.floor(ms / DAY_MS) : null;
+  }
+  if (typeof raw === 'string' && /T\d{2}:\d{2}.*?(Z|[+-]\d{2}:?\d{2})$/.test(raw)) {
+    const ms = Date.parse(raw);            // zone explicit — deterministic
+    return Number.isFinite(ms) ? Math.floor(ms / DAY_MS) : null;
+  }
+  return null;                             // naive datetime / junk: refuse (H4)
+};
 const days = (a, b) => {
   if (!a || !b) return null;
-  const d = (new Date(b) - new Date(a)) / 86400000;
-  return Number.isFinite(d) ? Math.round(d) : null;
+  const da = canonDay(a), db = canonDay(b);
+  return da === null || db === null ? null : db - da;
 };
 
 /* Why a buyer deviated. This is the learning payload — an unexplained deviation

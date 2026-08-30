@@ -58,10 +58,25 @@ function convertPoLines(lines) {
  * driver: deliveriesPerDay (Consumption!W1 / Target Inventory!C10, "Current DPD")
  * NOTE MRP shows the "EOQ (incl. low safety)" column (Master Data Z) as its EOQ.
  */
-function computeRef(ref, params, deliveriesPerDay) {
+function computeRef(ref, params, deliveriesPerDay, opts) {
   const p = params || {};
   const lead = nz(p.lead), safetyDays = nz(p.safetyDays),
         orderFreq = nz(p.orderFreq), moq = nz(p.moq);
+  /* H9 · the working-month basis. Default = the workbook constant (WD) —
+   * byte-identical golden path. A tenant with a real working calendar passes
+   * the calendar-derived, per-period working-day count (see the calendar
+   * module, deliveryBasis) as opts.workingDays; the SAME value must feed
+   * normalizeDeliveries so the identical-basis cancellation (§14.4b) holds
+   * per period. A bad basis is a wiring error, refused loudly — NaN would
+   * silently poison every figure downstream. */
+  let WDm = WD;
+  if (opts && opts.workingDays !== undefined) {
+    const w = Number(opts.workingDays);
+    if (!Number.isInteger(w) || w <= 0) {
+      throw new TypeError('computeRef: opts.workingDays must be a positive integer working-day count (per-period, calendar-derived)');
+    }
+    WDm = w;
+  }
 
   const onHand = nz(ref.onHand);
   // Available = planning stock. On-hand minus stock you cannot plan against.
@@ -74,14 +89,15 @@ function computeRef(ref, params, deliveriesPerDay) {
   const dpd = nz(deliveriesPerDay);
 
   // magnified (projected) consumption — drives safety/reorder/EOQ/max/cycle
+  // H9: WDm is the per-period working-month basis (22 flat / calendar-derived)
   const consPerDelivery = nz(ref.consPerDelivery);          // Σ member V (rate)
-  const monthlyMagnified = consPerDelivery * dpd * WD;      // L  (= Σ member W)
-  const dailyConsumption = monthlyMagnified / WD;           // J  (= consPerDelivery*dpd)
+  const monthlyMagnified = consPerDelivery * dpd * WDm;     // L  (= Σ member W)
+  const dailyConsumption = monthlyMagnified / WDm;          // J  (= consPerDelivery*dpd)
   const weeklyUsage = monthlyMagnified / WK;                // K
 
   // historical consumption — drives ONLY run-out (MRP H2 uses Master Data H)
   const histMonthly = nz(ref.histMonthly);                  // G
-  const histDaily = histMonthly / WD;                       // H
+  const histDaily = histMonthly / WDm;                      // H — working days of cover
 
   const safetyStock = round(safetyDays * dailyConsumption);            // R = N*J
   const reorder     = round((lead + safetyDays) * dailyConsumption);   // S = (M+N)*J
@@ -142,6 +158,7 @@ function computeRef(ref, params, deliveriesPerDay) {
   return {
     lead, safetyDays, orderFreq, moq,
     onHand, quarantine, reserved, damaged, available, openPO, invValue, deliveriesPerDay: dpd,
+    workingDays: WDm,   // H9 · disclosed basis: 22 (flat) or calendar-derived
     consPerDelivery, monthlyMagnified, dailyConsumption, weeklyUsage,
     histMonthly, histDaily,
     safetyStock, reorder, eoq, maxStock, cycleStock,
@@ -316,14 +333,29 @@ function normalizeDeliveries(value, granularity, opts) {
   const o = opts || {};
   const v = nz(value);
   const g = String(granularity || 'daily').toLowerCase();
+  /* H9 · the basis defaults to the workbook constant (WD = 22) — byte-identical
+   * golden path. A tenant with a real working calendar passes the calendar-
+   * derived per-period working-day count (calendar module deliveryBasis) as
+   * opts.workingDays; the SAME value must feed computeRef for the period, so
+   * the identical-basis cancellation stays exact (§14.4b). Invalid basis is
+   * REFUSED, never silently defaulted — a wrong divisor mis-states demand. */
+  let WDm = WD;
+  if (o.workingDays !== undefined) {
+    const w = Number(o.workingDays);
+    if (!Number.isInteger(w) || w <= 0) {
+      return { deliveriesPerDay: 0, basis: null, granularity: g, valid: false,
+               reason: 'invalid workingDays (must be a positive integer working-day count)' };
+    }
+    WDm = w;
+  }
   let divisor;
   if (g === 'ytd') {
     const m = nz(o.monthsElapsed);
     if (m <= 0) return { deliveriesPerDay: 0, basis: null, granularity: g, valid: false,
                          reason: 'ytd requires monthsElapsed' };
-    divisor = WD * m;
+    divisor = WDm * m;
   } else if (DELIVERY_BASIS[g] !== undefined) {
-    divisor = DELIVERY_BASIS[g];
+    divisor = g === 'daily' ? 1 : (g === 'weekly' ? WDm / 4 : (g === 'monthly' ? WDm : WDm * 3));
   } else {
     return { deliveriesPerDay: 0, basis: null, granularity: g, valid: false,
              reason: 'unknown granularity' };
@@ -333,6 +365,7 @@ function normalizeDeliveries(value, granularity, opts) {
   return {
     deliveriesPerDay: v / divisor,
     basis: divisor, granularity: g, inputValue: v, valid: true,
+    workingDays: g === 'daily' ? null : WDm,   // H9 · disclosed basis (null = none used)
     // coarser input = lower confidence: it smooths away the day-to-day signal
     confidence: g === 'daily' ? 'high' : (g === 'weekly' ? 'medium' : 'low'),
   };

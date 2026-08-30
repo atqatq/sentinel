@@ -1,0 +1,14 @@
+{
+  "id": "calendar",
+  "version": "0.3.0",
+  "description": "Canonical temporal boundary (H4) + per-tenant working calendar (H9) — build spec §15.2 P1, delivery spec A10, release gate 10. dates.js owns the ONE canonical temporal form: date-only UTC 'YYYY-MM-DD'; datetimes convert at the boundary with the tenant timezone as an EXPLICIT tenant setting ({offsetMinutes} or IANA) — a naive datetime is runtime-ambiguous and is refused, never guessed; date math runs in integer day units, so L-14's half-day rounding cannot occur. calendar.js makes WD a per-tenant, per-period, calendar-derived value: deliveries are entered as calendar-day actuals and normalized on the identical per-period basis (§14.4b), weekly-kind calendars carry a week pattern (0 = Sunday) plus merged closure intervals, and the per-period working-day count feeds the engine's computeRef/normalizeDeliveries opts.workingDays — the same wd on both sides keeps the magnification cancellation exact. A flat-calendar tenant pins the workbook's 22-day convention and is byte-identical to today's output (named proof calendar/flat-tenant-identical); a 10-day Ramadan-style closure produces the documented demand adjustment (per-working-day rate ×22/15, run-out ×15/22) while monthly delivery counts still magnify to exactly rate × count (named proof dates/canonical-boundary covers the boundary flip).",
+  "purity": "no-db, no-react, no-framework, no-io, no-clock",
+  "dependencies": [],
+  "permissionScopes": [],
+  "ingestionKinds": [],
+  "ledgerEventTypes": [],
+  "goldenTests": [
+    { "suite": "test/dates.test.js", "count": 25 },
+    { "suite": "test/calendar.test.js", "count": 29 }
+  ]
+}
