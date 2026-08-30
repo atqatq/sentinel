@@ -22,8 +22,8 @@ import { DensityControl } from "./shell-controls"
  * status pill comes from the vocabulary data — no label is hardcoded here
  * (ui/status-vocabulary-binding).
  *
- * The first §4 screens (data-health) land in their own units; until then
- * the menubar's EMPTY tags are the honest map of what exists.
+ * The first §4 screen (Data Health, /data-health) has landed; the
+ * menubar's remaining EMPTY tags are the honest map of what exists.
  */
 
 const SECTION_LABEL =
@@ -69,8 +69,9 @@ export default function Home() {
         <Avatar initials="SU" />
       </TopBar>
 
-      {/* Example state, named as such: the README's own banner copy. The real
-          banner renders from the freshness layer (M9), never from a clock here. */}
+      {/* Example state, named as such: the README's own banner copy. The REAL
+          banner renders on /data-health from the M9 freshness facts (the
+          D-023 clock carve-out is closed there) — never from a clock here. */}
       <StaleBanner daysOld={2} sinceDisplay="2026-08-27 06:14" />
 
       <main className="space-y-5 p-6">

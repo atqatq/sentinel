@@ -2,7 +2,9 @@ import { NextResponse } from "next/server"
 import type { Pool, PoolClient } from "pg"
 
 import { handlePlanRun } from "@sentinel/plan-service"
-import { makePlanAdapter, pgDriver } from "@sentinel/db"
+import { makePlanAdapter } from "@sentinel/db"
+
+import { getSentinelPool } from "../../../lib/pg"
 
 /*
  * POST /api/plan — the HTTP transport for the engine-live run (delivery spec
@@ -14,7 +16,8 @@ import { makePlanAdapter, pgDriver } from "@sentinel/db"
  *     write) is ONE transaction, scoped by a transaction-local
  *     set_config('app.tenant_id', …, true) — the ADR-0002 RLS fence. The
  *     GUC dies with the transaction, so a pooled connection never leaks a
- *     tenant scope into the next request.
+ *     tenant scope into the next request. The pool factory is the app's
+ *     shared one (lib/pg) — one pool per process, not one per route.
  *   - DATABASE_URL must connect as a NOBYPASSRLS role (sentinel_app in
  *     production). FORCE (ADR-0002) binds owners too, but the deployment
  *     contract is the app role.
@@ -25,22 +28,6 @@ import { makePlanAdapter, pgDriver } from "@sentinel/db"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
-
-const g = globalThis as typeof globalThis & { __sentinelPlanPool?: Pool }
-
-function getPool(): Pool {
-  const url = process.env.DATABASE_URL
-  if (!url) {
-    throw new Error(
-      "DATABASE_URL is not configured — the plan route cannot reach PostgreSQL. " +
-      "This is a deployment wiring error, not a data refusal."
-    )
-  }
-  if (!g.__sentinelPlanPool) {
-    g.__sentinelPlanPool = new (pgDriver().Pool)({ connectionString: url, max: 4 })
-  }
-  return g.__sentinelPlanPool
-}
 
 export async function POST(request: Request) {
   /* A malformed body reaches handlePlanRun as null and comes back as a 400
@@ -68,7 +55,7 @@ export async function POST(request: Request) {
 
   let pool: Pool
   try {
-    pool = getPool()
+    pool = getSentinelPool()
   } catch (e) {
     return NextResponse.json(
       { verdict: "ERROR", message: (e as Error).message },

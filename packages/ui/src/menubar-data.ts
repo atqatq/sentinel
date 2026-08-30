@@ -7,9 +7,10 @@
  * Eight groups, 44 entries. The README marks some entries with `*` — that
  * flag belongs to the DESIGN BUNDLE ("built at full fidelity in this
  * bundle") and is deliberately NOT carried here: `implemented` in this
- * module means "this screen has a route in apps/web", which is app state
- * and currently true for none. Screens without an implementation carry a
- * right-aligned mono 10px EMPTY tag in --text-3 (README §Menubar).
+ * module means "this screen has a route in apps/web", which is app state —
+ * currently true for Data Health (/data-health, the M2 data-health unit).
+ * Screens without an implementation carry a right-aligned mono 10px
+ * EMPTY tag in --text-3 (README §Menubar).
  *
  * Data, not JSX: the group/entry list is testable and renderable by both
  * the menubar and any future command palette without a second copy.
@@ -67,7 +68,11 @@ export const MENUBAR_GROUPS: readonly MenubarGroup[] = [
   {
     label: "Data",
     entries: [
-      e("Data Upload"), e("Data Health"), e("Deliveries Entry"), e("Audit & Time Machine"), e("Intelligence"),
+      e("Data Upload"),
+      { label: "Data Health", route: "/data-health" },
+      e("Deliveries Entry"),
+      e("Audit & Time Machine"),
+      e("Intelligence"),
     ],
   },
   {

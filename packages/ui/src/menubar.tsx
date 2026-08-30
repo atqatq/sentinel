@@ -82,21 +82,28 @@ function Menubar({
             <DropdownMenuContent align="start" sideOffset={6}>
               {group.entries.map((entry) => {
                 const current = entry.route !== null && entry.route === currentRoute
-                return (
-                  <DropdownMenuItem
-                    key={entry.label}
-                    disabled={entry.route === null}
-                    className={cn(current && "bg-hover")}
-                  >
-                    <span className="truncate">{entry.label}</span>
-                    {entry.route === null ? (
+                if (entry.route === null) {
+                  /* Unimplemented screen: disabled item with the honest EMPTY tag. */
+                  return (
+                    <DropdownMenuItem key={entry.label} disabled className={cn(current && "bg-hover")}>
+                      <span className="truncate">{entry.label}</span>
                       <span
                         aria-hidden="true"
                         className="ml-auto shrink-0 pl-3 font-mono text-[10px] leading-none text-text-3"
                       >
                         EMPTY
                       </span>
-                    ) : null}
+                    </DropdownMenuItem>
+                  )
+                }
+                /* Implemented screen: the item IS the link (Radix asChild —
+                 * the anchor receives the item classes and behaviour), so a
+                 * clickable entry can never render an EMPTY tag. */
+                return (
+                  <DropdownMenuItem key={entry.label} asChild className={cn(current && "bg-hover")}>
+                    <a href={entry.route}>
+                      <span className="truncate">{entry.label}</span>
+                    </a>
                   </DropdownMenuItem>
                 )
               })}

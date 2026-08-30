@@ -75,6 +75,8 @@ export interface FreshnessApi {
   }): FreshnessFacts
   STATES: { FRESH: string; DEGRADED: string; ALARM: string }
   DAT01_SLO_HOURS: number
+  DAT01_ALARM_HOURS: number
+  DAT01_OWNER: string
   DATASET_KINDS: readonly string[]
 }
 
@@ -113,6 +115,10 @@ export interface DataHealthFacts {
   tenant: { code: string; name: string }
   asOfMs: number
   freshness: FreshnessFacts
+  /** The DAT-01 target rendered on the screen — carried as data from the
+   *  ops constants (bound by the ops suite to the kpi-catalog text) so the
+   *  render layer never restates a spec number outside the binding. */
+  dat01Target: { sloHours: number; alarmHours: number; owner: string }
   register: {
     kpis: {
       openGaps: number
@@ -307,6 +313,11 @@ export function composeDataHealthFacts(input: DataHealthInput): DataHealthFacts 
     tenant,
     asOfMs,
     freshness,
+    dat01Target: {
+      sloHours: deps.DAT01_SLO_HOURS,
+      alarmHours: deps.DAT01_ALARM_HOURS,
+      owner: deps.DAT01_OWNER,
+    },
     register: {
       kpis: {
         openGaps: tasks.length,
