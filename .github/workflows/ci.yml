@@ -53,6 +53,37 @@ jobs:
       - name: Unit resolution + C1 conversion + C2 money normalization (36)
         run: node packages/core/modules/ingestion/test/normalize.test.js
 
+  db-rls:
+    name: DB schema + RLS deny matrix (postgres 16)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Structural schema tests (no server)
+        run: node packages/db/test/schema.test.js
+      - name: Install pg client for the matrix
+        run: npm install --prefix packages/db pg@8 --no-save --no-audit --no-fund
+      - name: RLS deny matrix (live)
+        run: node packages/db/test/rls-deny-matrix.js
+        env:
+          DATABASE_URL_ADMIN: postgres://postgres:postgres@127.0.0.1:5432/postgres
+
   ui-checks:
     name: UI package (typecheck + theme compile)
     runs-on: ubuntu-latest
