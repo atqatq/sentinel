@@ -20,6 +20,8 @@ jobs:
         run: bash scripts/guards/forbidden-terms.sh
       - name: SDS token parity (design handoff vs theme)
         run: node scripts/guards/sds-token-parity.mjs
+      - name: UI primitives scope (packages/ui only)
+        run: bash scripts/guards/ui-primitives-scope.sh
 
   golden-tests:
     name: Golden tests (117)
