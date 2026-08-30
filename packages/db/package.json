@@ -1,0 +1,13 @@
+{
+  "name": "@sentinel/db",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Sentinel data foundation: Prisma schema (typed contract), SQL migrations with row-level security, seed. RLS model per ADR-0001.",
+  "scripts": {
+    "test:schema": "node test/schema.test.js",
+    "test:rls": "node test/rls-deny-matrix.js"
+  },
+  "devDependencies": {
+    "prisma": "^6.0.0"
+  }
+}

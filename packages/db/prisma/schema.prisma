@@ -1,0 +1,458 @@
+// ============================================================================
+// Sentinel — M1 data foundation schema (typed contract).
+//
+// This file is the SOURCE OF TRUTH for tables and columns. The initial SQL
+// migration (migrations/0001_init/migration.sql) is hand-written to add what
+// Prisma cannot express — row-level security, fail-closed tenant policies,
+// roles and grants (ADR-0001). packages/db/test/schema.test.js enforces
+// schema↔SQL consistency so the two can never drift silently.
+//
+// Rules encoded here (build spec §8/§9, ingestion spec §4, ADR-0001):
+//   - NUMERIC for all money and quantities — never float.
+//   - Every tenant-scoped table carries tenant_id as its first column and is
+//     covered by a fail-closed RLS policy in the migration.
+//   - Idempotency keys are UNIQUE indexes with tenant_id leading (H6):
+//       item (tenant, sku) · stock_line (tenant, item, warehouse) ·
+//       open_po_line (tenant, po_number, sku) · supplier (tenant, name;
+//       external_id unique when present — H7 priority-1) ·
+//       delivery_day (tenant, day) · planning_param (tenant, recipe_ref) ·
+//       consumption_balance (tenant, sku, period) ·
+//       idempotency_key (tenant, kind, key)
+//   - fx_rate_pin stores the per-tenant-day pinned usd_to_local rate (C2,
+//     Decision 7). The pinning SERVICE and its FX ADR land with the M4 FX
+//     fail-safe (M10); the table exists so ingestion can normalize now.
+//   - No client-identifying data is ever seeded (D-003): seed tenants are
+//     synthetic.
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---- Tenancy ----------------------------------------------------------------
+
+model Tenant {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code         String   @unique
+  name         String
+  currencyCode String   @map("currency_code") @db.Char(3)
+  timezone     String
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  grants            OwnershipGrant[]
+  unitCatalog       UnitCatalogEntry[]
+  unitAliases       UnitAlias[]
+  suppliers         Supplier[]
+  items             Item[]
+  warehouses        Warehouse[]
+  stockLines        StockLine[]
+  openPoLines       OpenPoLine[]
+  consumption       ConsumptionBalance[]
+  deliveryDays      DeliveryDay[]
+  planningParams    PlanningParam[]
+  categoryOwners    CategoryOwner[]
+  ingestFiles       IngestFile[]
+  quarantines       QuarantineRecord[]
+  dataHealthTasks   DataHealthTask[]
+  idempotencyKeys   IdempotencyKey[]
+  fxRatePins        FxRatePin[]
+
+  @@map("tenant")
+}
+
+model AppUser {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email       String   @unique
+  displayName String   @map("display_name")
+  isOrigin    Boolean  @default(false) @map("is_origin")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  grants          OwnershipGrant[]
+  categoryOwners  CategoryOwner[]
+
+  @@map("app_user")
+}
+
+// A user's accessible tenant set is the union of their grants (build spec §9).
+model OwnershipGrant {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tenantId  String    @map("tenant_id") @db.Uuid
+  category  String?
+  grantedBy String    @map("granted_by") @db.Uuid
+  grantedAt DateTime  @default(now()) @map("granted_at") @db.Timestamptz(6)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(6)
+
+  user   AppUser @relation(fields: [userId], references: [id])
+  tenant Tenant  @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@map("ownership_grant")
+}
+
+// ---- Unit catalog (screen 32 tenant data; feeds resolveUnit's injected catalog)
+
+model UnitCatalogEntry {
+  id       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String  @map("tenant_id") @db.Uuid
+  code     String
+  name     String
+  factor   Decimal? @map("factor") @db.Decimal(18, 8)
+  isBase   Boolean @default(false) @map("is_base")
+
+  tenant Tenant       @relation(fields: [tenantId], references: [id])
+  aliases UnitAlias[]
+
+  @@unique([tenantId, code])
+  @@map("unit_catalog_entry")
+}
+
+model UnitAlias {
+  id             String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String @map("tenant_id") @db.Uuid
+  catalogEntryId String @map("catalog_entry_id") @db.Uuid
+  alias          String
+
+  tenant   Tenant           @relation(fields: [tenantId], references: [id])
+  catalogEntry UnitCatalogEntry @relation(fields: [catalogEntryId], references: [id])
+
+  @@unique([tenantId, alias])
+  @@map("unit_alias")
+}
+
+// ---- Master data -------------------------------------------------------------
+
+model Supplier {
+  id                String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String  @map("tenant_id") @db.Uuid
+  externalId        String? @map("external_id")
+  name              String
+  isActive          Boolean @default(true) @map("is_active")
+  deliveryPeriodDays Int?   @map("delivery_period_days")
+  moqValue          Decimal? @map("moq_value") @db.Decimal(18, 6)
+  paymentTermsText  String? @map("payment_terms_text")
+  paymentTermDays   Int?    @map("payment_term_days")
+  currencyCode      String? @map("currency_code") @db.Char(3)
+  country           String?
+  isBanned          Boolean @default(false) @map("is_banned")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  poLines OpenPoLine[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId, externalId])
+  @@map("supplier")
+}
+
+model Item {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId              String   @map("tenant_id") @db.Uuid
+  sku                   String
+  name                  String
+  unitCode              String   @map("unit_code")
+  conversionFactor      Decimal? @map("conversion_factor") @db.Decimal(18, 8)
+  convertedUnit         String?  @map("converted_unit")
+  category              String?
+  ingredientFamily      String?  @map("ingredient_family")
+  recipeRef             String?  @map("recipe_ref")
+  brand                 String?
+  size                  String?
+  caseCount             Int?     @map("case_count")
+  price                 Decimal? @db.Decimal(18, 6)
+  currencyCode          String?  @map("currency_code") @db.Char(3)
+  businessUnit          String?  @map("business_unit")
+  shelfLifeDays         Int?     @map("shelf_life_days")
+  preferredForRecipeRef Boolean  @default(false) @map("preferred_for_recipe_ref")
+  nutritionApproved     Boolean  @default(false) @map("nutrition_approved")
+  productionApproved    Boolean  @default(false) @map("production_approved")
+  isBanned              Boolean  @default(false) @map("is_banned")
+  isInactive            Boolean  @default(false) @map("is_inactive")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  stockLines StockLine[]
+  poLines    OpenPoLine[]
+
+  @@unique([tenantId, sku])
+  @@map("item")
+}
+
+model Warehouse {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String  @map("tenant_id") @db.Uuid
+  code        String
+  name        String
+  kind        WarehouseKind
+  cbmCapacity Decimal? @map("cbm_capacity") @db.Decimal(18, 6)
+  periodCost  Decimal? @map("period_cost") @db.Decimal(18, 6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  stockLines StockLine[]
+
+  @@unique([tenantId, code])
+  @@map("warehouse")
+}
+
+model StockLine {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String   @map("tenant_id") @db.Uuid
+  itemId           String   @map("item_id") @db.Uuid
+  warehouseId      String   @map("warehouse_id") @db.Uuid
+  quantity         Decimal  @db.Decimal(18, 6)
+  unitCode         String   @map("unit_code")
+  valueDocument    Decimal  @map("value_document") @db.Decimal(18, 6)
+  documentCurrency String   @map("document_currency") @db.Char(3)
+  tenantValue      Decimal  @map("tenant_value") @db.Decimal(18, 6)
+
+  item      Item      @relation(fields: [itemId], references: [id])
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, itemId, warehouseId])
+  @@map("stock_line")
+}
+
+// ---- Operational feeds --------------------------------------------------------
+
+model OpenPoLine {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String   @map("tenant_id") @db.Uuid
+  poNumber            String   @map("po_number")
+  sku                 String
+  itemId              String?  @map("item_id") @db.Uuid
+  supplierId          String?  @map("supplier_id") @db.Uuid
+  orderedQty          Decimal  @map("ordered_qty") @db.Decimal(18, 6)
+  receivedQty         Decimal  @map("received_qty") @db.Decimal(18, 6)
+  waitingQty          Decimal  @map("waiting_qty") @db.Decimal(18, 6)
+  waitingQtyConverted Decimal? @map("waiting_qty_converted") @db.Decimal(18, 6)
+  unitCode            String   @map("unit_code")
+  unitPrice           Decimal  @map("unit_price") @db.Decimal(18, 6)
+  currencyCode        String   @map("currency_code") @db.Char(3)
+  tenantUnitPrice     Decimal  @map("tenant_unit_price") @db.Decimal(18, 6)
+  expectedDelivery    DateTime? @map("expected_delivery") @db.Date
+  receiptDates        String?  @map("receipt_dates")
+  poCreatedAt         DateTime? @map("po_created_at") @db.Date
+
+  item     Item      @relation(fields: [itemId], references: [id])
+  supplier Supplier? @relation(fields: [supplierId], references: [id])
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, poNumber, sku])
+  @@index([tenantId, expectedDelivery])
+  @@map("open_po_line")
+}
+
+model ConsumptionBalance {
+  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String  @map("tenant_id") @db.Uuid
+  sku          String
+  periodStart  DateTime @map("period_start") @db.Date
+  periodEnd    DateTime @map("period_end") @db.Date
+  startBalance Decimal @map("start_balance") @db.Decimal(18, 6)
+  goodsIn      Decimal @map("goods_in") @db.Decimal(18, 6)
+  goodsOut     Decimal @map("goods_out") @db.Decimal(18, 6)
+  stockChanges Decimal @map("stock_changes") @db.Decimal(18, 6)
+  endBalance   Decimal @map("end_balance") @db.Decimal(18, 6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, sku, periodStart, periodEnd])
+  @@map("consumption_balance")
+}
+
+model DeliveryDay {
+  id           String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String              @map("tenant_id") @db.Uuid
+  day          DateTime            @db.Date
+  granularity  DeliveryGranularity
+  deliveries   Decimal             @db.Decimal(18, 6)
+  monthsElapsed Int?               @map("months_elapsed")
+  businessUnit String?             @map("business_unit")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, day])
+  @@map("delivery_day")
+}
+
+model PlanningParam {
+  id        String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String           @map("tenant_id") @db.Uuid
+  recipeRef String           @map("recipe_ref")
+  params    Json             @db.JsonB
+  source    PlanningParamSource
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, recipeRef])
+  @@map("planning_param")
+}
+
+model CategoryOwner {
+  id         String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String  @map("tenant_id") @db.Uuid
+  category   String
+  ownerEmail String? @map("owner_email")
+  userId     String? @map("user_id") @db.Uuid
+
+  tenant Tenant   @relation(fields: [tenantId], references: [id])
+  user   AppUser? @relation(fields: [userId], references: [id])
+
+  @@unique([tenantId, category])
+  @@map("category_owner")
+}
+
+// ---- Ingestion control plane ---------------------------------------------------
+
+model IngestFile {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String           @map("tenant_id") @db.Uuid
+  kind             String
+  mode             String
+  fileName         String           @map("file_name")
+  checksumSha256   String           @map("checksum_sha256")
+  byteSize         BigInt           @map("byte_size") @db.BigInt
+  status           IngestFileStatus @default(RECEIVED)
+  rowCount         Int?             @map("row_count")
+  quarantinedCount Int?             @map("quarantined_count")
+  receivedAt       DateTime         @default(now()) @map("received_at") @db.Timestamptz(6)
+  appliedAt        DateTime?        @map("applied_at") @db.Timestamptz(6)
+
+  tenant     Tenant             @relation(fields: [tenantId], references: [id])
+  quarantines QuarantineRecord[]
+
+  @@unique([tenantId, kind, checksumSha256])
+  @@map("ingest_file")
+}
+
+model QuarantineRecord {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  ingestFileId String?  @map("ingest_file_id") @db.Uuid
+  kind         String
+  rowIndex     Int?     @map("row_index")
+  field        String?
+  rawValue     String?  @map("raw_value")
+  reasonCode   String   @map("reason_code")
+  detail       String?
+  asOf         DateTime @default(now()) @map("as_of") @db.Timestamptz(6)
+
+  tenant    Tenant      @relation(fields: [tenantId], references: [id])
+  ingestFile IngestFile? @relation(fields: [ingestFileId], references: [id])
+
+  @@index([tenantId, reasonCode])
+  @@map("quarantine_record")
+}
+
+model DataHealthTask {
+  id         String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String              @map("tenant_id") @db.Uuid
+  taskType   String              @map("task_type")
+  severity   DataHealthSeverity  @default(WARN)
+  status     DataHealthStatus    @default(OPEN)
+  payload    Json?               @db.JsonB
+  createdAt  DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  resolvedAt DateTime?           @map("resolved_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, status])
+  @@map("data_health_task")
+}
+
+// H6: the idempotency key IS tenant-scoped by construction — the UNIQUE
+// constraint leads with tenant_id, so the same key for two tenants never
+// collides and replay within a tenant hits this index.
+model IdempotencyKey {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  kind          String
+  idemKey       String   @map("idem_key")
+  fileChecksum  String?  @map("file_checksum")
+  appliedAt     DateTime @default(now()) @map("applied_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, kind, idemKey])
+  @@map("idempotency_key")
+}
+
+// C2 / Decision 7: the pinned per-tenant-day USD→local rate. The pinning
+// service and its FX ADR land with the M4 FX fail-safe (M10).
+model FxRatePin {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  day        DateTime @db.Date
+  usdToLocal Decimal  @map("usd_to_local") @db.Decimal(18, 8)
+  pinnedAt   DateTime @default(now()) @map("pinned_at") @db.Timestamptz(6)
+  pinnedBy   String?  @map("pinned_by")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, day])
+  @@map("fx_rate_pin")
+}
+
+// ---- Enums ---------------------------------------------------------------------
+
+enum WarehouseKind {
+  COMPANY
+  THIRD_PARTY_LOGISTICS @map("3PL")
+  STAGING
+  QUARANTINE
+  CONSIGNMENT
+  VIRTUAL
+  INACTIVE
+
+  @@map("warehouse_kind")
+}
+
+enum DeliveryGranularity {
+  DAILY    @map("daily")
+  WEEKLY   @map("weekly")
+  MONTHLY  @map("monthly")
+  QUARTERLY @map("quarterly")
+  YTD      @map("ytd")
+
+  @@map("delivery_granularity")
+}
+
+enum PlanningParamSource {
+  MANUAL     @map("manual")
+  CALCULATED @map("calculated")
+  OVERRIDE   @map("override")
+
+  @@map("planning_param_source")
+}
+
+enum IngestFileStatus {
+  RECEIVED
+  QUARANTINED
+  APPLIED
+  FAILED
+
+  @@map("ingest_file_status")
+}
+
+enum DataHealthSeverity {
+  INFO
+  WARN
+  CRITICAL
+
+  @@map("data_health_severity")
+}
+
+enum DataHealthStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+
+  @@map("data_health_status")
+}
