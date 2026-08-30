@@ -144,5 +144,26 @@ test('every kind exposes a signature and an alias map — completeness pair', ()
   assert.strictEqual(Object.keys(B.SIGNATURES).length, 8);
 });
 
+/* ---- H7 supplier identity (delivery-spec A8) --------------------------------- */
+console.log('\nH7 supplier identity');
+
+test("'Supplier ID' binds to supplierExternalId — the identity key (H7/A8)", () => {
+  const r = B.applyAllowList('suppliers', ['Name *', 'Supplier ID', 'Active * [0=Inactive 1=Active]', 'Payment Terms']);
+  const f = r.kept.find((k) => k.field === 'supplierExternalId');
+  assert.ok(f, 'supplierExternalId was not kept');
+  assert.strictEqual(f.sourceIndex, 1);
+});
+test('alias is trim/case tolerant like every other header', () => {
+  const r = B.applyAllowList('suppliers', [' supplier id ', 'NAME']);
+  assert.ok(r.kept.some((k) => k.field === 'supplierExternalId'));
+  assert.ok(r.kept.some((k) => k.field === 'supplierName'));
+});
+test('without the column, current-template binding succeeds — interim name identity (D-016)', () => {
+  const rows = readCsv('suppliers_modeA_with_bank_columns.csv');
+  const r = B.applyAllowList('suppliers', rows[2]);
+  assert.ok(!r.kept.some((k) => k.field === 'supplierExternalId'), 'no Supplier ID column exists yet');
+  assert.ok(r.kept.some((k) => k.field === 'supplierName'));
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed > 0 ? 1 : 0);

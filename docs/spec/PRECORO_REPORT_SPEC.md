@@ -101,6 +101,7 @@ This report seeds every per-SKU consumption rate — it is the most important re
 | 7 | `Country` | ○ | local vs import routing |
 | 8 | `Payment Term Days` | **[ADD]** | numeric; enables DPO without fragile text parsing |
 | 9 | `Banned [1/0]` | **[ADD]** | |
+| 10 | `Supplier ID` | **[ADD] · priority-1** | **Identity key (H7 / A8)**: a stable ID survives supplier renames and keys dedup, scorecards and lead-time learning; binds to `supplierExternalId` (DB partial-unique `(tenant_id, external_id)` live; `(tenant_id, name)` interim until this column ships) |
 
 **Must be excluded — do not add these columns to the report:**
 `Bank Account Number · Account Holder Name · Bank Name · Bank Address · Sort Code · IBAN · SWIFT/BIC Code ·

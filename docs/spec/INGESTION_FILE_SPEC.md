@@ -128,7 +128,7 @@ recompute engine → seal day snapshot → fire auto-tasks → write import log`
   (protects against 1,200 typed for 12,000 — a single keystroke that would corrupt every status)
 
 **Idempotency:** re-importing the same file changes nothing. Keys — Item `SKU`; Inventory `SKU+Warehouse`;
-PO `PO Number+SKU`; Supplier `Name`; Deliveries `Tenant+Date`; Params `Recipe Ref+Tenant`.
+PO `PO Number+SKU`; Supplier `Supplier ID` (H7/A8 identity key; `Name` is the interim until the amended R4 ships the column); Deliveries `Tenant+Date`; Params `Recipe Ref+Tenant`.
 
 **Module isolation (rev 1.2 directive):** the Integration Gateway is a **module** in the Sentinel container
 (§8/§14.15 of the build spec). It owns its queue, watchdog and circuit breaker — a failing file kind, a

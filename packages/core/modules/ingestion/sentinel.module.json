@@ -23,7 +23,7 @@
   ],
   "goldenTests": [
     { "suite": "test/parse.test.js", "count": 32 },
-    { "suite": "test/filebinding.test.js", "count": 16 },
+    { "suite": "test/filebinding.test.js", "count": 19 },
     { "suite": "test/normalize.test.js", "count": 36 },
     { "suite": "test/window.test.js", "count": 26 },
     { "suite": "test/hardening.test.js", "count": 46 }

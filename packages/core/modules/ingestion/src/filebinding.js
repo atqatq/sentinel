@@ -8,6 +8,12 @@
  * header map, alias-matched "trimmed, case-folded, never exact-string"),
  * §4 (detect kind → strip instruction rows → whitelist columns).
  *
+ * H7 (delivery-spec A8): 'Supplier ID' is the supplier identity key and binds
+ * to `supplierExternalId` — the DB carries the partial-unique (tenant_id,
+ * external_id) with (tenant_id, name) as the documented interim until Precoro
+ * ships the amended R4. The column is therefore in the alias map but NOT in
+ * the detection signature: current-template files must keep binding.
+ *
  * Signatures are extracted from the shipped template
  * (docs/templates/Sentinel_Ingestion_Template.xlsx, row 2 of each tab) and
  * pinned by fixtures/golden/template_headers.json so template drift fails CI.
@@ -76,6 +82,7 @@ const ALIASES = {
   },
   suppliers: {
     'name': 'supplierName', 'supplier': 'supplierName', 'active': 'supplierActive',
+    'supplier id': 'supplierExternalId',
     'delivery period': 'leadTimeDays', 'minimum order total': 'moqValue',
     'payment terms': 'paymentTerms', 'currency code': 'currency', 'currency': 'currency',
     'item currency': 'currency', 'country': 'country', 'payment term days': 'paymentTermDays',
