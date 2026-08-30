@@ -6,7 +6,9 @@
  *
  * plan-adapter is the pg-backed ports adapter for the plan-service (the
  * single SQL source shared by apps/web and the live proof); data-health-adapter
- * is the read-side single SQL source for the data-health facts surface.
+ * is the read-side single SQL source for the data-health facts surface;
+ * ingest-adapter is the executor of the H6 idempotent upsert wrapper (the
+ * decision lives in the ingestion module — this package owns the SQL).
  * pg is touched lazily so this contract imports cleanly without a database. */
 module.exports = {
   SCHEMA_VERSION: '0002',
@@ -15,4 +17,6 @@ module.exports = {
   pgDriver: require('./plan-adapter').pgDriver,
   makeDataHealthAdapter: require('./data-health-adapter').makeDataHealthAdapter,
   resolveTenantByCode: require('./data-health-adapter').resolveTenantByCode,
+  makeIngestAdapter: require('./ingest-adapter').makeIngestAdapter,
+  INGEST_WIRED_KINDS: require('./ingest-adapter').WIRED_KINDS,
 };
