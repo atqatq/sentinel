@@ -172,7 +172,7 @@ function makeProcureAdapter(client, tenantId) {
       const r = await q(
         `INSERT INTO supplier_change_hold (tenant_id, supplier_id, changed_fields, requested_by)
          VALUES ($1,$2,$3,$4)
-         RETURNING id, supplier_id AS "supplierId", state, requested_at AS "requestedAt"`,
+         RETURNING id, supplier_id AS "supplierId", state, requested_by AS "requestedBy", requested_at AS "requestedAt"`,
         [tenantId, supplierId, JSON.stringify(changedFields), requestedBy || null]);
       return r.rows[0];
     },

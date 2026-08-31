@@ -110,7 +110,7 @@ async function main() {
   const USERS = {};
   for (const [key, email] of Object.entries({
     origin: 'origin@live.synthetic', manager: 'manager@live.synthetic', senior: 'senior@live.synthetic',
-    buyer: 'buyer@live.synthetic', analyst: 'analyst@live.synthetic',
+    buyer: 'buyer@live.synthetic', analyst: 'analyst@live.synthetic', viewer: 'viewer@live.synthetic',
   })) {
     USERS[key] = (await db.query(`INSERT INTO app_user (email, display_name) VALUES ($1,$2) RETURNING id`, [email, key])).rows[0].id;
   }
@@ -494,11 +494,11 @@ async function main() {
   console.log('\nOrigin-only authority on roles, config and limits');
   await expectPgError('a non-Origin cannot grant roles (controls_origin_only)',
     probe, T1, USERS.manager,
-    () => probe.query(`INSERT INTO tenant_role (tenant_id, user_id, role, granted_by) VALUES ($1,$2,'DTA',$3)`, [T1, USERS.buyer, USERS.manager]),
+    () => probe.query(`INSERT INTO tenant_role (tenant_id, user_id, role, granted_by) VALUES ($1,$2,'VWR',$3)`, [T1, USERS.viewer, USERS.manager]),
     { code: '42501' });
   await withCtx(probe, T1, USERS.origin, async () => {
-    const r = await A1.grantRole({ userId: USERS.analyst, role: 'DTA', grantedBy: USERS.origin });
-    if (r.role === 'DTA') ok('Origin grants roles — the matrix is Origin\'s to edit');
+    const r = await A1.grantRole({ userId: USERS.viewer, role: 'VWR', grantedBy: USERS.origin });
+    if (r.role === 'VWR') ok('Origin grants roles — the matrix is Origin\'s to edit');
     else bad('Origin grants roles', JSON.stringify(r));
   });
   await expectPgError('a non-Origin cannot amend the dual threshold',
