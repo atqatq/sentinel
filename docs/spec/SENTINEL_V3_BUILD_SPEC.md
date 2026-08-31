@@ -1067,6 +1067,85 @@ the fork guard refusing a wrong predecessor live).
 
 ---
 
+## 14.17 FX fail-safe — the pinned rate, honestly aged (audit M10; named proof `ops/fx-stale`)
+
+The audit's [S] finding: "The FX pin is 24h per tenant-day; nothing says what happens when the FX job
+fails (block conversions? last-pinned value with a staleness flag?). Fix: fail-safe policy (continue on
+last pinned rate, mark all derived money stale-visible, alarm); source of record named." ADR-0003
+records the business decision; this section is the normative contract the implementer obeys.
+
+**The problem, stated exactly.** C2 (D-015) made money fail-closed: a USD document converts at the
+pinned tenant-day rate, and an unpinned day refused `RATE_NOT_PINNED`. Fail-closed against a MISSING
+RATE is correct; fail-closed against a LATE PIN is a self-inflicted outage — one failed nightly job
+would quarantine every USD row the next morning and blind the loop, silently in the operator's
+experience ("the file just didn't ingest"), which is the exact disease the refusal posture was written
+to name. What was missing was the WRITING side (nothing pinned rates), the POLICY (what a conversion
+does when the pin is late), and the SOURCE (what feeds the table and how a wrong pin is corrected).
+
+**The source of record (ADR-0003 §1).** The `fx_rate_pin` table is the source of record for every
+USD→local conversion, and nothing else is. Rates enter through the tenant's configured FX source
+(screen 32 names the origin — the treasury desk's daily publication) as an operator-maintained daily
+rate sheet inside the closed ecosystem; **no component fetches rates from the open internet at run
+time**. The nightly job ("FX pin (24h)… Idempotent, logged, retry-safe", §8) reads the configured
+source and lands one pin per tenant-day through the pin door. Availability of money conversion never
+depends on egress availability.
+
+**The pin door — idempotent, logged, retry-safe (ADR-0003 §2).** `pinRate(day, rate)` through the
+fx-adapter:
+- the SAME rate re-pinned for a pinned day is a **no-op success** — a retried job is not an error;
+- a DIFFERENT rate for a pinned day refuses **`RATE_DAY_CONFLICT`** — the daily pin is not silently
+  overwritable;
+- a correction is an EXPLICIT act: `correctRate(day, rate, { by, reason })` — **reason REQUIRED**
+  (`RATE_CORRECTION_REASON_REQUIRED`), the UPDATE carries before/after, ONE Class-S `FX_CORRECT`
+  block with the diff;
+- **DELETE is refused structurally** (the 0009 append-only trigger + the revoked privilege) — correct
+  again, never un-pin; the correction trail is the history.
+
+**The fail-safe resolution order (ADR-0003 §3 — the audit's fix, normative).** A USD conversion for
+day D resolves, in order, as the money layer's PURE decision (`resolveRatePin`, canonical day strings,
+the H4 discipline — no `Date` parsing, no timezone drift):
+1. **Exact pin for D** → fresh: `rateSource 'PINNED_USD'`, no staleness fields.
+2. **No pin for D, an earlier pin exists** → **continue on the last pinned rate ≤ D**, and the derived
+   money is **STALE-VISIBLE**: the money result carries `stale: true` and
+   `rateStale: { pinnedFor, staleDays }` (additive — every field an existing consumer saw is
+   unchanged); the ingest run discloses the fallback once per run and counts it (DAT-06's coverage
+   denominator); a pin dated AFTER D is never a candidate — tomorrow's rate must not convert today's
+   rows.
+3. **No pin ≤ D at all** → **`RATE_NOT_PINNED` stands** (D-015 verbatim; the row quarantines). The
+   D-015 blanket refusal **narrows to never-pinned** — the amendment is explicit, here and in
+   D-038, never a silent edit of the C2 contract.
+
+**Staleness is alarmed, not graded (ADR-0003 §4).** DAT-06's target is 100% daily pin coverage; any
+conversion that rode a fallback is a breach of a daily SLO. The ops channel (beside DAT-01's
+freshness machinery, the same injected-clock purity) is binary: the latest pin older than the
+evaluated day → **`FX_STALE`** alarm + DATA_HEALTH task + banner naming `staleDays`; no pin at all →
+**`FX_NEVER_PINNED`**, naming the refusing consequence. Owner DTA, cadence daily. Age is disclosed,
+never banded — a stale rate is not a little bit acceptable.
+
+**Pins are ledger events (ADR-0003 §5).** Every pin and correction is a **Class-S** block (§16.1
+names FX pin verbatim as a machine-originated write): actor `'system'`, role null; a manual trigger
+rides `onBehalfOf` with the trigger and job id named in `reason`; `engineVersion`/`schemaVersion`
+stamped by the adapter from the repo's own constants — a caller never labels the chain. The append is
+in the SAME transaction as the pin write (§16.3 rule 2): a failed append rolls the pin back.
+
+**Determinism and refusals.** Day math rides the canonical day-string discipline (H4): `staleDays`
+is a UTC-anchored day count between `'YYYY-MM-DD'` strings, never a local-time subtraction. The
+refusal family: `RATE_NOT_PINNED` (never-pinned, C2 verbatim), `RATE_DAY_CONFLICT`,
+`RATE_CORRECTION_REASON_REQUIRED`, `RATE_INVALID` (non-positive/non-finite), `RATE_DAY_INVALID`
+(non-canonical day), plus the wiring posture — an unarmed ledger door is a TypeError, the same
+either-armed-or-loud deployment honesty as the restatement door (§14.16).
+
+**Named proof:** `ops/fx-stale` (the audit's named test) — the alarm channel (current pin → silent;
+stale pin → FX_STALE with staleDays; never pinned → FX_NEVER_PINNED; future pins are not candidates;
+malformed input refuses; determinism), and `ingestion/fx-fail-safe` — the resolution order (exact,
+fallback with `rateStale` disclosure, never-pinned refusal, future pins ignored, additive result
+shape, local-currency rows untouched, determinism), the door (idempotent re-pin, conflict, correction
+reason + diff, the Class-S block fields, append-only), and the live tier (pin against real
+PostgreSQL, USD row converts, fallback disclosed, never-pinned quarantines, DELETE refused 42501, the
+block in the verified chain).
+
+---
+
 # 15. Audit remediation — SENT-AUDIT-002 (deep technical audit, $50M bar)
 
 An independent deep technical audit re-verified this package and raised 40 findings. **Every empirical
