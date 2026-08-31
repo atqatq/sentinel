@@ -1,6 +1,6 @@
 {
   "name": "@sentinel/db",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Sentinel data foundation: Prisma schema (typed contract), SQL migrations with row-level security, seed. RLS model per ADR-0002.",
   "scripts": {

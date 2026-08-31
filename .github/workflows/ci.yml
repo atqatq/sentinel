@@ -68,6 +68,10 @@ jobs:
         run: node packages/core/modules/ingestion/test/hardening.test.js
       - name: H6 idempotent upsert wrapper — keys + replay plan (29)
         run: node packages/core/modules/ingestion/test/idempotency.test.js
+      - name: File-to-rows worker — gate to executor, persistence, day-expansion (32)
+        run: node packages/ingest-service/test/worker.test.js
+      - name: Ingest worker adapter — ports + register lifecycle + task writers (26)
+        run: node packages/db/test/ingest-worker-adapter.test.js
 
   db-rls:
     name: DB schema + RLS deny matrix (postgres 16)
