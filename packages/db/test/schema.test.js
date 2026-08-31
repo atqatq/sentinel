@@ -41,6 +41,9 @@ const TENANT_SCOPED = [
   'delivery_day', 'planning_param', 'category_owner', 'ingest_file',
   'quarantine_record', 'data_health_task', 'idempotency_key', 'fx_rate_pin',
   'plan_seal',
+  'tenant_role', 'approval_config', 'approval_limit', 'proposal',
+  'proposal_line', 'approval', 'purchase_order', 'po_line',
+  'supplier_change_hold',
 ];
 
 console.log('\nRLS coverage (ADR-0002)');
@@ -68,6 +71,49 @@ test('every tenant-scoped table declares tenant_id UUID NOT NULL', () => {
 });
 test('app role exists and is NOBYPASSRLS', () => {
   assert.ok(/CREATE ROLE "sentinel_app" NOLOGIN NOBYPASSRLS/.test(migration), 'sentinel_app NOBYPASSRLS missing');
+});
+
+console.log('\nC3 — financial controls (0003_controls)');
+
+test('SoD invariant lives at RLS: a RESTRICTIVE policy on approval binds the actor, refuses the raiser, requires an eligible role', () => {
+  const re = /CREATE POLICY "sod_binding" ON "approval" AS RESTRICTIVE FOR INSERT[\s\S]*?approval\.approver_id = current_setting\('app\.actor_id', true\)::uuid[\s\S]*?approval\.approver_id <> \(SELECT p\.raised_by FROM proposal p WHERE p\.id = approval\.proposal_id\)[\s\S]*?tr\.role IN \('O', 'SCM', 'SBR'\)/;
+  assert.ok(re.test(migration), 'sod_binding restrictive policy missing or reshaped');
+});
+test('approval decisions are append-only at RLS: UPDATE and DELETE denied', () => {
+  assert.ok(/CREATE POLICY "approval_append_only" ON "approval" AS RESTRICTIVE FOR UPDATE TO PUBLIC USING \(false\);/.test(migration), 'append-only UPDATE deny missing');
+  assert.ok(/CREATE POLICY "approval_no_delete" ON "approval" AS RESTRICTIVE FOR DELETE TO PUBLIC USING \(false\);/.test(migration), 'DELETE deny missing');
+});
+test('approval reason is NOT NULL — a denial without a reason cannot exist (§16.2)', () => {
+  const block = migration.match(/CREATE TABLE "approval" \([\s\S]*?\n\);/);
+  assert.ok(block && /"reason" TEXT NOT NULL/.test(block[0]), 'reason NOT NULL missing');
+});
+test('dual-control distinctness is structural: one decision per (proposal, approver)', () => {
+  assert.ok(migration.includes('CREATE TABLE "approval"') && /CONSTRAINT "approval_proposal_approver_key" UNIQUE \("proposal_id","approver_id"\)/.test(migration),
+    'UNIQUE (proposal_id, approver_id) missing');
+});
+test('proposal lifecycle is an enum of exactly the design-spec screen-5 states', () => {
+  assert.ok(/CREATE TYPE "proposal_state" AS ENUM \('OPEN', 'APPROVED', 'CONVERTED', 'DISMISSED'\);/.test(migration), 'proposal_state enum missing');
+});
+test('the state guard trigger exists: dual-control votes, limits and totals checked at the DB', () => {
+  assert.ok(/CREATE TRIGGER "proposal_state_guard_trigger"[\s\S]*?EXECUTE FUNCTION "proposal_state_guard"\(\);/.test(migration), 'state guard trigger missing');
+  for (const code of ['DUAL_CONTROL_NOT_SATISFIED', 'SOD_SELF_APPROVAL', 'APPROVER_NOT_ELIGIBLE', 'APPROVAL_LIMIT_EXCEEDED', 'PROPOSAL_TOTAL_MISMATCH', 'APPROVAL_CONFIG_MISSING', 'CURRENCY_NOT_TENANT_CURRENCY', 'INVALID_PROPOSAL_TRANSITION']) {
+    assert.ok(migration.includes(`RAISE EXCEPTION '${code}'`), `state guard lacks ${code}`);
+  }
+});
+test('a REJECTED decision dismisses the proposal in the same statement (trigger)', () => {
+  assert.ok(/CREATE TRIGGER "approval_reject_dismisses_trigger"[\s\S]*?EXECUTE FUNCTION "approval_reject_dismisses"\(\);/.test(migration), 'reject-dismisses trigger missing');
+});
+test('supplier-identity freeze: the trigger refuses direct changes and only the verified hold passes', () => {
+  assert.ok(/CREATE TRIGGER "supplier_identity_freeze_trigger"[\s\S]*?EXECUTE FUNCTION "supplier_identity_freeze"\(\);/.test(migration), 'freeze trigger missing');
+  assert.ok(migration.includes("RAISE EXCEPTION 'SUPPLIER_IDENTITY_FROZEN'"), 'direct-change refusal missing');
+  assert.ok(migration.includes("RAISE EXCEPTION 'SUPPLIER_HOLD_MISMATCH'"), 'delta-mismatch refusal missing');
+  assert.ok(/current_setting\('app\.hold_apply_id', true\)/.test(migration), 'hold_apply_id GUC not fail-closed');
+});
+test('role/tier/limit authority is Origin-only at RLS, and roles are the six §10 codes', () => {
+  assert.ok(/CREATE TYPE "user_role" AS ENUM \('O', 'SCM', 'SBR', 'BYR', 'DTA', 'VWR'\);/.test(migration), 'user_role enum missing');
+  assert.ok(/CREATE POLICY "controls_origin_only" ON "tenant_role" AS RESTRICTIVE FOR INSERT/.test(migration), 'tenant_role Origin-only policy missing');
+  assert.ok(/CREATE POLICY "controls_origin_only" ON "approval_config" AS RESTRICTIVE/.test(migration), 'approval_config Origin-only policy missing');
+  assert.ok(/CREATE POLICY "controls_origin_only" ON "approval_limit" AS RESTRICTIVE/.test(migration), 'approval_limit Origin-only policy missing');
 });
 test('grants: sentinel_app gets DML only — no DDL, no TRUNCATE, no BYPASS', () => {
   const grant = migration.match(/GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO "sentinel_app";/);

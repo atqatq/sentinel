@@ -62,6 +62,12 @@ model Tenant {
   idempotencyKeys   IdempotencyKey[]
   fxRatePins        FxRatePin[]
   planSeals         PlanSeal[]
+  tenantRoles       TenantRole[]
+  approvalConfigs   ApprovalConfig[]
+  approvalLimits    ApprovalLimit[]
+  proposals         Proposal[]
+  purchaseOrders    PurchaseOrder[]
+  supplierChangeHolds SupplierChangeHold[]
 
   @@map("tenant")
 }
@@ -73,8 +79,15 @@ model AppUser {
   isOrigin    Boolean  @default(false) @map("is_origin")
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  grants          OwnershipGrant[]
-  categoryOwners  CategoryOwner[]
+  grants            OwnershipGrant[]
+  categoryOwners    CategoryOwner[]
+  tenantRoles       TenantRole[]     @relation("tenantRoleUser")
+  rolesGranted      TenantRole[]     @relation("tenantRoleGranter")
+  proposalsRaised   Proposal[]       @relation("proposalsRaised")
+  approvalsCast     Approval[]       @relation("approvalsCast")
+  purchaseOrdersConverted PurchaseOrder[] @relation("purchaseOrdersConverted")
+  supplierHoldsRequested  SupplierChangeHold[] @relation("supplierHoldsRequested")
+  supplierHoldsVerified   SupplierChangeHold[] @relation("supplierHoldsVerified")
 
   @@map("app_user")
 }
@@ -144,7 +157,10 @@ model Supplier {
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
 
-  poLines OpenPoLine[]
+  poLines             OpenPoLine[]
+  proposals           Proposal[]
+  purchaseOrders      PurchaseOrder[]
+  supplierChangeHolds SupplierChangeHold[]
 
   @@unique([tenantId, name])
   @@index([tenantId, externalId])
@@ -477,4 +493,208 @@ enum DataHealthStatus {
   RESOLVED
 
   @@map("data_health_status")
+}
+
+// ---- C3 financial controls (0003_controls; gate 5, M3) ----------------------
+
+enum UserRole {
+  O
+  SCM
+  SBR
+  BYR
+  DTA
+  VWR
+
+  @@map("user_role")
+}
+
+enum ProposalState {
+  OPEN
+  APPROVED
+  CONVERTED
+  DISMISSED
+
+  @@map("proposal_state")
+}
+
+enum ApprovalDecision {
+  APPROVED
+  REJECTED
+
+  @@map("approval_decision")
+}
+
+enum SupplierHoldState {
+  COOLING_OFF
+  APPLIED
+  REJECTED
+
+  @@map("supplier_hold_state")
+}
+
+// §10 roles are regional data: one active role per (tenant, user). Grant and
+// revoke authority is Origin-only, enforced at RLS (D-029).
+model TenantRole {
+  id        String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String     @map("tenant_id") @db.Uuid
+  userId    String     @map("user_id") @db.Uuid
+  role      UserRole   @map("role")
+  grantedBy String     @map("granted_by") @db.Uuid
+  grantedAt DateTime   @default(now()) @map("granted_at") @db.Timestamptz(6)
+  revokedAt DateTime?  @map("revoked_at") @db.Timestamptz(6)
+
+  user     AppUser @relation("tenantRoleUser", fields: [userId], references: [id])
+  granter  AppUser @relation("tenantRoleGranter", fields: [grantedBy], references: [id])
+  tenant   Tenant  @relation(fields: [tenantId], references: [id])
+
+  @@index([userId])
+  @@map("tenant_role")
+}
+
+// The per-tenant dual-control threshold (Origin-amendable, C3).
+model ApprovalConfig {
+  tenantId             String   @id @map("tenant_id") @db.Uuid
+  currencyCode         String   @map("currency_code") @db.Char(3)
+  dualThresholdAmount  Decimal  @map("dual_threshold_amount") @db.Decimal(18, 6)
+  updatedBy            String?  @map("updated_by") @db.Uuid
+  updatedAt            DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@map("approval_config")
+}
+
+// Value-tiered approval limits by role (C3). maxSingleAmount NULL = unlimited.
+model ApprovalLimit {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String   @map("tenant_id") @db.Uuid
+  role             UserRole @map("role")
+  maxSingleAmount  Decimal? @map("max_single_amount") @db.Decimal(18, 6)
+  updatedBy        String?  @map("updated_by") @db.Uuid
+  updatedAt        DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, role], map: "approval_limit_tenant_role_key")
+  @@map("approval_limit")
+}
+
+// OrderProposal(lifecycle) — design-spec screen 5. raised_by is the SoD raiser.
+model Proposal {
+  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String        @map("tenant_id") @db.Uuid
+  code         String
+  state        ProposalState @default(OPEN) @map("state")
+  raisedBy     String        @map("raised_by") @db.Uuid
+  supplierId   String?       @map("supplier_id") @db.Uuid
+  currencyCode String        @map("currency_code") @db.Char(3)
+  totalAmount  Decimal       @map("total_amount") @db.Decimal(18, 6)
+  note         String?
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime      @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  tenant        Tenant           @relation(fields: [tenantId], references: [id])
+  raiser        AppUser          @relation("proposalsRaised", fields: [raisedBy], references: [id])
+  supplier      Supplier?        @relation(fields: [supplierId], references: [id])
+  lines         ProposalLine[]
+  approvals     Approval[]
+  purchaseOrders PurchaseOrder[]
+
+  @@unique([tenantId, code], map: "proposal_tenant_code_key")
+  @@index([tenantId, state], map: "proposal_tenant_state_idx")
+  @@map("proposal")
+}
+
+model ProposalLine {
+  id         String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String  @map("tenant_id") @db.Uuid
+  proposalId String  @map("proposal_id") @db.Uuid
+  itemId     String? @map("item_id") @db.Uuid
+  sku        String
+  qty        Decimal @db.Decimal(18, 6)
+  unitCode   String  @map("unit_code")
+  unitPrice  Decimal @map("unit_price") @db.Decimal(18, 6)
+
+  proposal Proposal @relation(fields: [proposalId], references: [id])
+
+  @@index([proposalId], map: "proposal_line_proposal_id_idx")
+  @@map("proposal_line")
+}
+
+// Append-only decision rows (the SoD invariant lives at RLS + the state guard).
+model Approval {
+  id         String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String           @map("tenant_id") @db.Uuid
+  proposalId String           @map("proposal_id") @db.Uuid
+  approverId String           @map("approver_id") @db.Uuid
+  decision   ApprovalDecision @map("decision")
+  reason     String
+  createdAt  DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  proposal Proposal @relation(fields: [proposalId], references: [id])
+  approver AppUser  @relation("approvalsCast", fields: [approverId], references: [id])
+
+  @@unique([proposalId, approverId], map: "approval_proposal_approver_key")
+  @@map("approval")
+}
+
+// The PO Sentinel issues on conversion — document of record, no Precoro write-back.
+model PurchaseOrder {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  code         String
+  proposalId   String   @unique @map("proposal_id") @db.Uuid
+  supplierId   String   @map("supplier_id") @db.Uuid
+  currencyCode String   @map("currency_code") @db.Char(3)
+  totalAmount  Decimal  @map("total_amount") @db.Decimal(18, 6)
+  convertedBy  String   @map("converted_by") @db.Uuid
+  convertedAt  DateTime @default(now()) @map("converted_at") @db.Timestamptz(6)
+
+  tenant   Tenant     @relation(fields: [tenantId], references: [id])
+  proposal Proposal   @relation(fields: [proposalId], references: [id])
+  supplier Supplier   @relation(fields: [supplierId], references: [id])
+  converter AppUser   @relation("purchaseOrdersConverted", fields: [convertedBy], references: [id])
+  lines    PoLine[]
+
+  @@unique([tenantId, code], map: "purchase_order_tenant_code_key")
+  @@map("purchase_order")
+}
+
+model PoLine {
+  id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String  @map("tenant_id") @db.Uuid
+  poId      String  @map("po_id") @db.Uuid
+  itemId    String? @map("item_id") @db.Uuid
+  sku       String
+  qty       Decimal @db.Decimal(18, 6)
+  unitCode  String  @map("unit_code")
+  unitPrice Decimal @map("unit_price") @db.Decimal(18, 6)
+
+  po PurchaseOrder @relation(fields: [poId], references: [id])
+
+  @@index([poId], map: "po_line_po_id_idx")
+  @@map("po_line")
+}
+
+// The supplier-identity change freeze (C3): identity/remittance changes are
+// staged here and apply only after out-of-band verification.
+model SupplierChangeHold {
+  id                    String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId              String            @map("tenant_id") @db.Uuid
+  supplierId            String            @map("supplier_id") @db.Uuid
+  changedFields         Json              @map("changed_fields")
+  state                 SupplierHoldState @default(COOLING_OFF) @map("state")
+  requestedBy           String?           @map("requested_by") @db.Uuid
+  verificationReference String?           @map("verification_reference")
+  verifiedBy            String?           @map("verified_by") @db.Uuid
+  requestedAt           DateTime          @default(now()) @map("requested_at") @db.Timestamptz(6)
+  resolvedAt            DateTime?         @map("resolved_at") @db.Timestamptz(6)
+
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  supplier   Supplier @relation(fields: [supplierId], references: [id])
+  requester  AppUser? @relation("supplierHoldsRequested", fields: [requestedBy], references: [id])
+  verifier   AppUser? @relation("supplierHoldsVerified", fields: [verifiedBy], references: [id])
+
+  @@index([tenantId, supplierId, state], map: "supplier_change_hold_tenant_supplier_idx")
+  @@map("supplier_change_hold")
 }
