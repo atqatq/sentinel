@@ -696,6 +696,51 @@ The plan receipt carries the facts, the label and the disclosure counts **additi
 `openPO` input becomes the live-line sum — a cancelled line can no longer hold a ref's inventory status
 hostage, exactly as §14.6b already stopped it holding the guard hostage.
 
+### 14.6d The loop's second turn — supplier scorecards fed by matching (audit M4 scorecards; named proof `feedback/scorecard-matching-fed`)
+
+*(§14.6b made the matching rules normative and promised that every downstream node — scorecards, efficacy,
+the double-order guard — consumes matching output "exactly as it consumed reconciliation output, with the
+new flags additive". This section is the scorecard half of that promise: how §14.6's SRM row
+(`supplierScorecard()`, the instrument that steers preferred-supplier selection) is FED. The audit's M4
+scorecards item. The scorecard engine itself is NOT re-defined here — its M2 H2 semantics (due-lines only,
+OTIF as on-time AND in-full, `avgLateDays` null-vs-zero honesty, the lead-time estimate, price adherence,
+quarantine rate) are the canon this wiring composes, never re-implements.)*
+
+**Attribution follows the delivery, not the intent.** Evidence attributes to the **PO line's actual
+supplier** (the export's Supplier column, `supplierName` on the line input): a supplier scorecard measures
+who delivered. The leaf's `SUPPLIER_CHANGED` flag remains the disclosure that execution deviated from the
+proposal's intent — the deviation is visible where it happened, and the scorecard is not asked to
+adjudicate it. To make the matching result self-contained for downstream attribution, the line result
+carries `supplier` (additive; the unlinked surface carries it too), and an **UNSOLICITED line — a real
+delivery from a real supplier with no known proposal behind it — is evidence as well**: its own line-fact
+reconciliation (fill net of returns against the ordered quantity, lateness against the promised date when
+both dates exist, price variance **null** — no expected price exists to vary from) attributes to the
+line's supplier and counts in that supplier's denominators exactly when the H2 rule makes any line due.
+A line that names **no supplier** lands in the result's `unattributed` surface — real evidence is never
+silently dropped onto a guess, and never silently discarded.
+
+**What never becomes evidence.** A `CANCELLED` line is not due (§14.6b verbatim: a cancelled promise is
+not a late one) — its void fill and void lateness fall out of the H2 denominators by the same rule that
+already excludes not-yet-due lines, and the wiring **discloses** the exclusion per supplier
+(`cancelledLines`) instead of letting it vanish. The scorecard engine's own due-line filter
+(fill AND lateness known) does this work; the wiring's pin is that the filter's EXCLUSION of cancelled
+evidence is asserted by the named proof, not left to accident.
+
+**Additive signals.** The per-supplier entry exposes the evidence's flag rollup (`flagCounts` — flag →
+count over that supplier's evidence): `GOODS_RETURNED`, `SPLIT_ACROSS_POS`, `PART_CANCELLED`,
+`RECEIPTS_AFTER_CANCEL`, `AMENDMENT_UNEXPLAINED` and every other flag the matching layer raises ride
+through untouched — the scorecard reader sees the same facts the reconciliation saw. The wiring also
+discloses per supplier: `unsolicitedLines` (evidence from the unlinked surface) alongside the engine's
+own `dueLines`/`openLines`.
+
+**Determinism and refusal.** Suppliers are returned sorted by name; identical inputs produce deep-equal
+output; the result survives a JSON round-trip. The wiring consumes a `matchPoLines` RESULT — a malformed
+shape (non-array `lines`, evidence that is not an array) refuses with a named error, the §14.6b posture.
+The scorecard rebuild itself is scheduled work (`SCORECARD_REBUILT`, §15.4) and will carry an explicit
+asOf when it lands; the H2 second arm — an unreceived line **past its promised date** counting as due —
+belongs to that scheduled rebuild (the data for it is already on the evidence), and is named here so the
+obligation stays visible: it is a scheduled follow-on, never a silent descope.
+
 ## 14.7 Inter-tenant / inter-warehouse transfers — plan + reconcile (rev 1.3 boundary)
 **Execution boundary (owner directive): Precoro executes; Sentinel plans, approves and verifies.** Inventory
 staff never execute a transfer in Sentinel — every physical movement happens in Precoro and reaches Sentinel
