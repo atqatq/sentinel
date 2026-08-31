@@ -261,6 +261,7 @@ async function runFileToRows(deps, input) {
     }
     const kept = [];
     let pinnedUsd = 0, pinnedRate = null;
+    const fxFallbackByDay = new Map(); // pinnedFor → { count, rate, worstStaleDays } — the M10 fail-safe's per-run tally
     let statusPresent = false, statusDegraded = 0;
     for (const row of conv.converted) {
       row.waitingQtyConverted = row.waitingConverted; // the executor's column name
@@ -282,10 +283,23 @@ async function runFileToRows(deps, input) {
         continue;
       }
       row.tenantUnitPrice = money.tenantValue;
-      if (money.rateSource === 'PINNED_USD') { pinnedUsd++; pinnedRate = money.rate; }
+      if (money.rateSource === 'PINNED_USD') {
+        if (money.stale) {
+          /* M10: the row rode the LAST PINNED rate — stale-visible, counted
+           * per pinnedFor day, disclosed once below (ADR-0003 §3). */
+          const f = fxFallbackByDay.get(money.rateStale.pinnedFor)
+            || { count: 0, rate: money.rate, worstStaleDays: 0 };
+          f.count += 1;
+          f.worstStaleDays = Math.max(f.worstStaleDays, money.rateStale.staleDays);
+          fxFallbackByDay.set(money.rateStale.pinnedFor, f);
+        } else { pinnedUsd++; pinnedRate = money.rate; }
+      }
       kept.push(row);
     }
     if (pinnedUsd > 0) disclosures.push(`${pinnedUsd} open PO line(s) converted at the pinned USD→${settings.currencyCode} rate ${pinnedRate} for ${asOfDay} (C2)`);
+    for (const [pinnedFor, f] of [...fxFallbackByDay.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1))) {
+      disclosures.push(`${f.count} open PO line(s) converted at the LAST PINNED USD→${settings.currencyCode} rate ${f.rate} (pinned for ${pinnedFor}, ${f.worstStaleDays} day(s) stale) — the pin for ${asOfDay} is missing; the M10 fail-safe keeps the money flowing STALE-VISIBLE (ADR-0003) and DAT-06 pin coverage is breached until the pin job succeeds`);
+    }
     if (statusPresent && statusDegraded > 0) {
       disclosures.push(`${statusDegraded} open PO line(s) carried no Purchase Order Status value — degraded to live for the supply axis (§14.6c)`);
     } else if (!statusPresent && kept.length > 0) {

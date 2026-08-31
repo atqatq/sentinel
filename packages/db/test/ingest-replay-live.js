@@ -36,7 +36,11 @@ const { Client } = require('pg');
 const REPO = path.join(__dirname, '..', '..', '..');
 const { planIngestFile } = require(path.join(REPO, 'packages/core/modules/ingestion/src/idempotency'));
 const { makeIngestAdapter } = require(path.join(REPO, 'packages/db/ingest-adapter'));
+const { makeIngestWorkerAdapter } = require(path.join(REPO, 'packages/db/ingest-worker-adapter'));
 const { makeProcureAdapter } = require(path.join(REPO, 'packages/db/procure-adapter'));
+const { makeFxAdapter } = require(path.join(REPO, 'packages/db/fx-adapter'));
+const { makeLedgerAdapter } = require(path.join(REPO, 'packages/db/ledger-adapter'));
+const { normalizeMoney } = require(path.join(REPO, 'packages/core/modules/ingestion/src/normalize'));
 const { classifySupplierChange } = require(path.join(REPO, 'packages/core/modules/approval/src/freeze'));
 
 const ADMIN_URL = process.env.DATABASE_URL_ADMIN || 'postgres://postgres@127.0.0.1:5433/postgres';
@@ -354,7 +358,75 @@ async function main() {
     else bad('unkeyed file half-applied', JSON.stringify({ refused, afterBad, before }));
   }
 
-  /* ---- 11. RLS on the register ---- */
+  /* ---- 11. M10 FX fail-safe: the pin door + the stale-visible fallback ---- */
+  console.log('\nM10 FX fail-safe: the pin door (ADR-0003) and the stale-visible fallback, live');
+  {
+    const FX_LEDGER_KEY = 'ingest-replay-live-hmac-key-0123456789abcdef-0123456789abcdef';
+    const FX_DAY = '2026-08-25';
+    const fx = makeFxAdapter(clientA, T.A, { ledger: { hmacKey: FX_LEDGER_KEY } });
+
+    const pinned = await tx(clientA, () => fx.pinRate(FX_DAY, 0.376, { trigger: 'schedule', jobId: 'replay-live' }));
+    if (pinned.pinned === true && pinned.ledger && pinned.ledger.seq >= 1) {
+      ok(`pinRate lands the pin + ONE Class-S FX_PIN block (seq ${pinned.ledger.seq}) — the chain's first Class-S production writer`);
+    } else bad('pinRate did not land the pin/block', JSON.stringify(pinned));
+
+    const again = await tx(clientA, () => fx.pinRate(FX_DAY, 0.376, { trigger: 'schedule' }));
+    const pinBlocks = (await clientA.query(`SELECT count(*)::int AS n FROM ledger_block WHERE class = 'S' AND action = 'FX_PIN'`)).rows[0].n;
+    if (again.alreadyPinned === true && pinBlocks === 1) ok('the SAME rate re-pinned is a no-op success — no second block (retry-safe, logged once)');
+    else bad('re-pin not idempotent', JSON.stringify({ again, pinBlocks }));
+
+    await expectError('a DIFFERENT rate for a pinned day refuses RATE_DAY_CONFLICT — corrections go through the door',
+      () => tx(clientA, () => fx.pinRate(FX_DAY, 0.377, { trigger: 'schedule' })), 'RATE_DAY_CONFLICT');
+
+    const workerA = makeIngestWorkerAdapter(clientA, T.A);
+    const fresh = normalizeMoney({ amount: 10, documentCurrency: 'USD', asOfDay: FX_DAY }, 'BHD', await workerA.loadFxPin(FX_DAY));
+    if (fresh.ok && fresh.rateSource === 'PINNED_USD' && fresh.stale === undefined && Math.abs(fresh.tenantValue - 3.76) < 1e-9) {
+      ok('a USD row converts at the exact pin — fresh, no staleness fields (the additive shape holds live)');
+    } else bad('fresh conversion wrong', JSON.stringify(fresh));
+
+    const stale = normalizeMoney({ amount: 10, documentCurrency: 'USD', asOfDay: '2026-08-28' }, 'BHD', await workerA.loadFxPin('2026-08-28'));
+    if (stale.ok && stale.stale === true && stale.rateStale.pinnedFor === FX_DAY && stale.rateStale.staleDays === 3) {
+      ok('a USD row on an unpinned day CONTINUES on the last pinned rate — stale-visible with pinnedFor + staleDays (the M10 fix, live)');
+    } else bad('fallback wrong', JSON.stringify(stale));
+
+    const workerB = makeIngestWorkerAdapter(clientB, T.B);
+    const never = normalizeMoney({ amount: 10, documentCurrency: 'USD', asOfDay: '2026-08-28' }, 'BHD', await workerB.loadFxPin('2026-08-28'));
+    if (!never.ok && never.reason === 'RATE_NOT_PINNED') {
+      ok('a never-pinned tenant still refuses RATE_NOT_PINNED — the D-015 narrowed refusal, live');
+    } else bad('never-pinned tenant did not refuse', JSON.stringify(never));
+
+    const corr = await tx(clientA, () => fx.correctRate(FX_DAY, 0.377, { by: '22222222-2222-4222-8222-222222222222', reason: 'treasury revised the morning fix' }));
+    const rateNow = (await clientA.query(`SELECT usd_to_local FROM fx_rate_pin WHERE day = $1`, [FX_DAY])).rows[0];
+    if (corr.corrected === true && corr.before === 0.376 && corr.after === 0.377 && Number(rateNow.usd_to_local) === 0.377) {
+      ok(`the correction lands with the diff + ONE Class-S FX_CORRECT block (seq ${corr.ledger.seq})`);
+    } else bad('correction wrong', JSON.stringify({ corr, rateNow }));
+
+    await expectError('DELETE is denied to the app role (0009 revoked the privilege)',
+      () => clientA.query(`DELETE FROM fx_rate_pin WHERE day = $1`, [FX_DAY]), '42501');
+    let ownerRefused = false;
+    try {
+      await db.query('BEGIN');
+      await db.query(`SELECT set_config('app.tenant_id', $1, true)`, [T.A]);
+      await db.query(`DELETE FROM fx_rate_pin WHERE day = $1`, [FX_DAY]);
+      await db.query('COMMIT');
+    } catch (e) {
+      ownerRefused = e.message.includes('FX_RATE_PIN_IMMUTABLE');
+      try { await db.query('ROLLBACK'); } catch (_) {}
+    }
+    if (ownerRefused) ok('the trigger refuses DELETE even for the OWNER — correct again, never un-pin');
+    else bad('owner DELETE was not refused by the trigger');
+
+    const chainOk = await makeLedgerAdapter(clientA, T.A, { hmacKey: FX_LEDGER_KEY, actor: 'replay-live', role: null }).verifyChain();
+    if (chainOk && chainOk.ok) ok(`verifyChain green across the pins + correction (${chainOk.verified} blocks, Class-S included)`);
+    else bad('chain verification failed', JSON.stringify(chainOk));
+
+    const fxB = makeFxAdapter(clientB, T.B);
+    const cross = await fxB.loadPinForDay(FX_DAY);
+    if (cross === null) ok("tenant B's session sees none of tenant A's pins (RLS on the source of record)");
+    else bad('cross-tenant pin read leaked', JSON.stringify(cross));
+  }
+
+  /* ---- 12. RLS on the register ---- */
   console.log('\nRLS: the register is tenant-fenced like every other table');
   const crossKeys = (await clientA.query(`SELECT count(*)::int AS n FROM idempotency_key WHERE tenant_id = $1`, [T.B])).rows[0].n;
   if (crossKeys === 0) ok("tenant A's session sees none of tenant B's register keys");

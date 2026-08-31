@@ -31,6 +31,11 @@
 
 const DAY_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+/* The M10 fail-safe resolution order (§14.17, ADR-0003) — the pure decision
+ * this module's money layer composes: exact pin fresh, last pin ≤ day
+ * continues STALE-VISIBLE, never-pinned refuses RATE_NOT_PINNED. */
+const { resolveRatePin } = require('./fx.js');
+
 /* ---------------------------------------------------------------------------
  * Unit catalog + alias resolution (ingestion spec: "every unit resolves
  * against the canonical catalog → unresolved spellings raise a data-health
@@ -209,14 +214,26 @@ function normalizeMoney(row, tenantCurrency, rateTable) {
     return { ok: true, tenantValue: row.amount, rate: 1, rateSource: 'LOCAL', documentCurrency: doc, tenantCurrency: tenant, asOfDay };
   }
   if (doc === 'USD') {
-    validateRateTable(rateTable);
-    const byDay = rateTable.usdToLocalByDay;
-    const has = asOfDay != null && Object.prototype.hasOwnProperty.call(byDay, asOfDay);
-    if (!has) {
+    /* M10 fail-safe (§14.17): the resolution order is fx.js's PURE decision —
+     * an exact pin is fresh; the last pin ≤ the day CONTINUES with the derived
+     * money STALE-VISIBLE (additive stale/rateStale fields — every field an
+     * existing consumer saw is unchanged); no pin ≤ the day at all refuses
+     * RATE_NOT_PINNED (D-015 verbatim — the blanket refusal narrowed to
+     * never-pinned, the amendment explicit in ADR-0003/D-038, never silent).
+     * A malformed asOfDay throws: the run's day is worker-scoped and canonical
+     * upstream — reaching the money layer malformed is a wiring error, the
+     * non-finite-amount posture verbatim. */
+    if (asOfDay == null) {
       return { ok: false, reason: 'RATE_NOT_PINNED', documentCurrency: doc, tenantCurrency: tenant, asOfDay };
     }
-    const rate = Number(byDay[asOfDay]);
-    return { ok: true, tenantValue: row.amount * rate, rate, rateSource: 'PINNED_USD', documentCurrency: doc, tenantCurrency: tenant, asOfDay };
+    const pin = resolveRatePin(rateTable, asOfDay);
+    if (!pin.ok) {
+      return { ok: false, reason: pin.reason, documentCurrency: doc, tenantCurrency: tenant, asOfDay };
+    }
+    return Object.assign(
+      { ok: true, tenantValue: row.amount * pin.rate, rate: pin.rate, rateSource: 'PINNED_USD', documentCurrency: doc, tenantCurrency: tenant, asOfDay },
+      pin.stale ? { stale: true, rateStale: { pinnedFor: pin.pinnedFor, staleDays: pin.staleDays } } : {},
+    );
   }
   return { ok: false, reason: 'CURRENCY_NOT_SUPPORTED', documentCurrency: doc, tenantCurrency: tenant, asOfDay };
 }

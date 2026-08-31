@@ -14,6 +14,7 @@ module.exports = {
   parse: require('./src/parse.js'),
   filebinding: require('./src/filebinding.js'),
   normalize: require('./src/normalize.js'),
+  fx: require('./src/fx.js'),
   window: require('./src/window.js'),
   hardening: require('./src/hardening.js'),
   idempotency: require('./src/idempotency.js'),

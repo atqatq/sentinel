@@ -177,8 +177,15 @@ test('currency codes are trimmed and case-folded to ISO upper', () => {
   assert.strictEqual(r.documentCurrency, 'USD');
   assert.strictEqual(r.tenantCurrency, 'BHD');
 });
-test('a USD row on a day with no pin is refused — RATE_NOT_PINNED, fail-closed', () => {
+test('a USD row on a late-pinned day CONTINUES on the last pinned rate — stale-visible (M10; the D-015 blanket refusal narrowed to never-pinned, ADR-0003/D-038)', () => {
   const r = N.normalizeMoney({ amount: 10, documentCurrency: 'USD', asOfDay: '2026-08-31' }, 'BHD', RATES);
+  assert.ok(r.ok);                                       // the money KEEPS FLOWING (the M10 fix)
+  assert.strictEqual(r.rateSource, 'PINNED_USD');
+  assert.strictEqual(r.stale, true);
+  assert.deepStrictEqual(r.rateStale, { pinnedFor: '2026-08-30', staleDays: 1 });
+});
+test('a USD row with NO pin on or before its day is still refused — RATE_NOT_PINNED, fail-closed (D-015 verbatim)', () => {
+  const r = N.normalizeMoney({ amount: 10, documentCurrency: 'USD', asOfDay: '2026-08-31' }, 'BHD', { usdToLocalByDay: {} });
   assert.ok(!r.ok);
   assert.strictEqual(r.reason, 'RATE_NOT_PINNED');
   assert.strictEqual(r.asOfDay, '2026-08-31');

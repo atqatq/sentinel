@@ -118,24 +118,30 @@ function makeIngestWorkerAdapter(client, tenantId) {
       };
     },
 
-    /** The USD→local pin for ONE tenant-day in the rate-table shape
+    /** The USD→local rate window for ONE run day, in the rate-table shape
      * normalizeMoney validates: { usdToLocalByDay: { 'YYYY-MM-DD': rate } }.
-     * An absent pin is an EMPTY table — the refusal (RATE_NOT_PINNED) then
-     * comes from the money layer's own named reason, never invented here. */
+     * The M10 fail-safe (§14.17, ADR-0003): the window carries the LATEST
+     * pin at-or-before the run day — the exact day's pin when it exists,
+     * otherwise the last pinned rate (the money layer then resolves the
+     * policy: exact → fresh; earlier → STALE-VISIBLE fallback with the
+     * disclosure; never → RATE_NOT_PINNED from the money layer's own named
+     * reason, never invented here). An EMPTY table means NO pin ≤ the run
+     * day exists — that and only that is the refusal case. */
     async loadFxPin(day) {
       if (typeof day !== 'string' || !DAY_RE.test(day)) {
         throw new TypeError(`loadFxPin: day must be a YYYY-MM-DD string, got '${String(day)}'`);
       }
       const r = await client.query(
-        `SELECT usd_to_local FROM fx_rate_pin WHERE tenant_id = $1 AND day = $2`,
+        `SELECT day::text AS day, usd_to_local FROM fx_rate_pin
+          WHERE tenant_id = $1 AND day <= $2 ORDER BY day DESC LIMIT 1`,
         [t, day]);
       const table = { usdToLocalByDay: {} };
       if (r.rows[0]) {
         const rate = Number(r.rows[0].usd_to_local);
         if (!Number.isFinite(rate) || rate <= 0) {
-          throw new TypeError(`loadFxPin: pinned rate for ${day} is not a positive finite number`);
+          throw new TypeError(`loadFxPin: pinned rate for ${r.rows[0].day} is not a positive finite number`);
         }
-        table.usdToLocalByDay[day] = rate;
+        table.usdToLocalByDay[r.rows[0].day] = rate;
       }
       return table;
     },

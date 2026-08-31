@@ -22,6 +22,7 @@ module.exports = {
   makeIngestAdapter: require('./ingest-adapter').makeIngestAdapter,
   INGEST_WIRED_KINDS: require('./ingest-adapter').WIRED_KINDS,
   makeProcureAdapter: require('./procure-adapter').makeProcureAdapter,
+  makeFxAdapter: require('./fx-adapter').makeFxAdapter,
   makeLedgerAdapter: require('./ledger-adapter').makeLedgerAdapter,
   makeAuthAdapter: require('./auth-adapter').makeAuthAdapter,
 };

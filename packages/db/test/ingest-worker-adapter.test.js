@@ -55,7 +55,7 @@ function stubClient(script = {}) {
       if (/FROM unit_alias/i.test(text)) {
         return { rows: (script.aliases || []).map(([alias, code]) => ({ alias, code })), rowCount: (script.aliases || []).length };
       }
-      if (/FROM fx_rate_pin/i.test(text)) return script.pin ? { rows: [{ usd_to_local: script.pin }], rowCount: 1 } : { rows: [], rowCount: 0 };
+      if (/FROM fx_rate_pin/i.test(text)) return script.pin ? { rows: [{ day: script.pinDay || '2026-08-30', usd_to_local: script.pin }], rowCount: 1 } : { rows: [], rowCount: 0 };
       if (/FROM item WHERE tenant_id = \$1 AND sku = ANY/i.test(text)) {
         return { rows: (script.itemIds || []).map(([sku, id]) => ({ sku, id })), rowCount: (script.itemIds || []).length };
       }
@@ -114,14 +114,17 @@ test('loadUnitCatalog returns the resolveUnit shape {canonical, aliases}; aliase
   assert.ok(joinCall.text.includes('JOIN unit_catalog_entry'), 'alias→code must be a JOIN, never a second guess');
 });
 
-test('loadFxPin returns the validateRateTable shape for the requested day only; no pin is an EMPTY table', async () => {
-  const c = stubClient({ pin: '3.75' });
+test('loadFxPin returns the M10 WINDOW: the latest pin ≤ the run day, keyed by ITS OWN day; no pin ≤ the day is an EMPTY table', async () => {
+  const c = stubClient({ pin: '3.75', pinDay: '2026-08-30' });
   const table = await makeIngestWorkerAdapter(c, T).loadFxPin('2026-08-31');
-  assert.deepStrictEqual(table, { usdToLocalByDay: { '2026-08-31': 3.75 } });
-  assert.strictEqual(table.usdToLocalByDay['2026-08-31'], 3.75); // NUMBER, not the DECIMAL string
+  assert.deepStrictEqual(table, { usdToLocalByDay: { '2026-08-30': 3.75 } }); // keyed by the PINNED day (the fail-safe's raw material)
+  assert.strictEqual(table.usdToLocalByDay['2026-08-30'], 3.75); // NUMBER, not the DECIMAL string
+  const q = c.calls.find((x) => /FROM fx_rate_pin/i.test(x.text));
+  assert.ok(q.text.includes('day <= $2'), 'the window query scopes day ≤ the run day');
+  assert.ok(q.text.includes('ORDER BY day DESC LIMIT 1'), 'the window query takes the LATEST pin ≤ the day');
   const c2 = stubClient();
   const empty = await makeIngestWorkerAdapter(c2, T).loadFxPin('2026-08-31');
-  assert.deepStrictEqual(empty, { usdToLocalByDay: {} });
+  assert.deepStrictEqual(empty, { usdToLocalByDay: {} }); // NO pin ≤ the day — the refusal case (RATE_NOT_PINNED at the money layer)
 });
 
 rejects('loadFxPin refuses a non-canonical day — a typo must never silently miss its pin',

@@ -161,8 +161,8 @@ test('loadPendingCfVersion normalizes the NUMERIC boundary — strings in, numbe
   assert.strictEqual(v.to, '24');
 });
 
-test('SCHEMA_VERSION tracks the highest applied migration (0008)', () => {
-  assert.strictEqual(DB.SCHEMA_VERSION, '0008');
+test('SCHEMA_VERSION tracks the highest applied migration (0009)', () => {
+  assert.strictEqual(DB.SCHEMA_VERSION, '0009');
 });
 
 test('every statement carries the explicit tenant predicate or parameter', async () => {

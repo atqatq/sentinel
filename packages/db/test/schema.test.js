@@ -457,5 +457,28 @@ test('no columns in migration.sql that are absent from the Prisma model', () => 
   }
 });
 
+console.log('\nM10 — FX fail-safe (0009_fx_fail_safe)');
+
+test('the source of record refuses a non-positive rate structurally — the raw-SQL backstop of RATE_INVALID', () => {
+  assert.ok(/ALTER TABLE "fx_rate_pin" ADD CONSTRAINT "fx_rate_pin_rate_positive" CHECK \("usd_to_local" > 0\);/.test(migration),
+    'the rate-positive CHECK missing (a zero or negative rate would invert money silently)');
+});
+test('pins are never deleted: DELETE revoked from the app role AND refused by a trigger for every role', () => {
+  assert.ok(migration.includes('REVOKE DELETE ON "fx_rate_pin" FROM "sentinel_app";'),
+    'the DELETE revoke missing');
+  assert.ok(/CREATE TRIGGER "fx_rate_pin_no_delete"\s+BEFORE DELETE ON "fx_rate_pin"\s+FOR EACH ROW EXECUTE FUNCTION "fx_rate_pin_append_only"\(\);/.test(migration),
+    'the no-delete trigger missing');
+  const fn = migration.match(/CREATE OR REPLACE FUNCTION "fx_rate_pin_append_only"\(\)[\s\S]*?\$\$ LANGUAGE plpgsql;/);
+  assert.ok(fn && fn[0].includes('RAISE EXCEPTION'), 'the append-only function must raise loudly');
+  assert.ok(fn[0].includes('correctRate'), 'the refusal must name the correction door (correct again, never un-pin)');
+});
+test('the correction door keeps its UPDATE grant — RLS and the tenant policy already hold from 0001', () => {
+  const pin0001 = fs.readFileSync(path.join(DB, 'migrations', '0001_init', 'migration.sql'), 'utf8');
+  assert.ok(/ALTER TABLE "fx_rate_pin" ENABLE ROW LEVEL SECURITY;/.test(pin0001), '0001 RLS ENABLE missing');
+  assert.ok(/ALTER TABLE "fx_rate_pin" FORCE ROW LEVEL SECURITY;/.test(pin0001), '0001 RLS FORCE missing');
+  assert.ok(!/GRANT[^;]*DELETE[^;]*"fx_rate_pin"/.test(migration.replace('REVOKE DELETE ON "fx_rate_pin" FROM "sentinel_app";', '')),
+    'a DELETE grant leaked onto fx_rate_pin');
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

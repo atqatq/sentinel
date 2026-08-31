@@ -14,4 +14,5 @@
  * bound by test to ingestion's own manifest (surface cannot drift). */
 module.exports = {
   freshness: require('./src/freshness.js'),
+  fx: require('./src/fx.js'),
 };
