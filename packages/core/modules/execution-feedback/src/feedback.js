@@ -273,6 +273,86 @@ function supplierScorecards(matched) {
   };
 }
 
+/* ---- 5c. PLAN ← the loop's learning turn: efficacy fed by matching (§14.6e)
+ * The wiring the audit's M3 efficacy item names: `parameterEfficacy()`,
+ * `proposalQuality()` and `leadTimeEstimate()` (the M3/M2/lead-time canons,
+ * UNCHANGED above) composed over a `matchPoLines` RESULT. The proposal is the
+ * unit of judgment — a split commitment is ONE decision, never manufactured
+ * sample size. The join is inventory's, not matching's: post-decision
+ * observations ({refId, stockedOutAfter, overstockedAfter}, strict booleans —
+ * a truthy-coerced string is the nz() disease inside a training signal) ride
+ * in from the caller; a missing observation is UNOBSERVED, disclosed, never
+ * silently clean. A CANCELLED proposal is disclosed by the engine's own
+ * filter; an UNSOLICITED delivery is not the engine's advice and never enters
+ * proposal-level efficacy; recall rides the same join (unknown-ref stockouts
+ * are the missedShortages dangerous class). One canon: this function composes
+ * the engines, it never re-implements a denominator or a floor. */
+function efficacySignals(matched, observations) {
+  const m = matched || {};
+  const refuse = (code, detail) => {
+    throw new TypeError(`efficacySignals: ${code} — ${detail}`);
+  };
+  if (!Array.isArray(m.proposals)) {
+    refuse('WIRING_MALFORMED', 'the matchPoLines result carries a proposals array — feed the wiring the matching layer, not raw evidence');
+  }
+  const obs = observations == null ? [] : observations;
+  if (!Array.isArray(obs)) {
+    refuse('OBSERVATIONS_MALFORMED', 'observations ride an array of {refId, stockedOutAfter, overstockedAfter}');
+  }
+  const byRef = new Map();
+  for (const o of obs) {
+    if (!o || typeof o.refId !== 'string' || !o.refId) {
+      refuse('OBSERVATION_MALFORMED', 'every observation names the proposal it observed (refId)');
+    }
+    if (o.stockedOutAfter !== undefined && typeof o.stockedOutAfter !== 'boolean') {
+      refuse('OBSERVATION_MALFORMED', `observation ${o.refId} stockedOutAfter must be a boolean when present — a truthy-coerced string is the nz() disease`);
+    }
+    if (o.overstockedAfter !== undefined && typeof o.overstockedAfter !== 'boolean') {
+      refuse('OBSERVATION_MALFORMED', `observation ${o.refId} overstockedAfter must be a boolean when present`);
+    }
+    if (byRef.has(o.refId)) {
+      refuse('OBSERVATION_DUPLICATE', `two observations name ${o.refId} — one ref, one post-decision outcome; the ambiguity refuses, it is not averaged away`);
+    }
+    byRef.set(o.refId, o);
+  }
+  for (const a of m.proposals) {
+    if (!a || typeof a.refId !== 'string' || !a.refId || typeof a.outcome !== 'string') {
+      refuse('WIRING_MALFORMED', 'every proposal aggregate carries a refId and an outcome — feed the wiring the matching layer, not raw evidence');
+    }
+  }
+  /* one proposal, one history entry — sorted by refId, deterministic */
+  const ordered = m.proposals.slice()
+    .sort((a, b) => (a.refId < b.refId ? -1 : a.refId > b.refId ? 1 : 0));
+  const history = ordered.map((a) => {
+    const o = byRef.get(a.refId) || {};
+    return { refId: a.refId, outcome: a.outcome,
+             stockedOutAfter: o.stockedOutAfter === true,
+             overstockedAfter: o.overstockedAfter === true };
+  });
+  const observed = history.filter((h) => byRef.has(h.refId)).length;
+  /* recall rides the same join — stockouts only, never reclassified; sorted
+   * so missedRefs is deterministic */
+  const stockouts = obs.filter((o) => o.stockedOutAfter === true)
+    .map((o) => ({ refId: o.refId }))
+    .sort((a, b) => (a.refId < b.refId ? -1 : 1));
+  const props = ordered.map((a) => ({ refId: a.refId, outcome: a.outcome }));
+  const flagCounts = {};
+  for (const a of ordered) {
+    for (const f of a.flags || []) flagCounts[f] = (flagCounts[f] || 0) + 1;
+  }
+  const knownRefs = new Set(ordered.map((a) => a.refId));
+  return {
+    efficacy: parameterEfficacy(history),          // M3 canon, unchanged
+    quality: proposalQuality(props, stockouts),    // M2 canon, unchanged
+    leadTime: leadTimeEstimate(ordered),           // lead-time canon, unchanged
+    observed,
+    unobserved: history.length - observed,
+    unmatchedObservations: obs.filter((o) => o && o.refId && !knownRefs.has(o.refId)).length,
+    cancelledProposals: ordered.filter((a) => a.outcome === 'CANCELLED').length,
+    flagCounts,
+  };
+}
+
 /* ---- 6. SOURCE ← savings, realized rather than claimed -------------------
  * A saving only counts once goods are received at the actual price.           */
 function realizedSaving(baselines, actualUnitPrice, receivedQty) {
@@ -303,5 +383,6 @@ function inTransitPosition(commitments, receiptsByPo) {
 
 module.exports = {
   REASON_CODES, reconcileProposal, leadTimeEstimate, parameterEfficacy,
-  proposalQuality, supplierScorecard, supplierScorecards, realizedSaving, inTransitPosition,
+  proposalQuality, supplierScorecard, supplierScorecards, efficacySignals,
+  realizedSaving, inTransitPosition,
 };

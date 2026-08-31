@@ -39,10 +39,12 @@ jobs:
         run: node packages/core/modules/planning-engine/test/supply.test.js
       - name: Feedback suite (31)
         run: node packages/core/modules/execution-feedback/test/feedback.test.js
-      - name: M6 receipt→PO-line matching — named proof feedback/matching (26)
+      - name: M6 receipt→PO-line matching — named proof feedback/matching (27)
         run: node packages/core/modules/execution-feedback/test/matching.test.js
       - name: M4 the loop's second turn — scorecards fed by matching, named proof feedback/scorecard-matching-fed (16)
         run: node packages/core/modules/execution-feedback/test/scorecards.test.js
+      - name: M3 the loop's learning turn — efficacy fed by matching, named proof feedback/efficacy-matching-fed (18)
+        run: node packages/core/modules/execution-feedback/test/efficacy.test.js
       - name: KPI catalog — dataState envelope, A1/A2 named proofs (24)
         run: node packages/core/modules/kpi-catalog/test/catalog.test.js
       - name: H4 canonical date boundary — tenant-TZ explicit, day-unit math (25)

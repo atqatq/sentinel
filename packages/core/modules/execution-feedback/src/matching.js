@@ -317,15 +317,18 @@ function matchPoLines(input) {
   const aggregates = [];
   for (const p of proposals) {
     const agg = perProposal.get(p.refId);
-    const flags = Array.from(agg.flags);
-    if (agg.liveLines > 1) flags.push('SPLIT_ACROSS_POS');
-    if (agg.cancelledLines > 0 && agg.liveLines > 0) flags.push('PART_CANCELLED');
+    /* one Set to the end: a flag the aggregate builder pushes (DEVIATION below)
+     * may already have ridden a line rec's flags — a duplicated entry would
+     * corrupt every downstream count (the efficacy rollup counts entries). */
+    const flagSet = new Set(agg.flags);
+    if (agg.liveLines > 1) flagSet.add('SPLIT_ACROSS_POS');
+    if (agg.cancelledLines > 0 && agg.liveLines > 0) flagSet.add('PART_CANCELLED');
     if (agg.cancelledLines > 0 && agg.liveLines === 0) {
       aggregates.push({
         refId: p.refId, outcome: 'CANCELLED', adherenceQty: null, receivedQty: 0,
         fillRate: null, realizedLeadDays: null, lateByDays: null,
         priceVariance: null, priceVariancePct: null,
-        flags: Array.from(new Set([...flags, 'PO_CANCELLED'])).sort(),
+        flags: Array.from(new Set([...flagSet, 'PO_CANCELLED'])).sort(),
         linesCancelled: agg.cancelledLines, linesLive: 0,
       });
       continue;
@@ -350,7 +353,7 @@ function matchPoLines(input) {
     else if (adherenceQty >= 0.95 && adherenceQty <= 1.05) outcome = 'FOLLOWED';
     else if (adherenceQty > 0) outcome = 'MODIFIED';
     else outcome = 'IGNORED';
-    if (agg.unexplained && outcome !== 'FOLLOWED') flags.push('DEVIATION_UNEXPLAINED');
+    if (agg.unexplained && outcome !== 'FOLLOWED') flagSet.add('DEVIATION_UNEXPLAINED');
     /* lead span in canonical day units (the H4 canon, via feedback's rules) */
     const lead = daysBetween(agg.leadStart, agg.leadEnd);
     const priceVariance = agg.pricedQty > 0
@@ -360,7 +363,7 @@ function matchPoLines(input) {
       refId: p.refId, outcome, adherenceQty, receivedQty: agg.netReceivedTotal, fillRate,
       realizedLeadDays: lead, lateByDays: agg.maxLateByDays,
       priceVariance, priceVariancePct: priceVariance != null && p.expectedUnitPrice ? priceVariance / p.expectedUnitPrice : null,
-      flags: flags.sort(), linesCancelled: agg.cancelledLines, linesLive: agg.liveLines,
+      flags: Array.from(flagSet).sort(), linesCancelled: agg.cancelledLines, linesLive: agg.liveLines,
     });
   }
 

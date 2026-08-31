@@ -763,12 +763,17 @@ aggregates — the §14.6 shape, one entry per `refId`. A proposal raised once a
 ONE judgment with `SPLIT_ACROSS_POS` as its fact, never three: a split commitment is one decision the
 optimizer made, and counting its lines separately would manufacture sample size the tenant never earned —
 the exact disease the M3 floor exists to stop. Because the proposal IS the axis of judgment here, the
-proposal-level topology flags (`SPLIT_ACROSS_POS`, `PART_CANCELLED`) ride the wiring's flag rollup — the
-§14.6d supplier-axis exclusion (topology flags name the buyer's task, not the supplier) does not transfer:
-on the efficacy axis the proposal is the task. The rollup stays additive and per-proposal (`flagCounts`:
-flag → the number of proposals carrying it), and it is where the new §14.6b flags reach the learning
-turn: `AMENDMENT_UNEXPLAINED` and `RECEIPTS_AFTER_CANCEL` count against data health on the proposal that
-carries them, per §14.6's capture discipline.
+proposal-level topology flags (`SPLIT_ACROSS_POS`, `PART_CANCELLED`, `PO_CANCELLED`) ride the wiring's
+flag rollup — the §14.6d supplier-axis exclusion (topology flags name the buyer's task, not the supplier)
+does not transfer: on the efficacy axis the proposal is the task. The rollup stays additive and
+per-proposal (`flagCounts`: flag → the number of proposals carrying it), and it rides the AGGREGATES' own
+flags — the leaf-derived facts (`DEVIATION_UNEXPLAINED`, `LATE`, `SHORT_DELIVERED`, `SUPPLIER_CHANGED`,
+`SKU_SUBSTITUTED`, `PRICE_ABOVE_EXPECTED`, `MIXED_RECEIPT_PRICES`, `GOODS_RETURNED`, …) and the topology
+facts the aggregate builder itself raises. The §14.6b LINE-level facts (`AMENDED`,
+`AMENDMENT_UNEXPLAINED`, `RECEIPTS_AFTER_CANCEL`, `OVER_RECEIVED`, `WAITING_INCONSISTENT`) stay on the
+line results where §14.6b put them: under the merge topology a line can answer several proposals, and a
+line fact that cannot name exactly one proposal is never fused onto one — the data-health obligation
+those flags carry is discharged on the line, not on the learning turn.
 
 **The join is inventory's, not matching's.** Whether advice WORKED is an inventory fact — did the ref
 stock out anyway, did it pile up — and no PO fact can manufacture it: the caller supplies the

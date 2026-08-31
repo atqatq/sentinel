@@ -449,6 +449,21 @@ test('UNSOLICITED without a promised date: lateness void, never guessed', () => 
   assert.strictEqual(ev.lateByDays, null, 'a line with no promise date cannot be late against it');
   assert.strictEqual(ev.realizedLeadDays, 10, 'the realized span is still a fact');
 });
+test('aggregate flags never duplicate — the builder\'s own push cannot re-add a rec-raised flag', () => {
+  /* a MODIFIED proposal: the leaf raises DEVIATION_UNEXPLAINED on the line rec
+   * AND the aggregate builder pushes it — the §14.6 shape carries it once */
+  const out = matchPoLines({
+    proposals: [{ refId: 'R1', sku: 'TS-001', qty: 100, raisedAt: '2026-08-01', poNumbers: ['PO-A'] }],
+    poLines: [{ poNumber: 'PO-A', sku: 'TS-001', ordered: 60, waiting: 0, received: 60, poCreationDate: '2026-08-03', expectedDelivery: '2026-08-10' }],
+    events: [{ poNumber: 'PO-A', sku: 'TS-001', type: 'receipt', qty: 60, at: '2026-08-10' }],
+    amendments: [],
+  });
+  const agg = out.proposals[0];
+  assert.strictEqual(agg.outcome, 'MODIFIED');
+  const devCount = agg.flags.filter((f) => f === 'DEVIATION_UNEXPLAINED').length;
+  assert.strictEqual(devCount, 1, 'a flag is one fact per proposal — counting entries downstream depends on it');
+  assert.deepStrictEqual(agg.flags, [...agg.flags].sort(), 'flags stay sorted');
+});
 
 console.log(`\n  feedback/matching: ${passed} passed, ${failed} failed\n`);
 process.exit(failed ? 1 : 0);
