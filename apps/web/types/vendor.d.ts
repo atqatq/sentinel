@@ -19,7 +19,17 @@ declare module "@sentinel/db" {
   export const SCHEMA_VERSION: string
   export function makePlanAdapter(
     client: import("pg").PoolClient,
-    tenantId: string
+    tenantId: string,
+    opts?: {
+      ledger: {
+        hmacKey: string
+        actor: string
+        role?: string | null
+        sessionId?: string | null
+        sourceIp?: string | null
+        onBehalfOf?: string | null
+      }
+    }
   ): {
     loader: {
       loadTenant(tenantId: string): Promise<Record<string, unknown> | null>
@@ -30,6 +40,11 @@ declare module "@sentinel/db" {
         replayed: boolean
         seal: Record<string, unknown>
       }>
+      /* The M8 door (§14.16) — present only when opts.ledger armed it. */
+      restateSeal?(
+        input: Record<string, unknown>
+      ): Promise<Record<string, unknown>>
+      loadDayVersions(sealDate: string): Promise<Record<string, unknown> | null>
     }
   }
   export function connectPlanClient(connectionString: string): Promise<import("pg").PoolClient>

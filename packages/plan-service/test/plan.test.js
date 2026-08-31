@@ -59,6 +59,8 @@ function makeInputs(over = {}) {
 
 function makeDeps(over = {}) {
   const store = over.store || [];
+  const restatements = over.restatements || [];
+  let ledgerSeq = 0;
   const loader = {
     loadTenant: async () => ({
       code: 'T1', currencyCode: 'BHD', timezone: 'Asia/Bahrain',
@@ -68,12 +70,47 @@ function makeDeps(over = {}) {
   };
   const saver = { saveSeal: async (s) => {
     const existing = store.find((x) => x.sealDate === s.sealDate);
-    if (existing) return { replayed: true, seal: existing };
-    const seal = { ...s, sealedAt: Date.parse(s.sealDate + 'T00:00:00Z') };
-    store.push(seal);
-    return { replayed: false, seal };
+    if (!existing) {
+      const seal = { ...s, sealedAt: Date.parse(s.sealDate + 'T00:00:00Z'), revision: 1, source: 'seal' };
+      store.push(seal);
+      return { replayed: false, seal };
+    }
+    /* Version-aware replay: the day's CURRENT version resolves the
+     * comparison (§14.16) — highest restatement revision, else the seal. */
+    const mine = restatements.filter((x) => x.sealDate === s.sealDate);
+    if (mine.length) return { replayed: true, seal: { ...mine[mine.length - 1] } };
+    return { replayed: true, seal: existing };
   } };
-  return { loader, saver, store };
+  /* The M8 door stub — armed only when the test asks for it (the wiring
+   * posture: an unarmed deps object refuses restatements at the boundary). */
+  if (over.doorArmed) {
+    saver.restateSeal = async (s) => {
+      const anchor = store.find((x) => x.sealDate === s.sealDate);
+      if (!anchor) {
+        const e = new Error('RESTATE_PREDECESSOR_MISSING: no seal row');
+        e.code = 'RESTATE_PREDECESSOR_MISSING';
+        throw e;
+      }
+      const mine = restatements.filter((x) => x.sealDate === s.sealDate);
+      const head = mine.length ? mine[mine.length - 1] : null;
+      const expectedPrevRevision = head ? head.revision : 1;
+      const expectedPrevHash = head ? head.payloadHash : anchor.payloadHash;
+      if (s.prevRevision !== expectedPrevRevision || s.prevPayloadHash !== expectedPrevHash) {
+        const e = new Error(`RESTATE_PREDECESSOR_MISMATCH: current revision is ${expectedPrevRevision}`);
+        e.code = 'RESTATE_PREDECESSOR_MISMATCH';
+        throw e;
+      }
+      const revision = expectedPrevRevision + 1;
+      const row = { ...s, revision, source: 'restatement',
+                    restatedAt: Date.parse(s.sealDate + 'T00:00:00Z') };
+      restatements.push(row);
+      ledgerSeq += 1;
+      return { revision, prevRevision: s.prevRevision, prevPayloadHash: s.prevPayloadHash,
+               payloadHash: s.payloadHash, delta: s.delta, restatedAt: row.restatedAt,
+               ledger: { seq: ledgerSeq, hash: 'a'.repeat(64) }, seal: row };
+    };
+  }
+  return { loader, saver, store, restatements };
 }
 
 const REQ = { tenantId: 't1', asOf: '2026-03-01', driver: { value: 880, granularity: 'monthly' } };
@@ -417,7 +454,7 @@ test('a same-day rerun REPLAYS the stored seal — no second row, no recompute',
   assert.strictEqual(r2.payloadHash, r1.payloadHash);
   assert.strictEqual(d.store.length, 1);
 });
-test('a divergent same-day request is DISCLOSED, never applied (restatement is M8)', async () => {
+test('a divergent same-day request is DISCLOSED, never applied (restatement is EXPLICIT, §14.16)', async () => {
   const d = makeDeps();
   await runPlan(REQ, d);
   const r = await runPlan({ ...REQ, driver: { value: 999, granularity: 'monthly' } }, d);
@@ -426,6 +463,124 @@ test('a divergent same-day request is DISCLOSED, never applied (restatement is M
   assert.ok(r.banner);
   assert.notStrictEqual(r.requestHash, r.payloadHash);
   assert.strictEqual(d.store.length, 1); // stored seal untouched
+});
+
+/* ---- M8 restatement (§14.16; named proof ledger/restatement) -------------------------- */
+
+test('summarizeRestatementDelta: sorted, canonical, deterministic across the three axes', () => {
+  const { summarizeRestatementDelta } = SVC;
+  const prev = { driver: { value: 880, granularity: 'monthly' }, driverNormalized: { deliveriesPerDay: 28.4 },
+                 kpis: { a: 1, b: 2, c: 3 }, refs: [
+                   { ref: 'REF-B', x: 1 }, { ref: 'REF-A', y: 2 }, { ref: 'REF-C', z: 3 }] };
+  const next = { driver: { value: 999, granularity: 'monthly' }, driverNormalized: { deliveriesPerDay: 32.2 },
+                 kpis: { a: 1, b: 9, d: 4 }, refs: [
+                   { ref: 'REF-A', y: 2 }, { ref: 'REF-C', z: 0 }, { ref: 'REF-D', w: 4 }] };
+  const delta = summarizeRestatementDelta(prev, next);
+  assert.deepStrictEqual(delta.refsChanged, ['REF-B', 'REF-C', 'REF-D']); // B content vanished, C changed, D added, A identical
+  assert.strictEqual(delta.driverChanged, true);
+  assert.deepStrictEqual(delta.kpiKeysChanged, ['b', 'c', 'd']);
+  const again = summarizeRestatementDelta(prev, next);
+  assert.deepStrictEqual(again, delta, 'identical inputs produce an identical delta');
+});
+
+test('a restatement request against a NON-divergent day is a disclosed no-op: nothing written, no block', async () => {
+  const d = makeDeps({ doorArmed: true });
+  await runPlan(REQ, d);
+  const r = await runPlan({ ...REQ, restatement: true, restatementReason: 'late January consumption' }, d);
+  assert.strictEqual(r.verdict, 'REPLAYED');
+  assert.strictEqual(r.replayed, true);
+  assert.strictEqual(r.divergent, false);
+  assert.strictEqual(r.restatementRequested, true);
+  assert.strictEqual(d.store.length, 1);
+  assert.strictEqual(d.restatements.length, 0); // no version row, no ledger event — a non-event
+});
+
+test('a restatement request without a reason REFUSES (RESTATE_REASON_REQUIRED)', async () => {
+  const d = makeDeps({ doorArmed: true });
+  await runPlan(REQ, d);
+  for (const reason of [undefined, '', '   ']) {
+    const r = await runPlan({ ...REQ, driver: { value: 999, granularity: 'monthly' },
+                              restatement: true, ...(reason !== undefined ? { restatementReason: reason } : {}) }, d);
+    assert.strictEqual(r.verdict, 'REFUSED');
+    assert.strictEqual(r.reason, 'RESTATE_REASON_REQUIRED');
+  }
+  assert.strictEqual(d.store.length, 1);
+  assert.strictEqual(d.restatements.length, 0);
+});
+
+test('a restatement request through an UNARMED door is a wiring error (TypeError), never a silent ignore', async () => {
+  const d = makeDeps(); // no doorArmed
+  await runPlan(REQ, d);
+  await assert.rejects(
+    () => runPlan({ ...REQ, driver: { value: 999, granularity: 'monthly' },
+                    restatement: true, restatementReason: 'late January consumption' }, d),
+    /ports\.saver\.restateSeal/);
+  assert.strictEqual(d.restatements.length, 0);
+});
+
+test('an explicit restatement RESEALS: revision 2 chained beside the untouched seal, delta + ledger receipt', async () => {
+  const d = makeDeps({ doorArmed: true, inputs: { openPo: [{ sku: 'S1', poNumber: 'PO-1', waitingQtyConverted: 240 }] } });
+  const v1 = await runPlan(REQ, d);
+  assert.strictEqual(v1.verdict, 'SEALED');
+  const r = await runPlan({ ...REQ, driver: { value: 999, granularity: 'monthly' },
+                            restatement: true, restatementReason: 'late January consumption landed', actor: 'u-buyer' }, d);
+  assert.strictEqual(r.verdict, 'RESEALED');
+  assert.strictEqual(r.restated, true);
+  assert.strictEqual(r.revision, 2);
+  assert.strictEqual(r.prevRevision, 1);
+  assert.strictEqual(r.prevPayloadHash, v1.payloadHash);
+  assert.ok(/^[0-9a-f]{64}$/.test(r.payloadHash));
+  assert.notStrictEqual(r.payloadHash, v1.payloadHash);
+  assert.strictEqual(r.reason, 'late January consumption landed');
+  assert.strictEqual(r.restatedBy, 'u-buyer');
+  assert.deepStrictEqual(r.delta.refsChanged, ['REF-A']);
+  assert.strictEqual(r.delta.driverChanged, true);
+  assert.ok(Array.isArray(r.delta.kpiKeysChanged));
+  assert.deepStrictEqual(r.ledger, { seq: 1, hash: 'a'.repeat(64) });
+  assert.strictEqual(r.seal.revision, 2);
+  assert.strictEqual(r.seal.source, 'restatement');
+  /* The chain: one seal row (v1, untouched) + one restatement row (v2). */
+  assert.strictEqual(d.store.length, 1);
+  assert.strictEqual(d.restatements.length, 1);
+  assert.strictEqual(d.store[0].payloadHash, v1.payloadHash);
+});
+
+test('the restated payload IS the recomputed state (as known now), reason trimmed', async () => {
+  const d = makeDeps({ doorArmed: true });
+  await runPlan(REQ, d);
+  const r = await runPlan({ ...REQ, driver: { value: 999, granularity: 'monthly' },
+                            restatement: true, restatementReason: '  supply correction  ' }, d);
+  assert.strictEqual(r.seal.payload.driver.value, 999);
+  assert.strictEqual(r.seal.payload.driver.granularity, 'monthly');
+  assert.strictEqual(r.reason, 'supply correction');
+});
+
+test('after a restatement, an identical replay resolves the CURRENT version (non-divergent against v2)', async () => {
+  const d = makeDeps({ doorArmed: true });
+  await runPlan(REQ, d);
+  const restatedReq = { ...REQ, driver: { value: 999, granularity: 'monthly' },
+                        restatement: true, restatementReason: 'supply correction' };
+  await runPlan(restatedReq, d);
+  const replay = await runPlan({ ...restatedReq, restatement: undefined }, d);
+  assert.strictEqual(replay.verdict, 'REPLAYED');
+  assert.strictEqual(replay.divergent, false);
+  assert.strictEqual(replay.seal.revision, 2);
+  assert.strictEqual(replay.seal.source, 'restatement');
+});
+
+test('a second restatement chains v3 off v2 — versions accumulate, never overwrite', async () => {
+  const d = makeDeps({ doorArmed: true });
+  await runPlan(REQ, d);
+  await runPlan({ ...REQ, driver: { value: 999, granularity: 'monthly' },
+                  restatement: true, restatementReason: 'first correction' }, d);
+  const r3 = await runPlan({ ...REQ, driver: { value: 555, granularity: 'monthly' },
+                             restatement: true, restatementReason: 'second correction' }, d);
+  assert.strictEqual(r3.verdict, 'RESEALED');
+  assert.strictEqual(r3.revision, 3);
+  assert.strictEqual(r3.prevRevision, 2);
+  assert.strictEqual(d.store.length, 1); // the seal row never moves
+  assert.strictEqual(d.restatements.length, 2); // v2 + v3
+  assert.strictEqual(d.restatements[1].prevPayloadHash, d.restatements[0].payloadHash);
 });
 
 /* ---- wiring errors (TypeError per module convention) ----------------------------------- */

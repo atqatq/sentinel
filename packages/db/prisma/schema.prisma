@@ -62,6 +62,7 @@ model Tenant {
   idempotencyKeys   IdempotencyKey[]
   fxRatePins        FxRatePin[]
   planSeals         PlanSeal[]
+  planSealRestatements PlanSealRestatement[]
   tenantRoles       TenantRole[]
   approvalConfigs   ApprovalConfig[]
   approvalLimits    ApprovalLimit[]
@@ -431,7 +432,8 @@ model FxRatePin {
 // ---- Engine-live sealed snapshot (M2 unit 3, build spec §11 daily seal) --------
 // One seal per tenant per seal_date (H6-style unique); payload carries the
 // full computed state; payload_hash = SHA256(canonicalJson(payload)).
-// Restatement of a sealed day is M8 semantics — not permitted here yet.
+// The seal row is revision 1 of the day's version chain; restatements live
+// in PlanSealRestatement (M8 §14.16) and never overwrite it.
 model PlanSeal {
   id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId      String   @map("tenant_id") @db.Uuid
@@ -447,6 +449,34 @@ model PlanSeal {
 
   @@unique([tenantId, sealDate])
   @@map("plan_seal")
+}
+
+// ---- M8 restatement — the version chain of a sealed tenant-day (§14.16) --------
+// Revision >= 2, chained by prevRevision + prevPayloadHash (revision 1 is the
+// PlanSeal row itself); UNIQUE (tenant, date, revision) + the fork-guard
+// trigger make the chain unforkable; SELECT/INSERT only + the append-only
+// trigger — restate again, never un-state. Delta = the deterministic
+// as-known-then vs as-known-now summary; reason + restatedBy NOT NULL.
+model PlanSealRestatement {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  sealDate        DateTime @map("seal_date") @db.Date
+  revision        Int
+  payload         Json     @db.JsonB
+  payloadHash     String   @map("payload_hash")
+  prevRevision    Int      @map("prev_revision")
+  prevPayloadHash String   @map("prev_payload_hash")
+  delta           Json     @db.JsonB
+  reason          String
+  engineVersion   String   @map("engine_version")
+  schemaVersion   String   @map("schema_version")
+  restatedBy      String   @map("restated_by")
+  restatedAt      DateTime @default(now()) @map("restated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, sealDate, revision])
+  @@map("plan_seal_restatement")
 }
 
 // ---- Enums ---------------------------------------------------------------------

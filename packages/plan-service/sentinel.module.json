@@ -1,7 +1,7 @@
 {
   "id": "plan-service",
-  "version": "0.3.0",
-  "description": "Engine live wiring + sealed snapshots. Orchestrates the planning-engine canon over tenant-loaded inputs (ports-injected, no direct I/O), maps the portfolio through the kpi-catalog dataState envelope, and seals one immutable snapshot per tenant-day (plan_seal) with a SHA-256 payload hash and the ENGINE_VERSION/SCHEMA_VERSION stamps (L-07). H8 refuses the rate seed before any ref is computed; H6-style replay returns the stored seal untouched — a divergent replay is disclosed, never applied (M8 owns restatement).",
+  "version": "0.4.0",
+  "description": "Engine live wiring + sealed snapshots. Orchestrates the planning-engine canon over tenant-loaded inputs (ports-injected, no direct I/O), maps the portfolio through the kpi-catalog dataState envelope, and seals one immutable snapshot per tenant-day (plan_seal) with a SHA-256 payload hash and the ENGINE_VERSION/SCHEMA_VERSION stamps (L-07). H8 refuses the rate seed before any ref is computed; H6-style replay resolves the day's CURRENT version and discloses a divergent request, never applies it. M8 restatement (§14.16): an explicit, reasoned act landing a NEW version chained beside the immutable seal (plan_seal_restatement, the db door) with the as-known-then vs as-known-now delta and a Class-W RESTATE_DAY ledger block in the same transaction — the H5 chain's first production writer.",
   "dependencies": [
     "planning-engine",
     "kpi-catalog",
@@ -10,20 +10,23 @@
   ],
   "permissionScopes": [
     "db:read:planning",
-    "db:write:plan_seal"
+    "db:write:plan_seal",
+    "db:write:plan_seal_restatement"
   ],
   "ingestionKinds": [],
   "uiSurfacePoints": [
     "plan-dashboard",
-    "kpi-strip"
+    "kpi-strip",
+    "audit-time-machine"
   ],
   "ledgerEventTypes": [
-    "ENGINE_RUN_SEALED"
+    "ENGINE_RUN_SEALED",
+    "RESTATE_DAY"
   ],
   "goldenTests": [
     {
       "suite": "test/plan.test.js",
-      "count": 41
+      "count": 57
     }
   ]
 }

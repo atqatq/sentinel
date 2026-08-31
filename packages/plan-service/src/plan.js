@@ -40,7 +40,18 @@
  *   saver.saveSeal({tenantId, sealDate, engineVersion, schemaVersion,
  *                   payloadHash, payload, sealedBy})
  *     → { replayed: bool, seal: { tenantId, sealDate, engineVersion,
- *           schemaVersion, payloadHash, payload, sealedAt } }
+ *           schemaVersion, payloadHash, payload, sealedAt, revision, source } }
+ *
+ *   saver.restateSeal (OPTIONAL — the M8 door, armed by the adapter when
+ *        the caller supplies the ledger config; §14.16):
+ *     restateSeal({tenantId, sealDate, payload, payloadHash, prevPayloadHash,
+ *                  prevRevision, delta, reason, restatedBy, engineVersion,
+ *                  schemaVersion})
+ *     → { revision, prevRevision, prevPayloadHash, payloadHash, delta,
+ *           restatedAt, ledger: {seq, hash}, seal }
+ *
+ *   saver.loadDayVersions(sealDate) — the time-machine read (db-level;
+ *        the transport lands with the screen-12 unit).
  *
  * Determinism: asOf is injected (no clock); rows are sorted before hashing;
  * identical inputs produce an identical payloadHash (tested).
@@ -346,6 +357,41 @@ function assembleRef(ref, ctx) {
   } };
 }
 
+/* ---- M8 restatement delta (§14.16) ---------------------------------------- */
+
+/* The deterministic "as known then vs as known now" summary. Pure, no
+ * clocks, sorted axes: which refs changed (canonical JSON comparison per
+ * ref id — a ref removed entirely is a change, never a silent absence),
+ * whether the driver changed (value/granularity and its normalization),
+ * which KPI keys changed. Identical inputs produce an identical delta; the
+ * delta is part of the restatement row, the ledger block and the receipt. */
+function summarizeRestatementDelta(prev, next) {
+  const refsOf = (p) => new Map(((p && Array.isArray(p.refs)) ? p.refs : [])
+    .filter((r) => r && typeof r.ref === 'string').map((r) => [r.ref, r]));
+  const a = refsOf(prev), b = refsOf(next);
+  const refsChanged = [];
+  for (const [id, ra] of a) {
+    if (!b.has(id) || canonicalJson(b.get(id)) !== canonicalJson(ra)) refsChanged.push(id);
+  }
+  for (const id of b.keys()) if (!a.has(id)) refsChanged.push(id);
+  refsChanged.sort();
+  const driverChanged =
+    canonicalJson(prev && prev.driver ? prev.driver : null) !==
+      canonicalJson(next && next.driver ? next.driver : null) ||
+    canonicalJson(prev && prev.driverNormalized ? prev.driverNormalized : null) !==
+      canonicalJson(next && next.driverNormalized ? next.driverNormalized : null);
+  const keys = new Set([
+    ...Object.keys((prev && prev.kpis) || {}),
+    ...Object.keys((next && next.kpis) || {}),
+  ]);
+  /* A key present in one payload and absent in the other IS a change — the
+   * honest absence is null (canonicalJson refuses undefined). */
+  const kpiKeysChanged = Array.from(keys).filter((k) =>
+    canonicalJson((prev && prev.kpis && prev.kpis[k] !== undefined) ? prev.kpis[k] : null) !==
+    canonicalJson((next && next.kpis && next.kpis[k] !== undefined) ? next.kpis[k] : null)).sort();
+  return { refsChanged, driverChanged, kpiKeysChanged };
+}
+
 /* ==== runPlan — the wired engine run ====================================== */
 
 async function runPlan(request, ports) {
@@ -478,14 +524,61 @@ async function runPlan(request, ports) {
   }
 
   if (saved.replayed) {
-    /* H6-style replay: the tenant-day is already sealed — the stored seal is
-     * returned untouched. A divergent request is DISCLOSED, never applied;
-     * restating a sealed day is M8 semantics and does not exist here yet. */
+    /* H6-style replay: the tenant-day is already sealed — the stored day's
+     * CURRENT version is returned untouched (the version-aware saver
+     * resolves highest restatement revision, else the seal). A divergent
+     * request is DISCLOSED, never applied — unless the operator EXPLICITLY
+     * asks for the restatement (§14.16: an explicit act with a reason, a
+     * new version chained beside the seal, a Class-W ledger block). */
     const divergent = saved.seal.payloadHash !== payloadHash;
+    if (request.restatement === true) {
+      if (!divergent) {
+        /* A restatement of a non-divergent day is a disclosed NO-OP:
+         * nothing is written, no block is appended — the ledger logs
+         * changes, not non-events. */
+        return {
+          verdict: 'REPLAYED', sealDate: asOfParsed.value, replayed: true,
+          divergent: false, restatementRequested: true,
+          payloadHash: saved.seal.payloadHash, requestHash: payloadHash,
+          seal: saved.seal,
+        };
+      }
+      if (typeof ports.saver.restateSeal !== 'function') {
+        throw new TypeError('runPlan: a restatement request requires ports.saver.restateSeal — the M8 door (the adapter arms it with the ledger config; an unarmed deployment refuses loudly, never silently)');
+      }
+      if (typeof request.restatementReason !== 'string' || request.restatementReason.trim() === '') {
+        return { verdict: 'REFUSED', reason: 'RESTATE_REASON_REQUIRED',
+                 detail: 'a restatement must carry a reason — "the data changed" is the situation, not the justification (§14.16)' };
+      }
+      const reason = request.restatementReason.trim();
+      const restatedBy = typeof request.actor === 'string' && request.actor !== '' ? request.actor : 'system';
+      const delta = summarizeRestatementDelta(saved.seal.payload, payload);
+      const applied = await ports.saver.restateSeal({
+        tenantId: request.tenantId,
+        sealDate: asOfParsed.value,
+        payload, payloadHash,
+        prevPayloadHash: saved.seal.payloadHash,
+        prevRevision: saved.seal.revision ?? 1,
+        delta, reason, restatedBy,
+        engineVersion: E.ENGINE_VERSION,
+        schemaVersion: SCHEMA_VERSION,
+      });
+      if (!applied || typeof applied !== 'object' || !Number.isSafeInteger(applied.revision) || !applied.ledger) {
+        throw new TypeError('runPlan: saver.restateSeal must return {revision, prevRevision, prevPayloadHash, payloadHash, delta, ledger, seal}');
+      }
+      return {
+        verdict: 'RESEALED', sealDate: asOfParsed.value, replayed: false,
+        restated: true,
+        revision: applied.revision, prevRevision: applied.prevRevision,
+        payloadHash, prevPayloadHash: applied.prevPayloadHash,
+        delta, reason, restatedBy,
+        ledger: applied.ledger, seal: applied.seal,
+      };
+    }
     return {
       verdict: 'REPLAYED', sealDate: asOfParsed.value, replayed: true, divergent,
       payloadHash: saved.seal.payloadHash, requestHash: payloadHash, seal: saved.seal,
-      ...(divergent ? { banner: { text: 'Replay: a seal already exists for this tenant-day; the new request diverged from it and was NOT applied (restatement is M8 semantics).' } } : {}),
+      ...(divergent ? { banner: { text: 'Replay: a seal already exists for this tenant-day; the new request diverged from it and was NOT applied — restate explicitly (restatement: true + a reason) to land it as a new version (§14.16).' } } : {}),
     };
   }
   return {
@@ -495,4 +588,4 @@ async function runPlan(request, ports) {
   };
 }
 
-module.exports = { runPlan, invalidRequest };
+module.exports = { runPlan, invalidRequest, summarizeRestatementDelta };

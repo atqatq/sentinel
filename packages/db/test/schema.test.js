@@ -40,7 +40,7 @@ const TENANT_SCOPED = [
   'warehouse', 'stock_line', 'open_po_line', 'consumption_balance',
   'delivery_day', 'planning_param', 'category_owner', 'ingest_file',
   'quarantine_record', 'data_health_task', 'idempotency_key', 'fx_rate_pin',
-  'plan_seal',
+  'plan_seal', 'plan_seal_restatement',
   'tenant_role', 'approval_config', 'approval_limit', 'proposal',
   'proposal_line', 'approval', 'purchase_order', 'po_line',
   'supplier_change_hold', 'ledger_block',
@@ -261,6 +261,52 @@ test('the ledger is tenant-isolated at RLS (enabled + forced)', () => {
 test('the ledger is operable by the app role (the live tier caught its absence — pinned so it stays)', () => {
   assert.ok(migration.includes('GRANT SELECT, INSERT, UPDATE, DELETE ON "item_cf_version" TO "sentinel_app";'),
     'the sentinel_app grant missing (42501 at the door)');
+});
+
+console.log('\nM8 — restatement semantics (0008_restatement)');
+
+test('the version chain is UNIQUE per (tenant, seal_date, revision) and revisions start at 2', () => {
+  assert.ok(/CREATE UNIQUE INDEX "plan_seal_restatement_tenant_date_revision_key"\s+ON "plan_seal_restatement"\s*\(\s*"tenant_id",\s*"seal_date",\s*"revision"\s*\);/.test(migration),
+    'the version UNIQUE missing');
+  assert.ok(/"revision" INT NOT NULL CHECK \("revision" >= 2\)/.test(migration),
+    'the revision >= 2 CHECK missing (revision 1 is the seal row itself)');
+});
+test('the fork guard refuses structurally: wrong predecessor hash, wrong revision, a missing anchor', () => {
+  assert.ok(/CREATE TRIGGER "plan_seal_restatement_chain_guard_trigger"[\s\S]*?EXECUTE FUNCTION "plan_seal_restatement_chain_guard"\(\);/.test(migration),
+    'the chain guard trigger missing');
+  const fn = migration.match(/CREATE OR REPLACE FUNCTION "plan_seal_restatement_chain_guard"\(\)[\s\S]*?\$\$ LANGUAGE plpgsql;/);
+  assert.ok(fn, 'chain guard function missing');
+  for (const must of ["RAISE EXCEPTION 'RESTATE_PREDECESSOR_MISMATCH'", "RAISE EXCEPTION 'RESTATE_PREDECESSOR_MISSING'",
+    'head_hash', "FROM \"plan_seal\" p"]) {
+    assert.ok(fn[0].includes(must), `the fork guard lacks: ${must}`);
+  }
+});
+test('the anchor holds: the composite FK into plan_seal makes a restatement of a never-sealed day impossible', () => {
+  assert.ok(/ALTER TABLE "plan_seal_restatement" ADD CONSTRAINT "plan_seal_restatement_day_fkey" FOREIGN KEY \("tenant_id","seal_date"\) REFERENCES "plan_seal"\("tenant_id","seal_date"\) ON DELETE RESTRICT ON UPDATE CASCADE;/.test(migration),
+    'the anchor FK missing');
+});
+test('a restatement is justified and named: reason and restated_by are NOT NULL, the CHECK agrees with the gate', () => {
+  assert.ok(/"reason" TEXT NOT NULL CHECK \(length\("reason"\) > 0\)/.test(migration),
+    'the reason CHECK missing (a reasonless restatement cannot exist even via raw SQL)');
+  assert.ok(/"restated_by" TEXT NOT NULL/.test(migration), 'restated_by NOT NULL missing (an anonymous restatement cannot exist)');
+});
+test('the version chain is append-only: SELECT+INSERT grants only, plus the loud trigger', () => {
+  assert.ok(migration.includes('GRANT SELECT, INSERT ON "plan_seal_restatement" TO "sentinel_app";'),
+    'the app-role grant must be SELECT, INSERT only');
+  assert.ok(!/GRANT[^;]*UPDATE[^;]*ON "plan_seal_restatement"/.test(migration), 'an UPDATE grant leaked onto plan_seal_restatement');
+  assert.ok(!/GRANT[^;]*DELETE[^;]*ON "plan_seal_restatement"/.test(migration), 'a DELETE grant leaked onto plan_seal_restatement');
+  assert.ok(/CREATE TRIGGER "plan_seal_restatement_no_update_trigger"[\s\S]*?EXECUTE FUNCTION "plan_seal_restatement_append_only"\(\);/.test(migration),
+    'the no-update trigger missing');
+  assert.ok(/CREATE TRIGGER "plan_seal_restatement_no_delete_trigger"[\s\S]*?EXECUTE FUNCTION "plan_seal_restatement_append_only"\(\);/.test(migration),
+    'the no-delete trigger missing');
+});
+test('the M8 columns: hashes are 64-hex CHECKs, delta is JSONB, the L-07 stamps ride', () => {
+  const table = migration.match(/CREATE TABLE "plan_seal_restatement" \([\s\S]*?\n\);/);
+  assert.ok(table, 'plan_seal_restatement missing');
+  for (const col of ['"payload" JSONB NOT NULL', '"delta" JSONB NOT NULL', '"prev_payload_hash" TEXT NOT NULL CHECK',
+    '"engine_version" TEXT NOT NULL', '"schema_version" TEXT NOT NULL', '"restated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT now()']) {
+    assert.ok(table[0].includes(col), `column contract lacks: ${col}`);
+  }
 });
 
 console.log('\nM11 — authentication (0005_auth)');

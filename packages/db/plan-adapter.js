@@ -1,7 +1,7 @@
 'use strict';
 /* ============================================================================
- * makePlanAdapter(client, tenantId) — the pg-backed loader/saver for the
- * plan-service ports (M2 unit 3 extract; the app layer injects it behind
+ * makePlanAdapter(client, tenantId, opts?) — the pg-backed loader/saver for
+ * the plan-service ports (M2 unit 3 extract; the app layer injects it behind
  * handlePlanRun — delivery-spec §6.3 M2 "engine live").
  *
  * Home rule: the db package owns SQL; the plan-service owns orchestration;
@@ -17,13 +17,87 @@
  * intent visible regardless of policy evaluation. The connecting role must
  * be sentinel_app (NOBYPASSRLS) in production; FORCE binds owners too.
  *
+ * M8 restatement (§14.16; 0008_restatement): the seal row stays immutable at
+ * revision 1; a restatement is a NEW version chained to its predecessor in
+ * plan_seal_restatement (the fork-guard trigger re-proves the pointer
+ * structurally). "The seal for this tenant-day" resolves to the CURRENT
+ * version — highest restatement revision, else the seal — everywhere:
+ *
+ *   - saveSeal's replay path compares the recomputed hash against the
+ *     CURRENT version (a post-restatement replay of identical inputs is
+ *     non-divergent exactly then).
+ *   - restateSeal is the DOOR (the resolveCfVersion posture): statement-
+ *     first derive under a lock on the anchor seal row (FOR UPDATE works —
+ *     plan_seal carries full grants, unlike the ledger), named refusals
+ *     BEFORE any insert (RESTATE_PREDECESSOR_MISSING / RESTATE_PREDECESSOR_
+ *     MISMATCH — a stale predecessor means a concurrent restatement won;
+ *     re-run against the new head), then the version INSERT and the H5
+ *     ledger block (Class W, RESTATE_DAY) in the SAME caller transaction —
+ *     §16.3 rule 2: the ledger write failing rolls the restatement back
+ *     with it. An unlogged restatement must not be possible, and a logged
+ *     one must not be un-done.
+ *   - loadDayVersions is the time-machine read: every version of a day,
+ *     ascending, plus the resolved current — the surface screen 12 renders.
+ *
+ * opts.ledger arms the door: { hmacKey, actor, role, sessionId, sourceIp,
+ * onBehalfOf } — the secret-manager HMAC key + the authenticated session's
+ * envelope (the route supplies them; the engine/schema stamps are filled
+ * here from the repo constants, never trusted from the caller). UNARMED, a
+ * restatement request fails loudly at the service boundary (TypeError) —
+ * the door is either armed or the request is refused; never silently
+ * ignored (§14.16 wiring posture).
+ *
  * pg itself is only touched by connectPlanPool below (lazy require): the
  * structural suites (golden job) import this package without a database or
  * pg installed — the dependency is real (see package.json) but only paid
  * when a caller actually opens a connection.
  * ==========================================================================*/
 
-function makePlanAdapter(client, tenantId) {
+const E = require('../core/modules/planning-engine');
+const { SCHEMA_VERSION } = require('./schema-version');
+const ledgerMod = require('./ledger-adapter');
+
+const SEAL_COLS = `tenant_id AS "tenantId", seal_date::text AS "sealDate", engine_version AS "engineVersion",
+                    schema_version AS "schemaVersion", payload, payload_hash AS "payloadHash",
+                    (extract(epoch from sealed_at) * 1000)::bigint AS "sealedAt"`;
+
+const RESTATE_COLS = `revision, payload, payload_hash AS "payloadHash", prev_revision AS "prevRevision",
+                       prev_payload_hash AS "prevPayloadHash", delta, reason,
+                       restated_by AS "restatedBy", restated_at AS "restatedAt",
+                       engine_version AS "engineVersion", schema_version AS "schemaVersion"`;
+
+const SEAL_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const HASH_RE = /^[0-9a-f]{64}$/;
+
+function restateError(code, detail) {
+  const e = new Error(detail ? `${code}: ${detail}` : code);
+  e.code = code;
+  return e;
+}
+
+function assertSealDate(v, code) {
+  if (typeof v !== 'string' || !SEAL_DATE_RE.test(v)) {
+    throw restateError(code || 'RESTATE_SEAL_DATE_INVALID', `sealDate must be a YYYY-MM-DD string, got ${JSON.stringify(v)}`);
+  }
+}
+
+function assertHash(v, field) {
+  if (typeof v !== 'string' || !HASH_RE.test(v)) {
+    throw restateError('RESTATE_HASH_INVALID', `${field} must be a 64-hex sha256 string, got ${JSON.stringify(v)}`);
+  }
+}
+
+function makePlanAdapter(client, tenantId, opts) {
+  /* The ledger door: armed only when the caller supplies the secret-manager
+   * key + session envelope. The stamps are the repo's own constants — a
+   * caller-supplied stamp would let a deployment mislabel the chain. */
+  const ledgerAdapter = opts && opts.ledger
+    ? ledgerMod.makeLedgerAdapter(client, tenantId, Object.assign({}, opts.ledger, {
+        engineVersion: E.ENGINE_VERSION,
+        schemaVersion: SCHEMA_VERSION,
+      }))
+    : null;
+
   return {
     loader: {
       loadTenant: async () => (await client.query(
@@ -58,18 +132,140 @@ function makePlanAdapter(client, tenantId) {
     },
     saver: {
       saveSeal: async (s) => {
-        const cols = `tenant_id AS "tenantId", seal_date::text AS "sealDate", engine_version AS "engineVersion",
-                      schema_version AS "schemaVersion", payload, payload_hash AS "payloadHash",
-                      (extract(epoch from sealed_at) * 1000)::bigint AS "sealedAt"`;
         const ins = await client.query(
           `INSERT INTO plan_seal (tenant_id, seal_date, engine_version, schema_version, payload, payload_hash, sealed_by)
            VALUES ($1,$2,$3,$4,$5,$6,$7)
-           ON CONFLICT (tenant_id, seal_date) DO NOTHING RETURNING ${cols}`,
+           ON CONFLICT (tenant_id, seal_date) DO NOTHING RETURNING ${SEAL_COLS}`,
           [tenantId, s.sealDate, s.engineVersion, s.schemaVersion, JSON.stringify(s.payload), s.payloadHash, s.sealedBy]);
-        if (ins.rows.length) return { replayed: false, seal: ins.rows[0] };
+        if (ins.rows.length) {
+          return { replayed: false, seal: Object.assign({}, ins.rows[0], { revision: 1, source: 'seal' }) };
+        }
+        /* Replay: the stored day resolves to its CURRENT version — highest
+         * restatement revision, else the seal row (§14.16). The divergence
+         * comparison at the service boundary is against what the day says
+         * NOW, not what it said first. */
+        const cur = await client.query(
+          `SELECT ${RESTATE_COLS} FROM plan_seal_restatement
+            WHERE tenant_id = $1 AND seal_date = $2
+            ORDER BY revision DESC LIMIT 1`, [tenantId, s.sealDate]);
+        if (cur.rows.length) {
+          return { replayed: true, seal: Object.assign({}, cur.rows[0], {
+            tenantId, sealDate: s.sealDate, source: 'restatement',
+            sealedAt: cur.rows[0].restatedAt,
+          }) };
+        }
         const sel = await client.query(
-          `SELECT ${cols} FROM plan_seal WHERE tenant_id = $1 AND seal_date = $2`, [tenantId, s.sealDate]);
-        return { replayed: true, seal: sel.rows[0] };
+          `SELECT ${SEAL_COLS} FROM plan_seal WHERE tenant_id = $1 AND seal_date = $2`, [tenantId, s.sealDate]);
+        return { replayed: true, seal: Object.assign({}, sel.rows[0], { revision: 1, source: 'seal' }) };
+      },
+
+      /* The M8 door — armed only with opts.ledger (see header). Throws the
+       * named restateError codes; the caller's transaction owns commit and
+       * rollback (the route BEGINs; the live test holds one open tx). */
+      restateSeal: ledgerAdapter ? async (s) => {
+        /* Statement-first: a malformed argument sends ZERO statements. */
+        assertSealDate(s && s.sealDate);
+        assertHash(s.payloadHash, 'payloadHash');
+        assertHash(s.prevPayloadHash, 'prevPayloadHash');
+        if (!Number.isSafeInteger(s.prevRevision) || s.prevRevision < 1) {
+          throw restateError('RESTATE_PREDECESSOR_INVALID', `prevRevision must be a safe integer >= 1, got ${JSON.stringify(s.prevRevision)}`);
+        }
+        if (!s.payload || typeof s.payload !== 'object' || Array.isArray(s.payload)) {
+          throw restateError('RESTATE_PAYLOAD_INVALID', 'payload must be the computed state object');
+        }
+        if (!s.delta || typeof s.delta !== 'object' || Array.isArray(s.delta)) {
+          throw restateError('RESTATE_DELTA_INVALID', 'delta must be the as-known-then vs as-known-now summary');
+        }
+        if (typeof s.reason !== 'string' || s.reason.trim() === '') {
+          throw restateError('RESTATE_REASON_REQUIRED', 'a restatement must carry a reason (the database CHECK agrees)');
+        }
+        if (typeof s.restatedBy !== 'string' || s.restatedBy === '') {
+          throw restateError('RESTATE_ACTOR_REQUIRED', 'an anonymous restatement cannot exist');
+        }
+        if (typeof s.engineVersion !== 'string' || s.engineVersion === '' ||
+            typeof s.schemaVersion !== 'string' || s.schemaVersion === '') {
+          throw restateError('RESTATE_STAMP_INVALID', 'engineVersion and schemaVersion stamps are required (L-07)');
+        }
+        /* The anchor lock (the resolveCfVersion posture): plan_seal carries
+         * full grants, so FOR UPDATE is available to sentinel_app — racing
+         * restatements of the same day serialize here; the head read that
+         * follows sees the winner's committed revision (READ COMMITTED
+         * snapshots at statement start, which is after the wait). */
+        const anchor = await client.query(
+          `SELECT payload_hash FROM plan_seal
+            WHERE tenant_id = $1 AND seal_date = $2 FOR UPDATE`, [tenantId, s.sealDate]);
+        if (!anchor.rows.length) {
+          throw restateError('RESTATE_PREDECESSOR_MISSING',
+            `no seal row for ${s.sealDate} — there is no restatement of a day that was never sealed`);
+        }
+        const head = await client.query(
+          `SELECT revision, payload_hash AS "payloadHash" FROM plan_seal_restatement
+            WHERE tenant_id = $1 AND seal_date = $2
+            ORDER BY revision DESC LIMIT 1`, [tenantId, s.sealDate]);
+        const headRow = head.rows[0] || null;
+        const expectedPrevRevision = headRow ? headRow.revision : 1;
+        const expectedPrevHash = headRow ? headRow.payloadHash : anchor.rows[0].payload_hash;
+        if (s.prevRevision !== expectedPrevRevision || s.prevPayloadHash !== expectedPrevHash) {
+          throw restateError('RESTATE_PREDECESSOR_MISMATCH',
+            `predecessor moved: the day's current revision is ${expectedPrevRevision} ` +
+            `(caller named ${s.prevRevision}) — re-run against the new head`);
+        }
+        const revision = expectedPrevRevision + 1;
+        const ins = await client.query(
+          `INSERT INTO plan_seal_restatement
+             (tenant_id, seal_date, revision, payload, payload_hash,
+              prev_revision, prev_payload_hash, delta, reason,
+              engine_version, schema_version, restated_by)
+           VALUES ($1,$2,$3,$4::jsonb,$5,$6,$7,$8::jsonb,$9,$10,$11,$12)
+          RETURNING ${RESTATE_COLS}`,
+          [tenantId, s.sealDate, revision, JSON.stringify(s.payload), s.payloadHash,
+           s.prevRevision, s.prevPayloadHash, JSON.stringify(s.delta), s.reason,
+           s.engineVersion, s.schemaVersion, s.restatedBy]);
+        /* The ledger block — the SAME transaction (§16.3 rule 2). A failed
+         * append throws and the caller's ROLLBACK takes the version row
+         * with it. The block carries pointers + delta, never a third copy
+         * of the payload. */
+        const block = await ledgerAdapter.appendBlock({
+          class: 'W',
+          entity: 'plan_seal',
+          entityId: s.sealDate,
+          action: 'RESTATE_DAY',
+          outcome: 'success',
+          before: { revision: s.prevRevision, payloadHash: s.prevPayloadHash },
+          after: { revision, payloadHash: s.payloadHash, delta: s.delta },
+          reason: s.reason,
+        });
+        const row = ins.rows[0];
+        return {
+          revision: row.revision,
+          prevRevision: row.prevRevision,
+          prevPayloadHash: row.prevPayloadHash,
+          payloadHash: row.payloadHash,
+          delta: row.delta,
+          restatedAt: row.restatedAt,
+          ledger: { seq: block.seq, hash: block.hash },
+          seal: Object.assign({}, row, {
+            tenantId, sealDate: s.sealDate, source: 'restatement',
+          }),
+        };
+      } : undefined,
+
+      /* The time-machine read (§14.16): every version of the day ascending,
+       * the seal first, plus the resolved current. null = the day was never
+       * sealed. RLS + the explicit predicate scope it to the tenant. */
+      loadDayVersions: async (sealDate) => {
+        assertSealDate(sealDate, 'RESTATE_SEAL_DATE_INVALID');
+        const seal = await client.query(
+          `SELECT ${SEAL_COLS}, 1 AS revision, 'seal' AS source
+             FROM plan_seal WHERE tenant_id = $1 AND seal_date = $2`, [tenantId, sealDate]);
+        if (!seal.rows.length) return null;
+        const rest = await client.query(
+          `SELECT ${RESTATE_COLS}, 'restatement' AS source
+             FROM plan_seal_restatement
+            WHERE tenant_id = $1 AND seal_date = $2
+            ORDER BY revision ASC`, [tenantId, sealDate]);
+        const versions = [...seal.rows, ...rest.rows];
+        return { sealDate, versions, current: versions[versions.length - 1] };
       },
     },
   };

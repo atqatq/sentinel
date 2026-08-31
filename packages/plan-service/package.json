@@ -1,6 +1,6 @@
 {
   "name": "@sentinel/plan-service",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "Engine live wiring: assembles tenant data behind ports, drives the planning-engine canon (computeRef + portfolioKPIs) and the kpi-catalog dataState envelope, and seals the result as a hash-stamped plan snapshot (build spec §11 daily seal).",
   "main": "index.js"

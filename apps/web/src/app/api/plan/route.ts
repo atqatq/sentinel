@@ -86,7 +86,26 @@ export async function POST(request: Request) {
       body !== null && typeof body === "object"
         ? { ...(body as Record<string, unknown>), tenantId: session.tenantId }
         : { tenantId: session.tenantId }
-    const receipt = await handlePlanRun(request2, makePlanAdapter(client, session.tenantId))
+    /* The M8 restatement door (§14.16): armed only when the deployment
+     * carries the secret-manager HMAC key — the actor/role envelope is the
+     * SAME authenticated session the GUCs carry (an anonymous restatement
+     * cannot exist). UNARMED, a restatement request fails loudly at the
+     * service boundary (a named wiring error), never silently ignored. */
+    const ledgerKey = process.env.SENTINEL_LEDGER_HMAC_KEY
+    const ports = makePlanAdapter(
+      client,
+      session.tenantId,
+      ledgerKey
+        ? {
+            ledger: {
+              hmacKey: ledgerKey,
+              actor: session.userId,
+              role: session.role,
+            },
+          }
+        : undefined
+    )
+    const receipt = await handlePlanRun(request2, ports)
     await client.query("COMMIT")
     return NextResponse.json(receipt.json, { status: receipt.status })
   } catch (e) {

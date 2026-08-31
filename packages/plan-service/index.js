@@ -5,4 +5,5 @@ module.exports = {
   runPlan: require('./src/plan').runPlan,
   handlePlanRun: require('./src/handler').handlePlanRun,
   canonicalJson: require('./src/canonicalJson').canonicalJson,
+  summarizeRestatementDelta: require('./src/plan').summarizeRestatementDelta,
 };

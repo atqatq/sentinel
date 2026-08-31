@@ -28,10 +28,11 @@ const REPO = path.join(__dirname, '..', '..', '..');
 const { runPlan } = require(path.join(REPO, 'packages/plan-service'));
 const { canonicalJson } = require(path.join(REPO, 'packages/plan-service/src/canonicalJson'));
 const E = require(path.join(REPO, 'packages/core/modules/planning-engine'));
-const { SCHEMA_VERSION, makePlanAdapter } = require(path.join(REPO, 'packages/db'));
+const { SCHEMA_VERSION, makePlanAdapter, makeLedgerAdapter } = require(path.join(REPO, 'packages/db'));
 
 const ADMIN_URL = process.env.DATABASE_URL_ADMIN || 'postgres://postgres@127.0.0.1:5433/postgres';
 const LIVE_DB = 'sentinel_plan_live';
+const LEDGER_KEY = 'plan-seal-live-hmac-key-0123456789abcdef-0123456789abcdef';
 const MIGRATIONS = fs.readdirSync(path.join(__dirname, '..', 'migrations'))
   .filter((d) => /^\d{4}_/.test(d)).sort()
   .map((d) => fs.readFileSync(path.join(__dirname, '..', 'migrations', d, 'migration.sql'), 'utf8'))
@@ -55,8 +56,12 @@ function probeUrl(db) {
 
 /* The pg-backed ports adapter now lives in ONE place: packages/db/plan-adapter.js
  * (the app route injects the same module). The inline copy it replaces was the
- * unit-3 interim; deduping keeps the served SQL byte-for-byte the proven SQL. */
-const makeAdapter = makePlanAdapter;
+ * unit-3 interim; deduping keeps the served SQL byte-for-byte the proven SQL.
+ * The M8 door rides armed: the ledger config is the live suite's stand-in for
+ * the secret-manager key + session envelope the route injects. */
+const makeAdapter = (client, tenantId) => makePlanAdapter(client, tenantId, {
+  ledger: { hmacKey: LEDGER_KEY, actor: 'plan-seal-live', role: 'BYR' },
+});
 
 async function main() {
   /* ---- 1. scratch database + all migrations ---- */
@@ -178,8 +183,85 @@ async function main() {
   const r3 = await runPlan({ ...reqA, driver: { value: 999, granularity: 'monthly' } }, makeAdapter(clientA, T.A));
   const still1 = (await clientA.query(`SELECT count(*)::int AS n FROM plan_seal`)).rows[0].n;
   if (r3.verdict === 'REPLAYED' && r3.divergent === true && r3.banner && still1 === 1) {
-    ok('a divergent same-day request is disclosed, not applied (M8 restatement refused)');
+    ok('a divergent same-day request is disclosed, not applied (detection only)');
   } else bad('divergent replay mishandled', JSON.stringify({ verdict: r3.verdict, divergent: r3.divergent, rows: still1 }));
+
+  console.log('\nM8 restatement: the sealed past, restated honestly (live)');
+  const rRest = await runPlan({ ...reqA, driver: { value: 999, granularity: 'monthly' },
+                                restatement: true, restatementReason: 'late February consumption landed', actor: 'plan-buyer' },
+                              makeAdapter(clientA, T.A));
+  if (rRest.verdict === 'RESEALED' && rRest.revision === 2 && rRest.prevRevision === 1 &&
+      rRest.prevPayloadHash === r1.payloadHash && rRest.payloadHash === r3.requestHash) {
+    ok('an explicit restatement RESEALS: revision 2 chained off the untouched seal');
+  } else bad('restatement wrong', JSON.stringify({ verdict: rRest.verdict, revision: rRest.revision,
+    prevRevision: rRest.prevRevision }).slice(0, 240));
+  const sealCountAfter = (await clientA.query(`SELECT count(*)::int AS n FROM plan_seal`)).rows[0].n;
+  const restRows = (await clientA.query(
+    `SELECT revision, prev_payload_hash AS "prevPayloadHash", payload_hash AS "payloadHash", delta, reason, restated_by AS "restatedBy"
+       FROM plan_seal_restatement ORDER BY revision`)).rows;
+  if (sealCountAfter === 1 && restRows.length === 1 && restRows[0].revision === 2 &&
+      restRows[0].prevPayloadHash === r1.payloadHash && restRows[0].reason === 'late February consumption landed') {
+    ok('v1 untouched (one seal row) + one v2 row chained by prev_payload_hash, reason and actor named');
+  } else bad('version rows wrong', JSON.stringify({ sealCountAfter, restRows }));
+  if (restRows[0] && restRows[0].delta && restRows[0].delta.driverChanged === true &&
+      Array.isArray(restRows[0].delta.refsChanged) && restRows[0].delta.refsChanged.includes('REF-A')) {
+    ok('the delta is the as-known-then vs as-known-now summary (driver changed, REF-A recomputed)');
+  } else bad('delta missing or wrong', JSON.stringify(restRows[0] && restRows[0].delta));
+  const replayV2 = await runPlan({ ...reqA, driver: { value: 999, granularity: 'monthly' } }, makeAdapter(clientA, T.A));
+  if (replayV2.verdict === 'REPLAYED' && replayV2.divergent === false && replayV2.seal.revision === 2) {
+    ok('an identical replay after the restatement resolves the CURRENT version (non-divergent against v2)');
+  } else bad('post-restatement replay wrong', JSON.stringify({ verdict: replayV2.verdict, divergent: replayV2.divergent }));
+  const rV3 = await runPlan({ ...reqA, driver: { value: 777, granularity: 'monthly' },
+                              restatement: true, restatementReason: 'second correction' }, makeAdapter(clientA, T.A));
+  const restCount = (await clientA.query(`SELECT count(*)::int AS n FROM plan_seal_restatement`)).rows[0].n;
+  if (rV3.verdict === 'RESEALED' && rV3.revision === 3 && rV3.prevPayloadHash === rRest.payloadHash && restCount === 2) {
+    ok('a second restatement chains v3 off v2 — versions accumulate, never overwrite');
+  } else bad('v3 chain wrong', JSON.stringify({ verdict: rV3.verdict, revision: rV3.revision, restCount }));
+  const versions = await makeAdapter(clientA, T.A).saver.loadDayVersions('2026-03-01');
+  if (versions && versions.versions.length === 3 && versions.versions[0].source === 'seal' &&
+      versions.current.revision === 3) {
+    ok('the time-machine read: seal first, restatements ascending, current resolved (screen-12 data path)');
+  } else bad('loadDayVersions wrong', JSON.stringify(versions && versions.versions.length));
+  const ledgerTail = (await clientA.query(
+    `SELECT seq, class, entity, entity_id AS "entityId", action, reason FROM ledger_block ORDER BY seq`)).rows;
+  if (ledgerTail.length === 2 && ledgerTail.every((b) => b.class === 'W' && b.entity === 'plan_seal' &&
+      b.entityId === '2026-03-01' && b.action === 'RESTATE_DAY') &&
+      ledgerTail[0].reason === 'late February consumption landed') {
+    ok('restatement events ARE ledger blocks: Class-W RESTATE_DAY, one per version, reason riding');
+  } else bad('ledger blocks wrong', JSON.stringify(ledgerTail));
+  const verify = await makeLedgerAdapter(clientA, T.A, {
+    hmacKey: LEDGER_KEY, actor: 'plan-seal-live', role: 'BYR',
+    engineVersion: E.ENGINE_VERSION, schemaVersion: SCHEMA_VERSION,
+  }).verifyChain();
+  if (verify && verify.ok && verify.verified === 2) {
+    ok(`the H5 chain verifies end-to-end after the production append (${verify.verified} blocks)`);
+  } else bad('chain verify wrong', JSON.stringify(verify));
+  const noRestatement = await runPlan({ ...reqA, driver: { value: 777, granularity: 'monthly' },
+                                        restatement: true, restatementReason: 'nothing changed' }, makeAdapter(clientA, T.A));
+  const blocksAfterNoOp = (await clientA.query(`SELECT count(*)::int AS n FROM ledger_block`)).rows[0].n;
+  if (noRestatement.verdict === 'REPLAYED' && noRestatement.restatementRequested === true &&
+      noRestatement.divergent === false && blocksAfterNoOp === 2) {
+    ok('a non-divergent restatement request is a disclosed no-op (no write, no block)');
+  } else bad('no-op restatement wrong', JSON.stringify({ verdict: noRestatement.verdict, blocksAfterNoOp }));
+  /* Trigger RAISE EXCEPTION without an ERRCODE surfaces as P0001 — the named
+   * message is the assertion target (the ledger_chain_guard posture). */
+  try {
+    await clientA.query(
+      `INSERT INTO plan_seal_restatement (tenant_id, seal_date, revision, payload, payload_hash, prev_revision, prev_payload_hash, delta, reason, engine_version, schema_version, restated_by)
+       VALUES ($1,'2026-03-01',4,'{}','${'e'.repeat(64)}',3,'${'9'.repeat(64)}','{}','r','x','x','live')`, [T.A]);
+    bad('the fork guard refuses a wrong predecessor hash live (raw SQL)', 'expected RESTATE_PREDECESSOR_MISMATCH but the insert succeeded');
+  } catch (e) {
+    if (e.message && e.message.includes('RESTATE_PREDECESSOR_MISMATCH')) {
+      ok('the fork guard refuses a wrong predecessor hash live (raw SQL)');
+    } else bad('the fork guard refuses a wrong predecessor hash live (raw SQL)', e.message);
+  }
+  await expectError('the restatement table is append-only live: UPDATE refused (42501)', () =>
+    clientA.query(`UPDATE plan_seal_restatement SET reason = 'erased' WHERE revision = 2`), '42501');
+  await expectError('the restatement table is append-only live: DELETE refused (42501)', () =>
+    clientA.query(`DELETE FROM plan_seal_restatement WHERE revision = 2`), '42501');
+  const crossRest = await clientB.query(`SELECT count(*)::int AS n FROM plan_seal_restatement`);
+  if (crossRest.rows[0].n === 0) ok('cross-tenant read on the version chain is denied (RLS)');
+  else bad(`cross-tenant restatement read leaked ${crossRest.rows[0].n} rows`);
 
   console.log('\nTenant isolation on plan_seal (live)');
   const rB = await runPlan({ ...reqA, tenantId: T.B }, makeAdapter(clientB, T.B));

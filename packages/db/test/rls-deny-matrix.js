@@ -44,7 +44,7 @@ const TENANT_SCOPED = [
   'plan_seal',
   'tenant_role', 'approval_config', 'approval_limit', 'proposal',
   'proposal_line', 'approval', 'purchase_order', 'po_line',
-  'supplier_change_hold', 'item_cf_version',
+  'supplier_change_hold', 'item_cf_version', 'plan_seal_restatement',
 ];
 
 let passed = 0, failed = 0;
@@ -63,6 +63,15 @@ async function expectError(name, fn, code) {
   catch (e) {
     if (e.code === code) ok(name + ` (code ${e.code})`);
     else bad(name, `expected ${code}, got ${e.code || 'none'}: ${e.message}`);
+  }
+}
+/* Trigger RAISE EXCEPTION without an ERRCODE surfaces as P0001 — the named
+ * message is the assertion target (the ledger_chain_guard posture). */
+async function expectTriggerRefusal(name, client, sql, namedCode) {
+  try { await client.query(sql); bad(name, `expected ${namedCode} but statement succeeded`); }
+  catch (e) {
+    if (e.message && e.message.includes(namedCode)) ok(name);
+    else bad(name, `expected ${namedCode}, got: ${e.message}`);
   }
 }
 async function expectCount(name, client, sql, params, expected) {
@@ -182,6 +191,45 @@ async function main() {
   await setTenant(T2);
   await expectRowCount('J3 · SAME key for the other tenant does NOT collide (the H6 defect is dead)',
     probe, `INSERT INTO idempotency_key (tenant_id, kind, idem_key) VALUES ('${T2}','items','SKU-1')`, 1);
+
+  console.log('\nM8 · the restatement version chain (plan_seal_restatement)');
+  /* An anchor seal (revision 1) + one honest restatement (revision 2) for T1,
+   * seeded as the owner with the tenant GUC — the FORCE-RLS posture. */
+  await asTenant(T1, () => db.query(
+    `INSERT INTO plan_seal (tenant_id, seal_date, engine_version, schema_version, payload, payload_hash, sealed_by)
+     VALUES ($1,'2026-08-31','1.0.0','0008','{"day":"as-known-then"}',$2,'matrix')`, [T1, 'a'.repeat(64)]));
+  await asTenant(T1, () => db.query(
+    `INSERT INTO plan_seal_restatement (tenant_id, seal_date, revision, payload, payload_hash, prev_revision, prev_payload_hash, delta, reason, engine_version, schema_version, restated_by)
+     VALUES ($1,'2026-08-31',2,'{"day":"as-known-now"}',$2,1,$3,'{"refsChanged":[]}','matrix restatement','1.0.0','0008','matrix')`,
+    [T1, 'b'.repeat(64), 'a'.repeat(64)]));
+  await setTenant(T1);
+  await expectCount('R0 · positive control: T1 sees exactly its own restatement row', probe,
+    `SELECT count(*) FROM plan_seal_restatement`, [], 1);
+  await expectTriggerRefusal('R1 · the fork guard refuses a wrong predecessor hash (RESTATE_PREDECESSOR_MISMATCH)',
+    probe, `INSERT INTO plan_seal_restatement (tenant_id, seal_date, revision, payload, payload_hash, prev_revision, prev_payload_hash, delta, reason, engine_version, schema_version, restated_by)
+      VALUES ('${T1}','2026-08-31',3,'{}','${'c'.repeat(64)}',2,'${'9'.repeat(64)}','{}','r','1.0.0','0008','matrix')`,
+    'RESTATE_PREDECESSOR_MISMATCH');
+  await setTenant(T2);
+  /* BEFORE ROW triggers run BEFORE the RLS WITH CHECK evaluation, and the
+   * guard's predecessor lookup is itself RLS-scoped: under a T2 session,
+   * T1's chain head is invisible, so a cross-tenant append dies on the fork
+   * guard (RESTATE_PREDECESSOR_MISMATCH, P0001) — refused either way; the
+   * WITH CHECK (42501) is the backstop for an insert that could pass it. */
+  await expectTriggerRefusal('R2 · cross-tenant WRITE is refused (the fork guard sees no predecessor under RLS; WITH CHECK is the backstop)',
+    probe, `INSERT INTO plan_seal_restatement (tenant_id, seal_date, revision, payload, payload_hash, prev_revision, prev_payload_hash, delta, reason, engine_version, schema_version, restated_by)
+      VALUES ('${T1}','2026-08-31',3,'{}','${'c'.repeat(64)}',2,'${'b'.repeat(64)}','{}','r','1.0.0','0008','matrix')`,
+    'RESTATE_PREDECESSOR_MISMATCH');
+  await setTenant(T1);
+  await expectError('R3 · UPDATE is refused by the missing grant (append-only layer 1)', () =>
+    probe.query(`UPDATE plan_seal_restatement SET reason = 'erased' WHERE revision = 2`), '42501');
+  await expectError('R4 · DELETE is refused by the missing grant (append-only layer 1)', () =>
+    probe.query(`DELETE FROM plan_seal_restatement WHERE revision = 2`), '42501');
+  await expectError('R5 · a reasonless restatement violates the CHECK (the database agrees with the gate)', () =>
+    probe.query(`INSERT INTO plan_seal_restatement (tenant_id, seal_date, revision, payload, payload_hash, prev_revision, prev_payload_hash, delta, reason, engine_version, schema_version, restated_by)
+      VALUES ('${T1}','2026-08-31',3,'{}','${'c'.repeat(64)}',2,'${'b'.repeat(64)}','{}','','1.0.0','0008','matrix')`), '23514');
+  await expectError('R6 · an anonymous restatement violates restated_by NOT NULL', () =>
+    probe.query(`INSERT INTO plan_seal_restatement (tenant_id, seal_date, revision, payload, payload_hash, prev_revision, prev_payload_hash, delta, reason, engine_version, schema_version, restated_by)
+      VALUES ('${T1}','2026-08-31',3,'{}','${'c'.repeat(64)}',2,'${'b'.repeat(64)}','{}','r','1.0.0','0008',NULL)`), '23502');
 
   console.log('\nFORCE RLS binds a non-superuser table owner');
   await db.query(`DO $$ BEGIN
