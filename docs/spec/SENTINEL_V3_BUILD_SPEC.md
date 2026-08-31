@@ -884,6 +884,67 @@ baseline, price-change trend, proposal adherence, stockouts and overstock in own
 completeness (lead times, units, preferred SKUs). This is the review instrument for BYRs, procurement
 officers and clerks.
 
+### 14.13b Conversion-factor governance — versioned, gated, deriving (audit M7; named proof `governance/cf-change`)
+
+*(The deep technical audit's M7 finding: "Conversion-factor changes are ungoverned and unversioned… CF
+multiplies consumption, PO conversion (C1), and order sizing; the risk assessment calls CF errors
+order-of-magnitude. Nothing gates a CF edit, versions it, or handles in-flight proposals sized under the
+old factor." §14.13 gave the category owner the arbitration right; this section gives the ARBITRATION ITS
+MECHANICS — the change is staged, versioned, dual-controlled, and its downstream blast radius is re-derived
+by named task, never silently rebased.)*
+
+**One canon, one basis.** The stored `item.conversion_factor` remains the ONLY factor planning may see —
+the C1 discipline (§15.1: refuse, don't guess) is unchanged. What is new is the SIZING BASIS: every sealed
+plan row carries, per member, the conversion factor its quantities were computed under (`sizingBasis` in
+the sealed payload — additive, order-stable, part of the payload hash). A sealed row is judged on its
+sizing basis for as long as it lives: adherence, matching and efficacy comparisons (§14.6b/d/e) read the
+basis the row was sized under, never the current master. A CF change therefore never silently rebases a
+sealed row — the numbers a buyer was shown, the numbers a receipt is matched against, stay comparable until
+someone explicitly re-derives them (below).
+
+**A change is staged, not applied.** The ingestion seam classifies every item-master row against the stored
+row before anything writes (the §14.6-freeze posture of classify-then-stage, borrowed from the
+supplier-identity freeze's `classifySupplierChange`):
+- incoming factor **present and equal** to stored → the row rides normally (a no-op write; nothing fires);
+- incoming factor **present, different, and usable** (finite > 0) → the row's factor is NOT applied; a
+  `PENDING` version row lands in `item_cf_version` (from/to preserved, monotonic version per (tenant, sku),
+  `requested_by` NULL = pipeline-staged) and the stored factor **keeps serving** — planning is never
+  hostage to an unreviewed master edit;
+- incoming factor **blank or absent** → **a blank never wipes.** The stored factor keeps serving and the
+  run discloses the count once (`CF_BLANK_KEEPS_SERVING`) — the daily drop's empty column is not a change
+  request, and the pre-M7 behavior (an EXCLUDED overwrite to NULL) is named as the defect it was;
+- incoming factor **present but invalid** (≤ 0, non-finite) → the stored factor keeps serving and a named
+  data-health task raises (`CF_INVALID_KEPT`) — corrupt master is disclosed, never applied, never staged;
+- **no stored row** (bootstrap) → the factor applies freely: first load is not a change.
+The database is the backstop, not the only gate: a trigger (`item_cf_freeze`) refuses ANY
+`conversion_factor` delta on `item` executed without the transaction-local `app.cf_apply_id` — the
+ungoverned path fails closed (`CF_CHANGE_UNGOVERNED`), exactly as `supplier_identity_freeze` does for
+identity. There is no bypass, only the door.
+
+**The decision gate (C3, the SoD spine).** A `PENDING` version is decided by `decideCfVersion`, which
+mirrors the supplier-hold gates verbatim: the principal is resolved; the decider is approval-eligible; the
+decider is **never the requester** (pipeline-staged rows — `requested_by` NULL — may be decided by any
+eligible principal); `APPLY` moves the version to `EFFECTIVE`, `REJECT` moves it to `REJECTED` with a
+required reason and the stored factor simply keeps serving. Approving a version whose target factor is not
+a usable positive number refuses (`CF_INVALID`) — the core refuses what the trigger cannot see. Refusing a
+version is a decision too and carries the same gate. Every refusal is a Class-D-shaped denial record.
+
+**The door and the derive.** APPLY is executed by the adapter as ONE transaction: `app.cf_apply_id` set
+transaction-locally, the item's factor moved to the version's target, the version landed `EFFECTIVE` —
+and then the third leg the audit demands: **the change raises re-derivation tasks.** The latest seal's
+`sizingBasis` is walked deterministically; every ref with a member whose sizing basis differs from the new
+factor raises one `WARN` data-health task naming the ref, the sku, and the from→to delta — the planner's
+signal that the row's numbers are now on a stale basis and the next run will move them. Refs whose basis
+already matches are counted and disclosed, never tasked. Re-derivation is EXPLICIT (a task a human owns),
+never a silent rebase of quantities a buyer already saw.
+
+**Determinism and refusals.** Classification, decision and task derivation are pure and deterministic —
+sorted outputs, no clock (timestamps are the executor's), injected inputs only. Malformed shapes refuse
+with named errors: a non-object row, a version row that is not an object, a seal payload without its
+`refRows` (`WIRING_MALFORMED`), a decision on a version not `PENDING` (`VERSION_NOT_PENDING`),
+`PRINCIPAL_UNRESOLVED`, `NOT_ELIGIBLE_VERIFIER`, `SOD_DECIDER_IS_REQUESTER`, `MISSING_REASON` (reject),
+`CF_INVALID`. Named proof: `governance/cf-change`.
+
 ## 14.14 On "EOQ" — naming, and why it matters
 The workbook's `T = max(MOQ, orderFreq × dailyConsumption)` is an **order-cycle quantity** (how much a
 review-period covers), not the textbook Wilson EOQ `√(2DS/H)`, which balances ordering cost against holding
