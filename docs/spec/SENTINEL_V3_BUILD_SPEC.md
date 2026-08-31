@@ -989,6 +989,84 @@ Mechanics:
 
 ---
 
+## 14.16 Restatement semantics — the sealed past, restated honestly (audit M8; named proof `ledger/restatement`)
+
+The audit's [S] finding: "Late-arriving consumption restates history; DayStates are immutable. Does the
+time machine show the sealed (wrong) state forever, with current data diverging silently?" Fix: restatement
+events are ledger blocks; the time machine marks resealed states and diffs "as known then" vs "as known
+now."
+
+**The problem, stated exactly.** The daily seal (§11) freezes what the system KNEW at day close: a full
+computed state plus payload hash per tenant-day. Data arrives late — a consumption correction, an amended
+delivery count, a receipt the supplier confirmed weeks after the fact — and the computation for that
+already-sealed day would now come out DIFFERENT. The seal is immutable and must stay so: it is the record
+of what a buyer saw when they decided. But an immutable seal plus a silent divergence is exactly the
+failure mode this system exists to kill: the time machine would show the sealed state forever while
+today's numbers quietly say something else, and nobody would ever be told.
+
+**The resolution — versions, never overwrites.** Restating a sealed tenant-day is an EXPLICIT act, never a
+side effect of a plan run:
+
+- A plan run for an already-sealed day that recomputes to a DIFFERENT payload hash is, by itself, only the
+  DETECTION: the receipt is `REPLAYED · divergent` (the existing H6-replay disclosure — unchanged), nothing
+  is written, the sealed state stands.
+- A restatement is REQUESTED (`restatement: true` on the plan run for that same `asOf`) and carries a
+  REASON (`restatementReason`) — why history is being restated. A reasonless restatement refuses
+  (`RESTATE_REASON_REQUIRED`): "the data changed" is the situation, not the justification. The actor is the
+  authenticated session's (the same identity the ledger block carries); an anonymous restatement cannot
+  exist.
+- The restated snapshot lands as a NEW VERSION of the tenant-day (`plan_seal_restatement`, revision ≥ 2,
+  chained to its predecessor by `prev_revision` + `prev_payload_hash`), beside the original seal
+  (revision 1) — never over it. Every version is immutable; the chain of versions is the day's history. A
+  day is restated AGAIN (v3, v4, …) as often as reality demands, and never erased.
+- The CURRENT state of a day = its highest revision (the seal itself if none restated yet). Every reader
+  that resolves "the seal for this tenant-day" — the replay-divergence comparison, the time machine, the
+  day-vs-day diff — resolves it to the CURRENT version: a post-restatement replay of identical inputs
+  REPLAYS against v2 and is non-divergent exactly then.
+
+**The chain cannot fork.** The version chain is guarded at the database the way the ledger is: revision 2
+must name the seal row itself as predecessor (`prev_revision` 1, `prev_payload_hash` = the seal's hash —
+there is no restatement of a day that was never sealed, the anchor MUST exist and the foreign key holds it
+there); revision N > 2 must name revision N−1 and its hash. A racing append collides on the unique
+(tenant, day, revision) and refuses loudly — the loser retries against the new head. No UPDATE, no DELETE:
+the table is granted SELECT, INSERT only, and a trigger refuses any mutation that ever reaches it — the
+§16.3 rule 1 posture applied to the seal's own history. You can restate again, never un-state.
+
+**Restatement events are ledger blocks.** Every applied restatement appends ONE Class-W block — the first
+production writer of the H5 chain: entity `plan_seal`, entityId the seal date, action `RESTATE_DAY`;
+`before` carries the predecessor's `{revision, payloadHash}`, `after` the new version's `{revision,
+payloadHash, delta}`; the reason rides the block. The block participates in the SAME database transaction
+as the version insert (§16.3 rule 2: a failed ledger write rolls the restatement back with it — an
+unlogged restatement must not be possible, and a logged one must not be un-done). The full payloads live in
+the version rows the block points to; the ledger carries pointers and the delta summary, never a third
+copy of the payload.
+
+**"As known then" vs "as known now."** Each restatement carries a deterministic delta summary — which refs
+changed, whether the driver changed, which KPI keys changed — computed by a pure function over the two
+payloads (canonical JSON comparison, sorted axes, no clocks). The delta is part of every disclosure: the
+restatement row, the ledger block, the receipt. The time machine (screen 12) renders a restated day with
+its versions MARKED: the sealed state as known then, each restatement as known now, and the side-by-side
+diff §11 promises. The screen composition is UI work riding the screen-12 unit; the data path — versions,
+current resolution, delta, ledger block — is the contract here and the named proof's subject.
+
+**Determinism and the refusal family.** Identical inputs produce an identical delta. The refusals:
+`RESTATE_REASON_REQUIRED` (a restatement request without a reason — request-shape, 400-class); a
+restatement requested against a NON-divergent day is a disclosed NO-OP — the receipt is `REPLAYED` with
+`restatementRequested: true`, nothing is written, NO block is appended (the ledger logs changes, not
+non-events); and the wiring posture — a restatement requested through ports that cannot serve one is a
+TypeError (fail loudly, never silently ignore an explicit request), the same deployment honesty as an
+unconfigured ledger key: the door is either armed or the request is refused loudly at the boundary.
+
+**Named proof:** `ledger/restatement` — plan-service semantics (reason required; the no-op disclosed;
+restate → `RESEALED` with revision, predecessor pointers, delta and the ledger receipt; versions
+accumulate, the seal row untouched; ports wiring refused loudly), the db door (statement-first chain
+derive under a lock on the anchor, named predecessor refusals, the fork guard's structural backstop, the
+ledger block fields, append-only), and the live tier (end-to-end restate against real PostgreSQL: v1
+untouched, v2 chained, the block in the verified chain, the version read surface, cross-tenant isolation,
+the fork guard refusing a wrong predecessor live).
+
+---
+
 # 15. Audit remediation — SENT-AUDIT-002 (deep technical audit, $50M bar)
 
 An independent deep technical audit re-verified this package and raised 40 findings. **Every empirical
