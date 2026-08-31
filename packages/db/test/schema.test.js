@@ -43,7 +43,7 @@ const TENANT_SCOPED = [
   'plan_seal',
   'tenant_role', 'approval_config', 'approval_limit', 'proposal',
   'proposal_line', 'approval', 'purchase_order', 'po_line',
-  'supplier_change_hold',
+  'supplier_change_hold', 'ledger_block',
 ];
 
 console.log('\nRLS coverage (ADR-0002)');
@@ -170,6 +170,68 @@ test('control-plane uniques are tenant-leading too (H6 structural)', () => {
 test('H7: supplier external_id unique per tenant when present (partial index)', () => {
   assert.ok(/CREATE UNIQUE INDEX "supplier_tenant_id_external_id_key" ON "supplier"\("tenant_id","external_id"\) WHERE "external_id" IS NOT NULL;/.test(migration),
     'partial unique on external_id missing');
+});
+
+console.log('\nH5 — the ledger (0004_ledger)');
+
+test('the ledger is append-only at the privilege layer: sentinel_app holds SELECT, INSERT — never UPDATE/DELETE', () => {
+  assert.ok(migration.includes('GRANT SELECT, INSERT ON "ledger_block" TO "sentinel_app";'),
+    'the SELECT+INSERT grant missing');
+  assert.ok(!/GRANT[^;]*UPDATE[^;]*ON "ledger_block"/.test(migration), 'an UPDATE grant leaked onto the ledger');
+  assert.ok(!/GRANT[^;]*DELETE[^;]*ON "ledger_block"/.test(migration), 'a DELETE grant leaked onto the ledger');
+});
+test('the ledger is append-only at RLS: restrictive UPDATE/DELETE denies (defense in depth)', () => {
+  assert.ok(/CREATE POLICY "ledger_append_only" ON "ledger_block" AS RESTRICTIVE FOR UPDATE TO PUBLIC USING \(false\);/.test(migration),
+    'restrictive UPDATE deny missing');
+  assert.ok(/CREATE POLICY "ledger_no_delete" ON "ledger_block" AS RESTRICTIVE FOR DELETE TO PUBLIC USING \(false\);/.test(migration),
+    'restrictive DELETE deny missing');
+});
+test('the immutable triggers refuse any UPDATE/DELETE that ever reaches the table — including a superuser', () => {
+  assert.ok(/CREATE TRIGGER "ledger_immutable_update_trigger"[\s\S]*?BEFORE UPDATE ON "ledger_block"[\s\S]*?EXECUTE FUNCTION "ledger_immutable"\(\);/.test(migration),
+    'UPDATE immutability trigger missing');
+  assert.ok(/CREATE TRIGGER "ledger_immutable_delete_trigger"[\s\S]*?BEFORE DELETE ON "ledger_block"[\s\S]*?EXECUTE FUNCTION "ledger_immutable"\(\);/.test(migration),
+    'DELETE immutability trigger missing');
+  const fn = migration.match(/CREATE OR REPLACE FUNCTION "ledger_immutable"\(\)[\s\S]*?\$\$ LANGUAGE plpgsql;/);
+  assert.ok(fn && /RAISE EXCEPTION 'LEDGER_IMMUTABLE';/.test(fn[0]), 'the trigger must refuse by the named code');
+});
+test('the chain guard refuses a block that does not hang off its predecessor', () => {
+  const fn = migration.match(/CREATE OR REPLACE FUNCTION "ledger_chain_guard"\(\)[\s\S]*?\$\$ LANGUAGE plpgsql;/);
+  assert.ok(fn, 'ledger_chain_guard function missing');
+  for (const code of ['LEDGER_SEQ_MUST_START_AT_ONE', 'LEDGER_GENESIS_PREV_HASH', 'LEDGER_SEQ_GAP', 'LEDGER_PREV_HASH_MISMATCH']) {
+    assert.ok(fn[0].includes(`'${code}'`), `chain guard must raise ${code}`);
+  }
+  assert.ok(fn[0].includes("repeat('0', 64)"), 'genesis prev must be 64 zeros');
+  assert.ok(/CREATE TRIGGER "ledger_chain_guard_trigger"[\s\S]*?BEFORE INSERT ON "ledger_block"[\s\S]*?EXECUTE FUNCTION "ledger_chain_guard"\(\);/.test(migration),
+    'chain guard trigger missing');
+});
+test('the chain is structural: composite PK (tenant_id, seq) — no forks, no duplicate seq', () => {
+  const block = migration.match(/CREATE TABLE "ledger_block" \([\s\S]*?\n\);/);
+  assert.ok(block && block[0].includes('CONSTRAINT "ledger_block_pkey" PRIMARY KEY ("tenant_id", "seq")'),
+    'composite PK missing');
+});
+test('a denial without a reason cannot exist even via raw SQL (§16.2 CHECK)', () => {
+  assert.ok(migration.includes('CONSTRAINT "ledger_reason_required_for_denials" CHECK ("outcome" <> \'denied\' OR "reason" IS NOT NULL)'),
+    'reason-required CHECK missing');
+});
+test('hashes are hex-locked at the column: prev_hash and hash are 64 lowercase hex', () => {
+  assert.ok(/"prev_hash" TEXT NOT NULL CHECK \("prev_hash" ~ '\^\[0-9a-f\]\{64\}\$'\)/.test(migration), 'prev_hash CHECK missing');
+  assert.ok(/"hash" TEXT NOT NULL CHECK \("hash" ~ '\^\[0-9a-f\]\{64\}\$'\)/.test(migration), 'hash CHECK missing');
+});
+test('the verification job reads under a distinct read-only role (sentinel_verifier)', () => {
+  assert.ok(/CREATE ROLE "sentinel_verifier" NOLOGIN NOBYPASSRLS;/.test(migration), 'verifier role missing or mis-privileged');
+  assert.ok(migration.includes('GRANT SELECT ON "ledger_block" TO "sentinel_verifier";'), 'verifier SELECT grant missing');
+  assert.ok(!/GRANT[^;]*(INSERT|UPDATE|DELETE)[^;]*TO "sentinel_verifier"/.test(migration), 'the verifier must stay read-only');
+  assert.ok(/CREATE POLICY "ledger_verifier_read" ON "ledger_block" AS PERMISSIVE FOR SELECT TO "sentinel_verifier" USING \(true\);/.test(migration),
+    'the cross-tenant verifier read policy missing');
+});
+test('the §16.2 fields are all present on ledger_block', () => {
+  const block = migration.match(/CREATE TABLE "ledger_block" \([\s\S]*?\n\);/);
+  assert.ok(block, 'ledger_block missing');
+  for (const col of ['"seq"', '"class"', '"tenant_id"', '"actor"', '"on_behalf_of"', '"role"', '"source_ip"',
+    '"session_id"', '"entity"', '"entity_id"', '"action"', '"outcome"', '"before"', '"after"', '"reason"',
+    '"engine_version"', '"schema_version"', '"at"', '"prev_hash"', '"hash"']) {
+    assert.ok(block[0].includes(col), `column ${col} missing`);
+  }
 });
 
 console.log('\nSchema ↔ migration consistency');

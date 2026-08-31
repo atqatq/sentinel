@@ -68,6 +68,7 @@ model Tenant {
   proposals         Proposal[]
   purchaseOrders    PurchaseOrder[]
   supplierChangeHolds SupplierChangeHold[]
+  ledgerBlocks      LedgerBlock[]
 
   @@map("tenant")
 }
@@ -532,6 +533,26 @@ enum SupplierHoldState {
   @@map("supplier_hold_state")
 }
 
+// H5 log classes — all five write the SAME hash-chained sequence (§16.1:
+// class is a field, not a separate store).
+enum LedgerClass {
+  W
+  A
+  N
+  S
+  D
+
+  @@map("ledger_class")
+}
+
+enum LedgerOutcome {
+  success
+  denied
+  error
+
+  @@map("ledger_outcome")
+}
+
 // §10 roles are regional data: one active role per (tenant, user). Grant and
 // revoke authority is Origin-only, enforced at RLS (D-029).
 model TenantRole {
@@ -697,4 +718,41 @@ model SupplierChangeHold {
 
   @@index([tenantId, supplierId, state], map: "supplier_change_hold_tenant_supplier_idx")
   @@map("supplier_change_hold")
+}
+
+// The H5 tamper-evident ledger (0004_ledger, gate 11): ONE hash-chained
+// sequence per tenant for every log class (§16.1). hash = HMAC-SHA256(key,
+// seq || prevHash || canonicalJson(payload)) computed in the application
+// (injected secret-manager key — never stored in the database). prevHash of
+// seq 1 is GENESIS (64 zeros). Append-only for EVERY actor including Origin:
+// SELECT+INSERT grants only, restrictive RLS policies, and the
+// ledger_immutable triggers refuse anything that ever reaches the table.
+model LedgerBlock {
+  seq           BigInt        @map("seq")
+  class         LedgerClass   @map("class")
+  tenantId      String        @map("tenant_id") @db.Uuid
+  actor         String
+  onBehalfOf    String?       @map("on_behalf_of") @db.Uuid
+  role          String?
+  sourceIp      String?       @map("source_ip")
+  sessionId     String?       @map("session_id")
+  entity        String
+  entityId      String?       @map("entity_id")
+  action        String
+  outcome       LedgerOutcome
+  before        Json?
+  after         Json?
+  reason        String?
+  engineVersion String        @map("engine_version")
+  schemaVersion String        @map("schema_version")
+  at            DateTime      @db.Timestamptz(6)
+  prevHash      String        @map("prev_hash") @db.Char(64)
+  hash          String        @db.Char(64)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@id([tenantId, seq])
+  @@index([tenantId, at(sort: Desc)], map: "ledger_block_tenant_at_idx")
+  @@index([tenantId, class], map: "ledger_block_tenant_class_idx")
+  @@map("ledger_block")
 }

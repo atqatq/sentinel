@@ -8,10 +8,12 @@
  * single SQL source shared by apps/web and the live proof); data-health-adapter
  * is the read-side single SQL source for the data-health facts surface;
  * ingest-adapter is the executor of the H6 idempotent upsert wrapper (the
- * decision lives in the ingestion module — this package owns the SQL).
+ * decision lives in the ingestion module — this package owns the SQL);
+ * ledger-adapter is the executor of the H5 hash-chained ledger (the decision
+ * lives in the ledger module — this package owns the SQL).
  * pg is touched lazily so this contract imports cleanly without a database. */
 module.exports = {
-  SCHEMA_VERSION: '0003',
+  SCHEMA_VERSION: '0004',
   makePlanAdapter: require('./plan-adapter').makePlanAdapter,
   connectPlanClient: require('./plan-adapter').connectPlanClient,
   pgDriver: require('./plan-adapter').pgDriver,
@@ -20,4 +22,5 @@ module.exports = {
   makeIngestAdapter: require('./ingest-adapter').makeIngestAdapter,
   INGEST_WIRED_KINDS: require('./ingest-adapter').WIRED_KINDS,
   makeProcureAdapter: require('./procure-adapter').makeProcureAdapter,
+  makeLedgerAdapter: require('./ledger-adapter').makeLedgerAdapter,
 };
