@@ -100,6 +100,14 @@ function reviewApproval(input) {
     return { ok: false, denial: denial(actor, ACTIONS.APPROVE, proposal.id, 'APPROVAL_CONFIG_MISSING') };
   }
 
+  if (decision === 'REJECTED') {
+    /* A rejection is terminal: the proposal is dismissed with the reason on
+     * the decision row. A buyer re-raises — a NEW proposal, a NEW identity.
+     * A rejection grants no spend, so the actor's ceiling does not bind it —
+     * the limit bounds what an approver can GRANT, never what they refuse. */
+    return { ok: true, outcome: 'DISMISSED', votes: (prior || []).filter((p) => p.decision === 'APPROVED').length, need: roles.approvalRequirement(proposal.totalAmount, config.dualThresholdAmount) };
+  }
+
   /* Value tier: the actor's ceiling must cover the WHOLE proposal value — an
    * approval limit is not a discount on partial votes. */
   const resolved = resolveLimit(limits, actor.role);
@@ -116,11 +124,6 @@ function reviewApproval(input) {
   const votes = eligiblePrior.length + 1;
   const need = roles.approvalRequirement(proposal.totalAmount, config.dualThresholdAmount);
 
-  if (decision === 'REJECTED') {
-    /* A rejection is terminal: the proposal is dismissed with the reason on
-     * the decision row. A buyer re-raises — a NEW proposal, a NEW identity. */
-    return { ok: true, outcome: 'DISMISSED', votes, need };
-  }
   return votes >= need
     ? { ok: true, outcome: 'APPROVED', votes, need }
     : { ok: true, outcome: 'RECORDED_OPEN', votes, need };
@@ -142,6 +145,12 @@ function convertToPo(input) {
   }
   if (!config || typeof config.dualThresholdAmount !== 'number') {
     return { ok: false, denial: denial(actor, ACTIONS.CONVERT, proposal && proposal.id, 'APPROVAL_CONFIG_MISSING') };
+  }
+  if (!proposal.supplierId) {
+    /* The PO is issued TO a supplier — a proposal that never named one cannot
+     * convert (the document's supplier_id is NOT NULL; this is its named,
+     * honest refusal instead of a constraint error). */
+    return { ok: false, denial: denial(actor, ACTIONS.CONVERT, proposal.id, 'CONVERT_NO_SUPPLIER') };
   }
 
   /* Defense in depth: re-prove the vote count at the conversion seam — the

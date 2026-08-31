@@ -185,8 +185,8 @@ test('config: a tenant without the dual threshold refuses APPROVAL_CONFIG_MISSIN
 
 /* ---- rejection is terminal --------------------------------------------------*/
 
-test('rejection: a REJECTED decision dismisses — a rejected proposal is re-raised, never revived', () => {
-  const result = approve(USERS.senior, { decision: 'REJECTED', reason: 'no budget line' });
+test('rejection: a REJECTED decision dismisses — a rejected proposal is re-raised, never revived; the actor\'s ceiling does not bind a refusal', () => {
+  const result = approve(USERS.senior, { decision: 'REJECTED', reason: 'no budget line', limits: [] });
   assert.ok(result.ok && result.outcome === 'DISMISSED');
 });
 
@@ -232,9 +232,15 @@ test('conversion: refuses anything but APPROVED — the state machine is not a s
 });
 test('conversion: re-proves the votes at the seam — DUAL_CONTROL_NOT_SATISFIED is defense in depth', () => {
   assert.strictEqual(denialCode(convertToPo({
-    proposal: proposal({ state: 'APPROVED', totalAmount: 40000 }),
+    proposal: proposal({ state: 'APPROVED', totalAmount: 40000, supplierId: 's-1' }),
     actor: USERS.senior, config: CONFIG, prior: [], poCode: 'PO-1',
   })), 'DUAL_CONTROL_NOT_SATISFIED');
+});
+test('conversion: a proposal that never named a supplier cannot become a PO — CONVERT_NO_SUPPLIER, the honest refusal before the constraint', () => {
+  assert.strictEqual(denialCode(convertToPo({
+    proposal: proposal({ state: 'APPROVED' }), actor: USERS.senior, config: CONFIG,
+    prior: [{ approverId: 'x', decision: 'APPROVED' }], poCode: 'PO-1',
+  })), 'CONVERT_NO_SUPPLIER');
 });
 test('conversion: a PO without a code refuses', () => {
   assert.strictEqual(denialCode(convertToPo({

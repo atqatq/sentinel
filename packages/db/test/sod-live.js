@@ -174,7 +174,7 @@ async function main() {
   await withCtx(probe, T1, USERS.buyer, async () => {
     await A1.raiseProposal({ code: 'PR-1', raisedBy: USERS.buyer, currencyCode: 'BHD', totalAmount: 500,
       lines: [{ sku: 'SKU-1', qty: 10, unitCode: 'CTN', unitPrice: 50 }] });
-    await A1.raiseProposal({ code: 'PR-2', raisedBy: USERS.buyer, currencyCode: 'BHD', totalAmount: 4000,
+    await A1.raiseProposal({ code: 'PR-2', raisedBy: USERS.buyer, supplierId: S1, currencyCode: 'BHD', totalAmount: 4000,
       lines: [{ sku: 'SKU-2', qty: 1, unitCode: 'CTN', unitPrice: 4000 }] });
     await A1.raiseProposal({ code: 'PR-3', raisedBy: USERS.buyer, currencyCode: 'BHD', totalAmount: 6000,
       lines: [{ sku: 'SKU-3', qty: 1, unitCode: 'CTN', unitPrice: 6000 }] });
