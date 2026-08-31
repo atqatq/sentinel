@@ -325,20 +325,31 @@ async function main() {
     () => probe.query(`INSERT INTO ledger_block (seq, class, tenant_id, actor, entity, action, outcome, engine_version, schema_version, at, prev_hash, hash)
       VALUES ((SELECT COALESCE(max(seq),0)+1 FROM ledger_block WHERE tenant_id = $1), 'W', $1, $2, 'item', 'item.update', 'success', $3, $4, now(), (SELECT hash FROM ledger_block WHERE tenant_id = $1 ORDER BY seq DESC LIMIT 1), 'zz-not-hex')`, [T1, U1, ENGINE, SCHEMA]),
     { code: '23514' });
+  /* the business change rides the SAME transaction and rolls back with it
+   * (§16.3 rule 2). The business write is an ingest_file register row — the
+   * app role's honest day-to-day write (tenant_isolation only). tenant_role
+   * would be WRONG twice: C3's controls_origin_only policy refuses this
+   * actor by design (the refusal would fake the proof), and the rollback
+   * count runs AFTER the GUC transaction ends — a transaction-local
+   * set_config leaves the GUC EMPTY on the session for its remaining life
+   * (pinned empirically on PG16), so any probe-side RLS read then casts
+   * ''::uuid and 22P02s loud. The count is therefore taken as the
+   * SUPERUSER (RLS bypassed — the physical truth, not a policy-filtered
+   * view). Fail-closed holds: EMPTY is loud, never leaky. */
   await withCtx(probe, T1, async () => {
-    /* the business change rode the SAME transaction and rolled back with it */
-    await probe.query('BEGIN');
-    await probe.query(`SELECT set_config('app.tenant_id', $1, true)`, [T1]);
     try {
-      await probe.query(`INSERT INTO tenant_role (tenant_id, user_id, role, granted_by) VALUES ($1, $2, 'SCM', $3)`, [T1, U2, U1]);
+      await probe.query(
+        `INSERT INTO ingest_file (tenant_id, kind, mode, file_name, checksum_sha256, byte_size, status, row_count)
+         VALUES ($1, 'items', 'A', 'deny-by-default.csv', $2, 128, 'RECEIVED', 3)`,
+        [T1, 'c'.repeat(64)]);
       await probe.query(`INSERT INTO ledger_block (seq, class, tenant_id, actor, entity, action, outcome, engine_version, schema_version, at, prev_hash, hash)
         VALUES ((SELECT COALESCE(max(seq),0)+1 FROM ledger_block WHERE tenant_id = $1), 'W', $1, $2, 'item', 'item.update', 'success', $3, $4, now(), (SELECT hash FROM ledger_block WHERE tenant_id = $1 ORDER BY seq DESC LIMIT 1), 'zz-not-hex')`, [T1, U1, ENGINE, SCHEMA]);
       await probe.query('COMMIT');
-      bad('write-failure-rolls-back: the business grant did not survive the ledger failure', 'the tx committed');
+      bad('write-failure-rolls-back: the business change did not survive the ledger failure', 'the tx committed');
     } catch (e) {
       await probe.query('ROLLBACK').catch(() => {});
-      const n = await probe.query(`SELECT count(*)::int AS n FROM tenant_role WHERE tenant_id = $1 AND user_id = $2 AND role = 'SCM'`, [T1, U2]);
-      if (n.rows[0].n === 0) ok('write-failure-rolls-back: the role grant rolled back WITH the failed ledger write (§16.3 rule 2)');
+      const n = await db.query(`SELECT count(*)::int AS n FROM ingest_file WHERE tenant_id = $1 AND file_name = 'deny-by-default.csv'`, [T1]);
+      if (n.rows[0].n === 0) ok('write-failure-rolls-back: the register row rolled back WITH the failed ledger write (§16.3 rule 2)');
       else bad('write-failure-rolls-back', `${n.rows[0].n} rows survived`);
     }
   });
@@ -377,10 +388,17 @@ async function main() {
   const total = (await db.query('SELECT count(*)::int AS n FROM ledger_block')).rows[0].n; // superuser: all tenants
   await db.query('BEGIN');
   try {
+    /* The tenant GUC is SET here because THIS session has run transaction-local
+     * set_config before (the layer-3 proofs) — the GUC is EMPTY on it now, and
+     * a policy cast of an EMPTY GUC is 22P02-loud. A production verifier
+     * connection is fresh (never-set → NULL → the tenant cast is honestly
+     * false, and ledger_verifier_read still shows every chain). With T1 set,
+     * the OR of tenant_isolation and ledger_verifier_read shows all rows. */
+    await db.query(`SELECT set_config('app.tenant_id', $1, true)`, [T1]);
     await db.query('SET ROLE sentinel_verifier');
     const n = (await db.query('SELECT count(*)::int AS n FROM ledger_block')).rows[0].n;
     if (total > 0 && n === total) {
-      ok(`the verifier reads the WHOLE ledger cross-tenant (${n} blocks, no tenant GUC) — that is the job`);
+      ok(`the verifier reads the WHOLE ledger cross-tenant (${n} blocks, across every tenant fence) — that is the job`);
     } else bad('the verifier reads cross-tenant', `verifier sees ${n}, total is ${total}`);
   } catch (e) {
     bad('the verifier reads cross-tenant', e.message);
@@ -390,22 +408,17 @@ async function main() {
   }
   await expectPgError('the verifier cannot write (no INSERT grant, 42501)', db, T1,
     async () => {
-      await db.query('SET ROLE sentinel_verifier');
-      try {
-        await db.query(`INSERT INTO ledger_block (seq, class, tenant_id, actor, entity, action, outcome, engine_version, schema_version, at, prev_hash, hash)
-          VALUES (99, 'W', $1, 'x', 'x', 'x', 'success', 'x', 'x', now(), $2, $3)`, [T1, '0'.repeat(64), 'a'.repeat(64)]);
-      } finally {
-        await db.query('RESET ROLE');
-      }
+      /* SET LOCAL ROLE — transaction-scoped: the ROLLBACK in expectPgError's
+       * finally restores the role even from the aborted state a 42501 leaves
+       * (a session-level SET ROLE would 25P02 on its RESET-ROLE cleanup). */
+      await db.query('SET LOCAL ROLE sentinel_verifier');
+      await db.query(`INSERT INTO ledger_block (seq, class, tenant_id, actor, entity, action, outcome, engine_version, schema_version, at, prev_hash, hash)
+        VALUES (99, 'W', $1, 'x', 'x', 'x', 'success', 'x', 'x', now(), $2, $3)`, [T1, '0'.repeat(64), 'a'.repeat(64)]);
     }, { code: '42501' });
   await expectPgError('the verifier cannot mutate (no UPDATE grant, 42501)', db, T1,
     async () => {
-      await db.query('SET ROLE sentinel_verifier');
-      try {
-        await db.query(`UPDATE ledger_block SET hash = $2 WHERE tenant_id = $1 AND seq = 1`, [T1, 'a'.repeat(64)]);
-      } finally {
-        await db.query('RESET ROLE');
-      }
+      await db.query('SET LOCAL ROLE sentinel_verifier');
+      await db.query(`UPDATE ledger_block SET hash = $2 WHERE tenant_id = $1 AND seq = 1`, [T1, 'a'.repeat(64)]);
     }, { code: '42501' });
 
   /* ---- 14. jcs-vectors in the CI record ---- */
@@ -428,4 +441,4 @@ async function main() {
   process.exit(failed ? 1 : 0);
 }
 
-main().catch((e) => { console.error('ledger-live failed to run:', e.message); process.exit(1); });
+main().catch((e) => { console.error('ledger-live failed to run:', e.code || '', e.message, e.detail || ''); process.exit(1); });
