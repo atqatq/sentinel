@@ -91,6 +91,7 @@ so a Precoro export can be pasted straight in and one alias map serves both mode
 | Gap | Impact | Fix |
 |---|---|---|
 | **Open POs has no PO creation date** (creation date is only a report *filter*, per the filename) | **True lead time cannot be measured** — only lateness vs promised date. Cripples the lead-time learning that closes the 84% gap | Add `Purchase Order Creation Date` to the Precoro export config *(cutover W1)*; template column provided |
+| **Open POs has no PO status** (cancellations/closures invisible) | Dead commitments read as live expected stock — the supply axis renders "Follow-up with Supplier" on cancelled POs and the loop never learns the truck is not coming (§14.6c) | Add `Purchase Order Status` to the Precoro export config *(priority-1 ADD, cutover W1)*; template column provided; vocabulary `OPEN \| CANCELLED \| CLOSED`, unknown values quarantine (`PO_STATUS_UNKNOWN`) |
 | **Open POs has no unit price / currency** | Price variance and realized savings cannot be computed from POs | Add to export config; template columns provided |
 | **Inventory Report has no period columns** | Consumption cannot be dated; rates cannot be seeded | Supply `Period Start` / `Period End` (template) or derive from the export filename |
 | **Inventory `Type` column is unusable** — every row reads `All` | Quarantine/staging would be counted as available | `Warehouse Kind` supplied by Sentinel *(cutover W5)* |

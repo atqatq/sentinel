@@ -645,6 +645,57 @@ aggregate feeds the §14.6 shape unchanged** — outcomes, adherence, fill rate,
 flags — so every downstream node (scorecards, efficacy, the double-order guard) consumes matching output
 exactly as it consumed reconciliation output, with the new flags additive.
 
+### 14.6c Supply-status producers — the normative derivation (audit M5; named proof `ingestion/supply-status-producers`)
+
+*(§14.6b closed how receipts become known; this section closes what the supply axis may render. The audit's
+M5: `supplyStatus` consumed fields — `overduePO`, `partialPO`, `supplierIssue` — that no export defined and
+no code derived, and the axis would render from nothing while claiming to render from facts. Until these
+producers are normative, the second ontology axis is under-specified data wearing a vocabulary. The
+implementation is the pure producer in the planning-engine module, beside the classifier it feeds;
+`supplyStatus` itself is unchanged — this section defines only what may enter it.)*
+
+**The facts.** Per ref, per plan cycle, the supply facts are `{openPO, overduePO, partialPO, supplierIssue}`,
+derived from the tenant's stored Open-POs lines against an **explicit `asOf`** — the plan run's canonical UTC
+date (H4). There is no clock in the producer: identical inputs produce identical output, and a run without
+`asOf` refuses by name. Line inputs are the §14.6b identities `(poNumber, sku)` carrying: `waiting` in
+**planning units** (C1 converted at ingestion — the producer refuses a non-finite waiting as the wiring error
+it is), `received` (absent = 0), `expectedDelivery` (the promised date, canonical day form), `status` (the
+Purchase Order Status surface, below), and `supplierBanned` (joined from supplier master `is_banned` — the
+producer consumes the flag, it never queries).
+
+**Liveness — cancelled and closed lines leave the loop.** A line is **live** iff its status is `OPEN` or
+absent. `CANCELLED` and `CLOSED` lines contribute nothing to any supply sum — the §14.6b rationale applies
+verbatim: the truck is not coming, and counting a dead commitment as expected stock is the double-order guard
+failing in the opposite direction, now on the status axis (a ref whose POs were all cancelled must not wear
+"Follow-up with Supplier"). A dead line still carrying waiting > 0 means the export disagrees with the PO
+lifecycle — it is disclosed (`WAITING_ON_CANCELLED` / `WAITING_ON_CLOSED` classes, counts + quantities),
+never silently absorbed.
+
+**The rules.** `openPO` = Σ waiting over **live** lines, in the order given (the caller's deterministic
+ordering; the same sum the engine consumes as its in-transit input — one canon, no forked aggregate).
+`overduePO` = Σ live waiting where a promised date exists and `expectedDelivery < asOf` (canonical day-string
+comparison — no timezone arithmetic; both operands are H4 canonical dates). `partialPO` = Σ live waiting
+where `received > 0` (the truck came, not in full). `supplierIssue` = true iff any live line's supplier is
+banned — a barred source with open commitments is a supplier issue by definition; returns and lateness are
+normal business and must never synthesize this flag. A live line with waiting > 0 and **no** promised date
+can never be late against no promise: it counts in `openPO` (and `partialPO`), never in `overduePO`, and is
+disclosed (`UNPROMISED_WAITING`) — follow-up without a promise date is blind, and data health should say so.
+
+**The export obligation.** The Open-POs export gains `Purchase Order Status` — **priority-1 ADD** (the audit
+itself cites the source report carrying it; template column provided, cutover W1). Ingestion normalizes the
+value to the closed vocabulary **`OPEN | CANCELLED | CLOSED`** (trim + case-fold); a present-but-unknown
+value quarantines the row (`PO_STATUS_UNKNOWN` — the INVALID_CONVERSION_FACTOR posture: present-but-unusable
+is never coerced). While the feed omits the column, every line degrades to live and the run **discloses**
+the degradation once — the same posture §14.6b's matching layer already takes for an absent status fact.
+
+**Refusals and honesty.** Every malformed shape refuses with a named error: duplicate `(poNumber, sku)`
+identity, non-finite quantities, unknown status value, non-canonical `asOf` or `expectedDelivery`. The
+producer receives facts and never invents them; the classification order
+(Supplier Issue > Late PO > Partial Delivery > Follow-up > Normal) is the engine's and does not change here.
+The plan receipt carries the facts, the label and the disclosure counts **additively**, and the engine's
+`openPO` input becomes the live-line sum — a cancelled line can no longer hold a ref's inventory status
+hostage, exactly as §14.6b already stopped it holding the guard hostage.
+
 ## 14.7 Inter-tenant / inter-warehouse transfers — plan + reconcile (rev 1.3 boundary)
 **Execution boundary (owner directive): Precoro executes; Sentinel plans, approves and verifies.** Inventory
 staff never execute a transfer in Sentinel — every physical movement happens in Precoro and reaches Sentinel

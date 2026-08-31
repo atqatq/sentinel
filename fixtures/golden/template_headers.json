@@ -60,7 +60,8 @@
   "Waiting (Quantity)",
   "Purchase Order Creation Date",
   "Unit Price",
-  "Currency"
+  "Currency",
+  "Purchase Order Status"
  ],
  "5_SUPPLIERS": [
   "Name *",
