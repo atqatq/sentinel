@@ -744,6 +744,72 @@ asOf when it lands; the H2 second arm — an unreceived line **past its promised
 belongs to that scheduled rebuild (the data for it is already on the evidence), and is named here so the
 obligation stays visible: it is a scheduled follow-on, never a silent descope.
 
+### 14.6e The loop's learning turn — efficacy signals fed by matching (audit M3 efficacy; named proof `feedback/efficacy-matching-fed`)
+
+*(§14.6b made the matching rules normative and promised that every downstream node — scorecards, efficacy,
+the double-order guard — consumes matching output "exactly as it consumed reconciliation output, with the
+new flags additive". §14.6d delivered the scorecard half; this section is the efficacy half: how §14.6's
+PLAN rows — `parameterEfficacy()`, `proposalQuality()`, and `realizedLeadDays → leadTimeEstimate()` — are
+FED. The audit's M3 finding verified the engines' gating (`MIN_SAMPLE=12` + confidence grade) in
+isolation; the milestone item is the wiring that makes the signals real: the chain of record terminates
+in SIGNALS, and an unwired signal is open-loop all over again. The engines themselves are NOT re-defined
+here — the M3 canon (FOLLOWED-only judgment, the sample floor, the confidence grade), the M2 canon
+(PENDING inside the decision SLA, `actedRate` excluding in-window proposals, recall counting missed
+shortages) and the lead-time canon (p80 basis, `n`/`confidence` returned, never a lead time invented from
+no data) are what this wiring composes, never re-implements.)*
+
+**The unit of judgment is the proposal.** The wiring consumes the §14.6b matching result's per-proposal
+aggregates — the §14.6 shape, one entry per `refId`. A proposal raised once and split across three POs is
+ONE judgment with `SPLIT_ACROSS_POS` as its fact, never three: a split commitment is one decision the
+optimizer made, and counting its lines separately would manufacture sample size the tenant never earned —
+the exact disease the M3 floor exists to stop. Because the proposal IS the axis of judgment here, the
+proposal-level topology flags (`SPLIT_ACROSS_POS`, `PART_CANCELLED`) ride the wiring's flag rollup — the
+§14.6d supplier-axis exclusion (topology flags name the buyer's task, not the supplier) does not transfer:
+on the efficacy axis the proposal is the task. The rollup stays additive and per-proposal (`flagCounts`:
+flag → the number of proposals carrying it), and it is where the new §14.6b flags reach the learning
+turn: `AMENDMENT_UNEXPLAINED` and `RECEIPTS_AFTER_CANCEL` count against data health on the proposal that
+carries them, per §14.6's capture discipline.
+
+**The join is inventory's, not matching's.** Whether advice WORKED is an inventory fact — did the ref
+stock out anyway, did it pile up — and no PO fact can manufacture it: the caller supplies the
+post-decision observations (`{refId, stockedOutAfter, overstockedAfter}`) and the wiring joins them to
+the aggregates by `refId`. Booleans, strictly: an observation whose outcome arrives as a truthy-coercing
+string is the `nz()` disease inside a training signal, and refuses by name. A proposal with no
+observation is not a clean outcome — it is an UNOBSERVED one, and the wiring discloses the join
+(`observed` / `unobserved`) so a signal's evidence base is always auditable. The wiring never invents
+observations; the engines' honesty does the rest — only FOLLOWED cases are judged (a stockout after the
+buyer ignored us is not a parameter failure), and the sample floor stands.
+
+**What never becomes judged.** A `CANCELLED` proposal is not advice followed: its aggregate falls out of
+the FOLLOWED denominators by the engine's own filter, and the wiring DISCLOSES the exclusion
+(`cancelledProposals`) instead of letting it vanish. An `UNSOLICITED` delivery is not the engine's advice
+at all — it lives on the §14.6b unlinked surface, never enters proposal-level efficacy (praising the
+engine for the buyer's self-correction, or blaming it, would both be fiction), and is never reclassified
+as "warned" in recall. A no-commitment proposal rides its leaf outcome — PENDING inside the decision SLA,
+IGNORED past it (M2) — into `proposalQuality`'s pending/decided counts, unchanged.
+
+**Recall rides the same join.** Stockout observations feed `proposalQuality` through the same `refId`
+join: a shortage the engine never proposed for is a `missedShortages` fact — the dangerous class,
+invisible to an adherence-only view — with `missedRefs` sorted, deterministically. The wiring never
+edits the engine's recall arithmetic; it guarantees the input is complete and honest. An observation
+naming no known proposal is itself disclosed (`unmatchedObservations`): the stockouts among them are
+exactly `quality.missedShortages`, the overstocks among them are inventory facts the learning turn cannot
+use today — neither is silently dropped, the §14.6d posture (evidence is never discarded onto a guess,
+never silently vanished).
+
+**Lead time from observed reality.** The aggregates carry `realizedLeadDays` (the §14.6b lead span, day
+units on the H4 canon) — `leadTimeEstimate()` consumes them unchanged: p80 basis, `n`/`confidence`
+returned, never a suggested lead time from no data. The portfolio estimate rides the wiring's result
+(`leadTime`); feeding per-ref observations into the planning slot remains the application layer's
+composition of this same output.
+
+**Determinism and refusal.** The history is sorted by `refId`; identical inputs produce deep-equal
+output; the result survives a JSON round-trip. The wiring consumes a `matchPoLines` RESULT — a malformed
+shape (a `proposals` field that is not an array, an aggregate without its `refId` or `outcome`) refuses
+`WIRING_MALFORMED`, the §14.6d posture; an observation without a `refId`, or carrying a non-boolean
+outcome, refuses `OBSERVATION_MALFORMED`; two observations naming one `refId` refuse
+`OBSERVATION_DUPLICATE` — one ref, one post-decision outcome; the ambiguity is not averaged away.
+
 ## 14.7 Inter-tenant / inter-warehouse transfers — plan + reconcile (rev 1.3 boundary)
 **Execution boundary (owner directive): Precoro executes; Sentinel plans, approves and verifies.** Inventory
 staff never execute a transfer in Sentinel — every physical movement happens in Precoro and reaches Sentinel
