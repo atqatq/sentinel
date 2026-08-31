@@ -1,0 +1,35 @@
+{
+  "id": "approval",
+  "version": "0.1.0",
+  "description": "The C3 financial-controls decision layer (gate 5, M3): the SoD invariant (approver \u2260 raiser), value-tiered approval limits, dual control above the tenant's configurable threshold, and the supplier-identity change freeze with out-of-band verification. Pure and deterministic \u2014 the resolved principal, the tier config, the prior votes and the hold rows are always injected. Every invariant decided here is ENFORCED AGAIN at the database (the RESTRICTIVE sod_binding policy binds each decision to the app.actor_id GUC; the proposal_state_guard trigger requires the tier's votes; the supplier_identity_freeze trigger refuses any identity change without the verified hold) \u2014 the API+DB pair A4 demands, neither layer trusted alone. Refusals carry Class-D-shaped denial records; the durable ledger write lands with H5.",
+  "dependencies": [],
+  "permissionScopes": [
+    "db:read:proposal",
+    "db:write:proposal",
+    "db:write:approval",
+    "db:write:purchase_order",
+    "db:write:supplier_change_hold"
+  ],
+  "ingestionKinds": [],
+  "uiSurfacePoints": [
+    "approvals-tray",
+    "order-proposals",
+    "supplier-master"
+  ],
+  "ledgerEventTypes": [
+    "PROPOSAL_RAISED",
+    "PROPOSAL_APPROVED",
+    "PROPOSAL_REJECTED",
+    "PROPOSAL_CONVERTED",
+    "SOD_DENIAL",
+    "SUPPLIER_CHANGE_HELD",
+    "SUPPLIER_CHANGE_APPLIED",
+    "SUPPLIER_CHANGE_REJECTED"
+  ],
+  "goldenTests": [
+    {
+      "suite": "test/approval.test.js",
+      "count": 34
+    }
+  ]
+}
