@@ -190,6 +190,29 @@ test('grantRole issues the Origin grant — the RLS policy re-proves the granter
   assert.deepStrictEqual(ins.values, [T, U.buyer, 'BYR', 'u-origin']);
 });
 
+test('NUMERIC boundary: node-pg ships DECIMAL as strings — the adapter delivers finite numbers (the int8 lesson, pinned)', async () => {
+  const c = stubClient();
+  const real = c.query;
+  c.query = async (text, values) => {
+    const out = await real(text, values);
+    if (/FROM approval_config/i.test(text)) return { rows: [{ currencyCode: 'BHD', dualThresholdAmount: '1000.000000' }], rowCount: 1 };
+    if (/FROM approval_limit/i.test(text)) return { rows: [{ role: 'SBR', maxSingleAmount: '5000.000000' }, { role: 'O', maxSingleAmount: null }], rowCount: 2 };
+    if (/FROM proposal WHERE/i.test(text) && !/INSERT/.test(text)) {
+      return { rows: [{ id: 'p-uuid', state: 'OPEN', totalAmount: '4000.000000' }], rowCount: 1 };
+    }
+    return out;
+  };
+  const a = makeProcureAdapter(c, T);
+  const ctl = await a.loadControls();
+  assert.strictEqual(typeof ctl.config.dualThresholdAmount, 'number', 'the threshold must be a number at the boundary');
+  assert.strictEqual(ctl.config.dualThresholdAmount, 1000);
+  assert.strictEqual(ctl.limits[0].maxSingleAmount, 5000);
+  assert.strictEqual(ctl.limits[1].maxSingleAmount, null, 'NULL stays null (Origin unlimited) — never 0');
+  const p = await a.loadProposalByCode('PR-2');
+  assert.strictEqual(typeof p.proposal.totalAmount, 'number');
+  assert.strictEqual(p.proposal.totalAmount, 4000);
+});
+
 (async () => {
   await Promise.all(pending);
 

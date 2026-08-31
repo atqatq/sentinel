@@ -34,6 +34,17 @@ const PROPOSAL_COLS = `id, tenant_id AS "tenantId", code, state, raised_by AS "r
 function makeProcureAdapter(client, tenantId) {
   const q = (text, values) => client.query(text, values);
 
+  /* node-pg ships NUMERIC as a STRING (the int8 lesson from the H6 boundary,
+   * caught live again): every numeric the decision layer does MATH on leaves
+   * this adapter as a finite JS number — never a string that would make the
+   * tier comparisons type-refuse, never a silent NaN. */
+  const num = (v, name) => {
+    if (v === null || v === undefined) return null;
+    const n = Number(v);
+    if (!Number.isFinite(n)) throw new Error('INVALID_NUMERIC_BOUNDARY: ' + name);
+    return n;
+  };
+
   return {
     /* ---- reads (the decision layer's inputs) ------------------------------ */
 
@@ -45,7 +56,13 @@ function makeProcureAdapter(client, tenantId) {
       const limits = await q(
         `SELECT role, max_single_amount AS "maxSingleAmount"
            FROM approval_limit WHERE tenant_id = $1 ORDER BY role`, [tenantId]);
-      return { config: cfg.rows[0] || null, limits: limits.rows };
+      return {
+        config: cfg.rows[0] ? {
+          currencyCode: cfg.rows[0].currencyCode,
+          dualThresholdAmount: num(cfg.rows[0].dualThresholdAmount, 'dual_threshold_amount'),
+        } : null,
+        limits: limits.rows.map((r) => ({ role: r.role, maxSingleAmount: num(r.maxSingleAmount, 'max_single_amount') })),
+      };
     },
 
     /* The proposal with its lines and decision rows — the review input. */
@@ -62,7 +79,12 @@ function makeProcureAdapter(client, tenantId) {
         `SELECT approver_id AS "approverId", decision, reason, created_at AS "createdAt"
            FROM approval WHERE tenant_id = $1 AND proposal_id = $2 ORDER BY created_at`,
         [tenantId, head.rows[0].id]);
-      return { proposal: head.rows[0], lines: lines.rows, approvals: approvals.rows };
+      const p = head.rows[0];
+      return {
+        proposal: { ...p, totalAmount: num(p.totalAmount, 'total_amount') },
+        lines: lines.rows.map((l) => ({ ...l, qty: num(l.qty, 'qty'), unitPrice: num(l.unitPrice, 'unit_price') })),
+        approvals: approvals.rows,
+      };
     },
 
     /* ---- the workflow writes ---------------------------------------------- */
