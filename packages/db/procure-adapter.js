@@ -1,0 +1,223 @@
+'use strict';
+/* ============================================================================
+ * makeProcureAdapter(client, tenantId) — the SQL executor of the C3
+ * financial-controls workflow (0003_controls): proposal → approval → PO,
+ * the value tiers' reads, and the supplier-change-hold lifecycle.
+ *
+ * Home rule (the H6 pattern): the DECISION lives in the pure approval module
+ * (packages/core/modules/approval — the caller runs it first and calls this
+ * adapter only with a green verdict); this package owns the SQL mechanics.
+ * The database re-proves every invariant the module proved — the RESTRICTIVE
+ * sod_binding policy binds each approval to the app.actor_id GUC and refuses
+ * the raiser; the proposal_state_guard trigger requires the tier's votes and
+ * the supplier_identity_freeze trigger refuses any identity change outside
+ * the verified hold. A buggy caller cannot out-vote the database.
+ *
+ * GUCs (ADR-0002 fence, extended): app.tenant_id (set by the caller,
+ * transaction-local) fences RLS; app.actor_id binds approvals to the
+ * authenticated principal; app.hold_apply_id is set INSIDE resolveHold(APPLY)
+ * — the only door through the supplier freeze.
+ *
+ * Statement-first discipline (the H6 executor lesson): multi-write methods
+ * build every statement before the first one issues — a malformed intent
+ * throws with zero statements sent, nothing half-applies.
+ *
+ * pg is never imported here; the client is injected. The structural suites
+ * import this package without a database; the LIVE proof is
+ * test/sod-live.js (CI db-rls job).
+ * ==========================================================================*/
+
+const PROPOSAL_COLS = `id, tenant_id AS "tenantId", code, state, raised_by AS "raisedBy",
+    supplier_id AS "supplierId", currency_code AS "currencyCode", total_amount AS "totalAmount",
+    note, created_at AS "createdAt", updated_at AS "updatedAt"`;
+
+function makeProcureAdapter(client, tenantId) {
+  const q = (text, values) => client.query(text, values);
+
+  return {
+    /* ---- reads (the decision layer's inputs) ------------------------------ */
+
+    /* The tenant's tier config + the role limits, in one call. */
+    loadControls: async () => {
+      const cfg = await q(
+        `SELECT currency_code AS "currencyCode", dual_threshold_amount AS "dualThresholdAmount"
+           FROM approval_config WHERE tenant_id = $1`, [tenantId]);
+      const limits = await q(
+        `SELECT role, max_single_amount AS "maxSingleAmount"
+           FROM approval_limit WHERE tenant_id = $1 ORDER BY role`, [tenantId]);
+      return { config: cfg.rows[0] || null, limits: limits.rows };
+    },
+
+    /* The proposal with its lines and decision rows — the review input. */
+    loadProposalByCode: async (code) => {
+      const head = await q(
+        `SELECT ${PROPOSAL_COLS} FROM proposal WHERE tenant_id = $1 AND code = $2`,
+        [tenantId, code]);
+      if (!head.rows.length) return null;
+      const lines = await q(
+        `SELECT sku, item_id AS "itemId", qty, unit_code AS "unitCode", unit_price AS "unitPrice"
+           FROM proposal_line WHERE tenant_id = $1 AND proposal_id = $2 ORDER BY sku`,
+        [tenantId, head.rows[0].id]);
+      const approvals = await q(
+        `SELECT approver_id AS "approverId", decision, reason, created_at AS "createdAt"
+           FROM approval WHERE tenant_id = $1 AND proposal_id = $2 ORDER BY created_at`,
+        [tenantId, head.rows[0].id]);
+      return { proposal: head.rows[0], lines: lines.rows, approvals: approvals.rows };
+    },
+
+    /* ---- the workflow writes ---------------------------------------------- */
+
+    /* raise: any authenticated member may raise (the SoD invariant binds
+     * APPROVAL, not the raise). Statements built first, then issued. */
+    raiseProposal: async ({ code, raisedBy, supplierId, currencyCode, totalAmount, note, lines }) => {
+      if (!code || !raisedBy || !currencyCode || typeof totalAmount !== 'number' || !Array.isArray(lines) || lines.length === 0) {
+        throw new Error('INVALID_PROPOSAL_INTENT');
+      }
+      const stmts = [
+        { text: `INSERT INTO proposal (tenant_id, code, raised_by, supplier_id, currency_code, total_amount, note)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING ${PROPOSAL_COLS}`,
+          values: [tenantId, code, raisedBy, supplierId || null, currencyCode, totalAmount, note || null] },
+        ...lines.map((l) => ({
+          text: `INSERT INTO proposal_line (tenant_id, proposal_id, item_id, sku, qty, unit_code, unit_price)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+          values: [tenantId, null, l.itemId || null, l.sku, l.qty, l.unitCode, l.unitPrice],
+        })),
+      ];
+      const head = await q(stmts[0].text, stmts[0].values);
+      const proposalId = head.rows[0].id;
+      for (const s of stmts.slice(1)) await q(s.text, [tenantId, proposalId, ...s.values.slice(2)]);
+      return head.rows[0];
+    },
+
+    /* One decision row. The caller has the module's green verdict; the
+     * sod_binding policy and the reject-dismiss trigger do the rest. */
+    recordApproval: async ({ proposalId, approverId, decision, reason }) => {
+      const r = await q(
+        `INSERT INTO approval (tenant_id, proposal_id, approver_id, decision, reason)
+         VALUES ($1,$2,$3,$4,$5)
+         RETURNING id, approver_id AS "approverId", decision, reason`,
+        [tenantId, proposalId, approverId, decision, reason]);
+      return r.rows[0];
+    },
+
+    /* State advances ride the proposal_state_guard trigger — the WHERE on the
+     * prior state keeps the transition explicit; the trigger refuses
+     * everything the tiers do not license. */
+    advanceProposal: async ({ proposalId, from, to }) => {
+      const r = await q(
+        `UPDATE proposal SET state = $3, updated_at = now()
+           WHERE tenant_id = $1 AND id = $2 AND state = $4
+         RETURNING ${PROPOSAL_COLS}`,
+        [tenantId, proposalId, to, from]);
+      if (!r.rows.length) throw new Error('PROPOSAL_ADVANCE_REFUSED');
+      return r.rows[0];
+    },
+
+    /* Conversion: the PO document + its lines + the state advance, all built
+     * before the first INSERT. UNIQUE (proposal_id) makes a second conversion
+     * of the same proposal structurally impossible. */
+    convertProposal: async ({ proposalId, poCode, convertedBy, lines }) => {
+      const head = await q(
+        `SELECT ${PROPOSAL_COLS} FROM proposal WHERE tenant_id = $1 AND id = $2 AND state = 'APPROVED'`,
+        [tenantId, proposalId]);
+      if (!head.rows.length) throw new Error('PROPOSAL_NOT_APPROVED');
+      const p = head.rows[0];
+      const po = await q(
+        `INSERT INTO purchase_order (tenant_id, code, proposal_id, supplier_id, currency_code, total_amount, converted_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)
+         RETURNING id, code, proposal_id AS "proposalId", total_amount AS "totalAmount"`,
+        [tenantId, poCode, proposalId, p.supplierId, p.currencyCode, p.totalAmount, convertedBy]);
+      const poId = po.rows[0].id;
+      for (const l of lines) {
+        await q(
+          `INSERT INTO po_line (tenant_id, po_id, item_id, sku, qty, unit_code, unit_price)
+           VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+          [tenantId, poId, l.itemId || null, l.sku, l.qty, l.unitCode, l.unitPrice]);
+      }
+      await q(
+        `UPDATE proposal SET state = 'CONVERTED', updated_at = now()
+           WHERE tenant_id = $1 AND id = $2 AND state = 'APPROVED'`,
+        [tenantId, proposalId]);
+      return po.rows[0];
+    },
+
+    /* ---- the supplier-identity freeze ------------------------------------- */
+
+    /* Stage the hold: the frozen delta (ALL five fields, from/to as strings)
+     * is stored verbatim; the stored identity keeps serving. requestedBy NULL
+     * = pipeline-originated (any eligible verifier may verify it). */
+    stageSupplierHold: async ({ supplierId, changedFields, requestedBy }) => {
+      const r = await q(
+        `INSERT INTO supplier_change_hold (tenant_id, supplier_id, changed_fields, requested_by)
+         VALUES ($1,$2,$3,$4)
+         RETURNING id, supplier_id AS "supplierId", state, requested_at AS "requestedAt"`,
+        [tenantId, supplierId, JSON.stringify(changedFields), requestedBy || null]);
+      return r.rows[0];
+    },
+
+    loadActiveHold: async (supplierId) => {
+      const r = await q(
+        `SELECT id, supplier_id AS "supplierId", changed_fields AS "changedFields", state,
+                requested_by AS "requestedBy", verification_reference AS "verificationReference"
+           FROM supplier_change_hold
+          WHERE tenant_id = $1 AND supplier_id = $2 AND state = 'COOLING_OFF'
+          ORDER BY requested_at DESC LIMIT 1`, [tenantId, supplierId]);
+      return r.rows[0] || null;
+    },
+
+    /* The ONLY door through the freeze. APPLY: verify-gate facts are stamped,
+     * app.hold_apply_id is set transaction-locally, the supplier row is moved
+     * to the held values (the trigger demands an EXACT delta match), and the
+     * hold lands APPLIED — one transaction, the caller's. REJECT: the hold
+     * lands REJECTED and the stored identity simply keeps serving. */
+    resolveHold: async ({ holdId, supplierId, changedFields, verifiedBy, reference, decision }) => {
+      if (decision === 'REJECT') {
+        const r = await q(
+          `UPDATE supplier_change_hold
+              SET state = 'REJECTED', verified_by = $3, verification_reference = $4, resolved_at = now()
+            WHERE tenant_id = $1 AND id = $2 AND state = 'COOLING_OFF'
+         RETURNING id, state`,
+          [tenantId, holdId, verifiedBy, reference || null]);
+        if (!r.rows.length) throw new Error('HOLD_NOT_PENDING');
+        return r.rows[0];
+      }
+      if (decision !== 'APPLY') throw new Error('INVALID_HOLD_DECISION');
+      if (!reference || reference.trim() === '') throw new Error('MISSING_VERIFICATION_REFERENCE');
+      /* Statement-first: the supplier UPDATE is fully built from the stored
+       * delta before anything issues. */
+      const upd = {
+        text: `UPDATE supplier
+                  SET external_id = $3, name = $4, payment_term_days = $5::int,
+                      payment_terms_text = $6, currency_code = $7
+                WHERE tenant_id = $1 AND id = $2`,
+        values: [tenantId, supplierId,
+          changedFields.external_id.to, changedFields.name.to,
+          changedFields.payment_term_days.to, changedFields.payment_terms_text.to,
+          changedFields.currency_code.to],
+      };
+      await q(`SELECT set_config('app.hold_apply_id', $1, true)`, [holdId]);
+      await q(upd.text, upd.values);
+      const done = await q(
+        `UPDATE supplier_change_hold
+            SET state = 'APPLIED', verified_by = $3, verification_reference = $4, resolved_at = now()
+          WHERE tenant_id = $1 AND id = $2 AND state = 'COOLING_OFF'
+       RETURNING id, state`,
+        [tenantId, holdId, verifiedBy, reference]);
+      if (!done.rows.length) throw new Error('HOLD_NOT_PENDING');
+      return done.rows[0];
+    },
+
+    /* Role grants (Origin's act — the controls_origin_only policy re-proves
+     * the granter's role at the database). */
+    grantRole: async ({ userId, role, grantedBy }) => {
+      const r = await q(
+        `INSERT INTO tenant_role (tenant_id, user_id, role, granted_by)
+         VALUES ($1,$2,$3,$4)
+         RETURNING id, user_id AS "userId", role`,
+        [tenantId, userId, role, grantedBy]);
+      return r.rows[0];
+    },
+  };
+}
+
+module.exports = { makeProcureAdapter };

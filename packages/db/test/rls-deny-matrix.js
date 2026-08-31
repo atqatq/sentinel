@@ -42,6 +42,9 @@ const TENANT_SCOPED = [
   'delivery_day', 'planning_param', 'category_owner', 'ingest_file',
   'quarantine_record', 'data_health_task', 'idempotency_key', 'fx_rate_pin',
   'plan_seal',
+  'tenant_role', 'approval_config', 'approval_limit', 'proposal',
+  'proposal_line', 'approval', 'purchase_order', 'po_line',
+  'supplier_change_hold',
 ];
 
 let passed = 0, failed = 0;

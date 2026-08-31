@@ -47,6 +47,8 @@ jobs:
         run: node packages/plan-service/test/plan.test.js
       - name: Ops freshness alarm — DAT-01 SLO + missing-deliveries channel (19)
         run: node packages/core/modules/ops/test/freshness.test.js
+      - name: C3 approval decision layer — SoD, tiers, dual control, freeze (34)
+        run: node packages/core/modules/approval/test/approval.test.js
 
   ingestion-tests:
     name: Ingestion boundary suites (strict parse + file binding)
@@ -72,6 +74,8 @@ jobs:
         run: node packages/ingest-service/test/worker.test.js
       - name: Ingest worker adapter — ports + register lifecycle + task writers (26)
         run: node packages/db/test/ingest-worker-adapter.test.js
+      - name: Procure adapter — C3 workflow executor via stub client (13)
+        run: node packages/db/test/procure-adapter.test.js
 
   db-rls:
     name: DB schema + RLS deny matrix (postgres 16)
@@ -111,6 +115,10 @@ jobs:
           DATABASE_URL_ADMIN: postgres://postgres:postgres@127.0.0.1:5432/postgres
       - name: Ingest-replay live — per-tenant replay no-op, H7 merge, RLS (22)
         run: node packages/db/test/ingest-replay-live.js
+        env:
+          DATABASE_URL_ADMIN: postgres://postgres:postgres@127.0.0.1:5432/postgres
+      - name: SOD live — SoD invariant, dual control, supplier freeze, Origin-only (C3)
+        run: node packages/db/test/sod-live.js
         env:
           DATABASE_URL_ADMIN: postgres://postgres:postgres@127.0.0.1:5432/postgres
 

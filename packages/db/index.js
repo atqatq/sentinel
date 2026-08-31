@@ -11,7 +11,7 @@
  * decision lives in the ingestion module — this package owns the SQL).
  * pg is touched lazily so this contract imports cleanly without a database. */
 module.exports = {
-  SCHEMA_VERSION: '0002',
+  SCHEMA_VERSION: '0003',
   makePlanAdapter: require('./plan-adapter').makePlanAdapter,
   connectPlanClient: require('./plan-adapter').connectPlanClient,
   pgDriver: require('./plan-adapter').pgDriver,
@@ -19,4 +19,5 @@ module.exports = {
   resolveTenantByCode: require('./data-health-adapter').resolveTenantByCode,
   makeIngestAdapter: require('./ingest-adapter').makeIngestAdapter,
   INGEST_WIRED_KINDS: require('./ingest-adapter').WIRED_KINDS,
+  makeProcureAdapter: require('./procure-adapter').makeProcureAdapter,
 };
