@@ -1,0 +1,36 @@
+{
+  "id": "ingest-service",
+  "version": "0.1.0",
+  "description": "File-to-rows worker (M3, D-028). The production caller the H6 layers waited for: one file in, an honest outcome out. Bytes ride gateInboundFile (H10: magic bytes, caps, AV fail-closed — dropzone, watched-folder and email-in all through the same gate, the source recorded but never consulted); text payloads decode strictly and parse as RFC-4180 delimited grids; formula injection is neutralized at the cell level before anything reads a cell; the kind binds from the grid itself (instruction rows dropped, allow-list enforced); every kept cell is typed strictly (A5/C4 parse-or-quarantine, per-row quarantine records — a corrupt value quarantines its ROW, never poisons the file); units resolve against the tenant's injected catalog (unresolved spellings are data-health items, never guesses); openPO waiting quantities convert at ingestion (C1) and money normalizes to the tenant currency at the pinned per-day rate (C2 — an unpinned day refuses RATE_NOT_PINNED per row); deliveries ride the A5 ±50% trailing-mean confirmation guard, and coarser dashboard granularities (weekly/monthly/quarterly) day-expand into exact-sum daily rows the engine can seed from — YTD is cumulative and refuses expansion by name (YTD_CUMULATIVE_NOT_EXPANDABLE). The H6 decision layer then decides APPLY vs REPLAY_NOOP and the proven executor writes. What the pure layers could only RETURN, the worker PERSISTS: QUARANTINED/FAILED register rows on the same H6 unique (never a forked history), the quarantine_record ledger, and the data_health_task register the /data-health screen reads. XLSX byte extraction is a named follow-on (XLSX_EXTRACTION_NOT_WIRED): the gate accepts the workbook structurally; no hand-rolled XML parser may grow inside a pure module. Ports-injected (no direct I/O beyond the injected client surface); deterministic: identical bytes + identical ports produce deep-equal receipts.",
+  "dependencies": [
+    "ingestion",
+    "calendar"
+  ],
+  "permissionScopes": [
+    "ingest:read",
+    "ingest:write",
+    "quarantine:review"
+  ],
+  "ingestionKinds": [
+    "items",
+    "inventory_all_dimensions",
+    "open_pos",
+    "consumption_balances",
+    "deliveries",
+    "suppliers",
+    "planning_params",
+    "category_owners"
+  ],
+  "ledgerEventTypes": [
+    "INGEST_FILE_ACCEPTED",
+    "INGEST_FILE_REJECTED",
+    "QUARANTINE_RECORDED",
+    "DATA_HEALTH_TASK_RAISED"
+  ],
+  "goldenTests": [
+    {
+      "suite": "test/worker.test.js",
+      "count": 32
+    }
+  ]
+}
