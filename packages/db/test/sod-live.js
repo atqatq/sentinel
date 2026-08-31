@@ -114,6 +114,9 @@ async function main() {
   })) {
     USERS[key] = (await db.query(`INSERT INTO app_user (email, display_name) VALUES ($1,$2) RETURNING id`, [email, key])).rows[0].id;
   }
+  /* Seed as the superuser bootstrap (the first O cannot self-grant); each
+   * tenant's rows ride one explicit transaction with its tenant GUC set. */
+  await db.query('BEGIN');
   await db.query(`SELECT set_config('app.tenant_id', $1, true)`, [T1]);
   for (const [key, role] of [['origin', 'O'], ['manager', 'SCM'], ['senior', 'SBR'], ['buyer', 'BYR'], ['analyst', 'DTA']]) {
     await db.query(`INSERT INTO tenant_role (tenant_id, user_id, role, granted_by) VALUES ($1,$2,$3,$4)`, [T1, USERS[key], role, USERS.origin]);

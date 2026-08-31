@@ -276,10 +276,13 @@ CREATE POLICY "sod_binding" ON "approval" AS RESTRICTIVE FOR INSERT TO PUBLIC
 CREATE POLICY "approval_append_only" ON "approval" AS RESTRICTIVE FOR UPDATE TO PUBLIC USING (false);
 CREATE POLICY "approval_no_delete" ON "approval" AS RESTRICTIVE FOR DELETE TO PUBLIC USING (false);
 
--- Role grants, tier config and limits are Origin's to change (§10: "Create
--- users / edit permissions" — O only). The restrictive policy reads the
--- actor's own active role back from tenant_role. Bootstrap: the first O per
--- tenant is seeded by the migrator path (disclosed in D-029).
+-- Role grants, tier config and limits are Origin's to CHANGE (§10: "Create
+-- users / edit permissions" — O only). The restrictive policies bind WRITES
+-- (INSERT + UPDATE) to the actor's own active O role; READS stay tenant-scoped
+-- permissive — every in-tenant member must be able to READ the tiers the
+-- decision layer enforces (a RESTRICTIVE FOR ALL here would blind it). No
+-- DELETE: history is append-only (revoke by revoked_at). Bootstrap: the first
+-- O per tenant is seeded by the migrator path (disclosed in D-029).
 CREATE POLICY "controls_origin_only" ON "tenant_role" AS RESTRICTIVE FOR INSERT TO PUBLIC
   WITH CHECK (
     tenant_role.granted_by = current_setting('app.actor_id', true)::uuid
@@ -303,16 +306,7 @@ CREATE POLICY "controls_origin_only_update" ON "tenant_role" AS RESTRICTIVE FOR 
   );
 CREATE POLICY "tenant_role_no_delete" ON "tenant_role" AS RESTRICTIVE FOR DELETE TO PUBLIC USING (false);
 
-CREATE POLICY "controls_origin_only" ON "approval_config" AS RESTRICTIVE FOR ALL TO PUBLIC
-  USING (
-    EXISTS (
-      SELECT 1 FROM tenant_role actor
-      WHERE actor.tenant_id = approval_config.tenant_id
-        AND actor.user_id = current_setting('app.actor_id', true)::uuid
-        AND actor.revoked_at IS NULL
-        AND actor.role = 'O'
-    )
-  )
+CREATE POLICY "controls_origin_only" ON "approval_config" AS RESTRICTIVE FOR INSERT TO PUBLIC
   WITH CHECK (
     EXISTS (
       SELECT 1 FROM tenant_role actor
@@ -322,8 +316,18 @@ CREATE POLICY "controls_origin_only" ON "approval_config" AS RESTRICTIVE FOR ALL
         AND actor.role = 'O'
     )
   );
-CREATE POLICY "controls_origin_only" ON "approval_limit" AS RESTRICTIVE FOR ALL TO PUBLIC
+CREATE POLICY "controls_origin_only_update" ON "approval_config" AS RESTRICTIVE FOR UPDATE TO PUBLIC
   USING (
+    EXISTS (
+      SELECT 1 FROM tenant_role actor
+      WHERE actor.tenant_id = approval_config.tenant_id
+        AND actor.user_id = current_setting('app.actor_id', true)::uuid
+        AND actor.revoked_at IS NULL
+        AND actor.role = 'O'
+    )
+  );
+CREATE POLICY "controls_origin_only" ON "approval_limit" AS RESTRICTIVE FOR INSERT TO PUBLIC
+  WITH CHECK (
     EXISTS (
       SELECT 1 FROM tenant_role actor
       WHERE actor.tenant_id = approval_limit.tenant_id
@@ -331,8 +335,9 @@ CREATE POLICY "controls_origin_only" ON "approval_limit" AS RESTRICTIVE FOR ALL 
         AND actor.revoked_at IS NULL
         AND actor.role = 'O'
     )
-  )
-  WITH CHECK (
+  );
+CREATE POLICY "controls_origin_only_update" ON "approval_limit" AS RESTRICTIVE FOR UPDATE TO PUBLIC
+  USING (
     EXISTS (
       SELECT 1 FROM tenant_role actor
       WHERE actor.tenant_id = approval_limit.tenant_id
