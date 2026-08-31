@@ -1,0 +1,40 @@
+{
+  "id": "auth",
+  "version": "0.1.0",
+  "description": "The M11 authentication decision layer (gate M11, M3; audit M11 fix): the §14.9 session-policy floor extended to every principal (30 min idle / 8 h absolute — at least as strict as Origin's), the RFC 6238 TOTP second factor MANDATORY for every approval-capable role (O/SCM/SBR, pinned by parity to the C3 authority), failed-login lockout for all accounts, the password-policy floor over node-native scrypt (the named Argon2id deviation — production credentials live in the OIDC IdP), and the sign-in state machine whose credential step an OIDC assertion replaces without moving anything else. Pure and deterministic — clock, entropy and attempt history are injected. Every invariant decided here is ENFORCED AGAIN at the database (0005_auth: the RESTRICTIVE mfa_gate policy on approval; login_attempt append-only) — the API+DB pair, neither layer trusted alone.",
+  "dependencies": [],
+  "permissionScopes": [
+    "db:read:user_credential",
+    "db:write:user_credential",
+    "db:read:mfa_enrolment",
+    "db:write:mfa_enrolment",
+    "db:read:user_session",
+    "db:write:user_session",
+    "db:read:login_attempt",
+    "db:write:login_attempt",
+    "db:write:ledger_block"
+  ],
+  "ingestionKinds": [],
+  "uiSurfacePoints": [
+    "sign-in",
+    "mfa-enrolment",
+    "tenant-switcher"
+  ],
+  "ledgerEventTypes": [
+    "AUTH_SIGNIN_SUCCESS",
+    "AUTH_SIGNIN_FAILURE",
+    "AUTH_MFA_ENROLLED",
+    "AUTH_MFA_CHALLENGE",
+    "AUTH_MFA_CHALLENGE_FAILED",
+    "AUTH_SESSION_CREATED",
+    "AUTH_SESSION_TERMINATED",
+    "AUTH_LOCKOUT_ENGAGED",
+    "AUTH_CREDENTIAL_ROTATED"
+  ],
+  "goldenTests": [
+    {
+      "suite": "test/auth.test.js",
+      "count": 27
+    }
+  ]
+}

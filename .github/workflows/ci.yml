@@ -51,6 +51,8 @@ jobs:
         run: node packages/core/modules/approval/test/approval.test.js
       - name: H5 ledger module — RFC 8785 JCS vectors, §16.2 gate, keyed chain verify (50)
         run: node packages/core/modules/ledger/test/ledger.test.js
+      - name: M11 auth module — RFC 6238 TOTP, session floor, lockout, mfa-approvals gate (27)
+        run: node packages/core/modules/auth/test/auth.test.js
 
   ingestion-tests:
     name: Ingestion boundary suites (strict parse + file binding)
@@ -107,6 +109,8 @@ jobs:
         run: node packages/db/test/ingest-adapter.test.js
       - name: Ledger adapter — statement-first append via stub client (11)
         run: node packages/db/test/ledger-adapter.test.js
+      - name: Auth adapter — sessions, TOTP wrap-at-rest, attemptLogin via stub client (28)
+        run: node packages/db/test/auth-adapter.test.js
       - name: Install pg client for the matrix
         run: npm install --prefix packages/db pg@8 --no-save --no-audit --no-fund
       - name: RLS deny matrix (live)
@@ -129,6 +133,11 @@ jobs:
         run: node packages/db/test/ledger-live.js
         env:
           DATABASE_URL_ADMIN: postgres://postgres:postgres@127.0.0.1:5432/postgres
+      - name: AUTH live — session floor, lockout, TOTP wrap-at-rest, the mfa gate (M11)
+        run: node packages/db/test/auth-live.js
+        env:
+          DATABASE_URL_ADMIN: postgres://postgres:postgres@127.0.0.1:5432/postgres
+          SESSION_WRAP_KEY: ci-auth-live-wrap-key-0123456789abcdef-0123456789abcdef
 
   ui-checks:
     name: UI package (typecheck + theme compile)

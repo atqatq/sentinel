@@ -69,6 +69,7 @@ model Tenant {
   purchaseOrders    PurchaseOrder[]
   supplierChangeHolds SupplierChangeHold[]
   ledgerBlocks      LedgerBlock[]
+  sessions          UserSession[]
 
   @@map("tenant")
 }
@@ -89,6 +90,10 @@ model AppUser {
   purchaseOrdersConverted PurchaseOrder[] @relation("purchaseOrdersConverted")
   supplierHoldsRequested  SupplierChangeHold[] @relation("supplierHoldsRequested")
   supplierHoldsVerified   SupplierChangeHold[] @relation("supplierHoldsVerified")
+  credential        UserCredential?
+  mfaEnrolment      MfaEnrolment?
+  sessions          UserSession[]
+  loginAttempts     LoginAttempt[]
 
   @@map("app_user")
 }
@@ -755,4 +760,65 @@ model LedgerBlock {
   @@index([tenantId, at(sort: Desc)], map: "ledger_block_tenant_at_idx")
   @@index([tenantId, class], map: "ledger_block_tenant_class_idx")
   @@map("ledger_block")
+}
+
+// ---- M11 authentication layer (0005_auth; gate M11, M3) ---------------------
+// The PRE-TENANT auth layer: no tenant RLS on these tables by design — the
+// session resolution precedes the tenant GUC (the D-031 honest boundary).
+
+model UserCredential {
+  userId       String   @id @map("user_id") @db.Uuid
+  passwordHash String   @map("password_hash")
+  passwordSalt String   @map("password_salt")
+  algo         String   @default("scrypt")
+  updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  user AppUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_credential")
+}
+
+model MfaEnrolment {
+  userId       String    @id @map("user_id") @db.Uuid
+  secret       String
+  enrolledAt   DateTime  @default(now()) @map("enrolled_at") @db.Timestamptz(6)
+  verifiedAt   DateTime? @map("verified_at") @db.Timestamptz(6)
+  lastUsedStep BigInt?   @map("last_used_step")
+
+  user AppUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("mfa_enrolment")
+}
+
+model UserSession {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tokenHash         String    @unique @map("token_hash")
+  userId            String    @map("user_id") @db.Uuid
+  tenantId          String    @map("tenant_id") @db.Uuid
+  role              UserRole  @map("role")
+  mfaOk             Boolean   @map("mfa_ok")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastSeenAt        DateTime  @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+  absoluteExpiresAt DateTime  @map("absolute_expires_at") @db.Timestamptz(6)
+  terminatedAt      DateTime? @map("terminated_at") @db.Timestamptz(6)
+  createdIp         String?   @map("created_ip")
+
+  user   AppUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant  @relation(fields: [tenantId], references: [id])
+
+  @@index([userId], map: "user_session_user_id_idx")
+  @@map("user_session")
+}
+
+model LoginAttempt {
+  id     String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email  String
+  userId String?  @map("user_id") @db.Uuid
+  at     DateTime @default(now()) @db.Timestamptz(6)
+  outcome String
+  ip     String?
+
+  user AppUser? @relation(fields: [userId], references: [id])
+
+  @@map("login_attempt")
 }

@@ -159,11 +159,15 @@ export default function Home() {
           <p className="max-w-[88ch] font-sans text-[13px] leading-[20px] text-text-2">
             The plan route is the HTTP transport for the D-022 engine-live contract: it opens one
             tenant-scoped transaction (transaction-local{" "}
-            <span className="font-mono text-[12px]">app.tenant_id</span>), injects the pg-backed
-            adapter from <span className="font-mono text-[12px] text-text">packages/db</span>, and
-            maps the receipt to 200 sealed/replayed · 400 request-shape · 422 data-health refusal ·
-            500 wiring. Authenticated tenant identity (session → tenant) replaces the request-carried
-            interim when C3 SoD lands in M3.
+            <span className="font-mono text-[12px]">app.tenant_id</span>, plus{" "}
+            <span className="font-mono text-[12px]">app.actor_id</span> and{" "}
+            <span className="font-mono text-[12px]">app.mfa_ok</span> — the C3 sod_binding and M11
+            mfa_gate fences), injects the pg-backed adapter from{" "}
+            <span className="font-mono text-[12px] text-text">packages/db</span>, and maps the
+            receipt to 200 sealed/replayed · 400 request-shape · 401 session · 422 data-health
+            refusal · 500 wiring. Authenticated identity is DELIVERED (M11): the tenant, actor and
+            MFA verdict come from the session the boundary resolves — the request-carried interim
+            is retired and refuses by name.
           </p>
         </Card>
       </main>

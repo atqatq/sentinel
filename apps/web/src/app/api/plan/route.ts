@@ -5,12 +5,13 @@ import { handlePlanRun } from "@sentinel/plan-service"
 import { makePlanAdapter } from "@sentinel/db"
 
 import { getSentinelPool } from "../../../lib/pg"
+import { resolveRequestSession, unauthorized } from "../../../lib/auth-server"
 
 /*
  * POST /api/plan — the HTTP transport for the engine-live run (delivery spec
  * §6.3 M2; the D-022 carve-out). Semantics live in plan-service.handlePlanRun:
- *   200 SEALED / REPLAYED · 400 request-shape · 422 data-health refusal ·
- *   500 wiring error. This file owns ONLY transport concerns:
+ *   200 SEALED / REPLAYED · 400 request-shape · 401 session · 422 data-health
+ *   refusal · 500 wiring error. This file owns ONLY transport concerns:
  *
  *   - one pooled pg client per request; the whole run (input reads + seal
  *     write) is ONE transaction, scoped by a transaction-local
@@ -21,9 +22,14 @@ import { getSentinelPool } from "../../../lib/pg"
  *   - DATABASE_URL must connect as a NOBYPASSRLS role (sentinel_app in
  *     production). FORCE (ADR-0002) binds owners too, but the deployment
  *     contract is the app role.
- *   - Tenant identity comes from the request body as the declared interim;
- *     authenticated identity (session → tenant) lands with C3 SoD in M3
- *     and replaces this field at the boundary, not inside the service.
+ *   - AUTHENTICATED IDENTITY (M11 — the D-023/D-029 interim retirement,
+ *     delivered): the tenant comes from the SESSION (httpOnly cookie →
+ *     user_session → tenant_id), resolved server-side before the
+ *     transaction opens; the actor and the MFA verdict ride the same
+ *     session into the GUC trio app.tenant_id / app.actor_id (the C3
+ *     sod_binding fence) / app.mfa_ok (the mfa_gate policy on approvals).
+ *     A body-carried tenantId is REFUSED BY NAME — the request no longer
+ *     speaks for identity; it never will again.
  */
 
 export const runtime = "nodejs"
@@ -39,29 +45,25 @@ export async function POST(request: Request) {
     body = null
   }
 
-  /* The tenant must be known BEFORE the transaction opens (the GUC and the
-   * adapter both bind to it). Absent/empty → 400 without touching the pool. */
-  const tenantId = (body as { tenantId?: unknown } | null)?.tenantId
-  if (typeof tenantId !== "string" || tenantId === "") {
+  /* The interim is RETIRED: a body-carried tenantId refuses by name. */
+  const carried = (body as { tenantId?: unknown } | null)?.tenantId
+  if (typeof carried === "string" && carried !== "") {
     return NextResponse.json(
       {
         verdict: "REFUSED",
-        reason: "INVALID_REQUEST",
-        detail: "tenantId (non-empty string) is required to open the tenant-scoped transaction",
+        reason: "SESSION_IDENTITY_REQUIRED",
+        detail: "tenantId is retired from the request body (M11) — identity comes from the session; sign in and let the boundary bind it",
       },
       { status: 400 }
     )
   }
 
-  let pool: Pool
-  try {
-    pool = getSentinelPool()
-  } catch (e) {
-    return NextResponse.json(
-      { verdict: "ERROR", message: (e as Error).message },
-      { status: 500 }
-    )
-  }
+  const pool: Pool = getSentinelPool()
+
+  /* the session resolves ABOVE the fence (it produces the fence's value) */
+  const resolved = await resolveRequestSession(pool, request)
+  if (!resolved.ok) return unauthorized(resolved.reason)
+  const session = resolved.session
 
   let client: PoolClient
   try {
@@ -75,8 +77,16 @@ export async function POST(request: Request) {
 
   try {
     await client.query("BEGIN")
-    await client.query("SELECT set_config('app.tenant_id', $1, true)", [tenantId])
-    const receipt = await handlePlanRun(body, makePlanAdapter(client, tenantId))
+    await client.query("SELECT set_config('app.tenant_id', $1, true)", [session.tenantId])
+    await client.query("SELECT set_config('app.actor_id', $1, true)", [session.userId])
+    await client.query("SELECT set_config('app.mfa_ok', $1, true)", [session.mfaOk ? "true" : "false"])
+    /* the service stays tenant-explicit — the boundary decides where the
+     * tenant's name comes from (the session, no longer the request body) */
+    const request2 =
+      body !== null && typeof body === "object"
+        ? { ...(body as Record<string, unknown>), tenantId: session.tenantId }
+        : { tenantId: session.tenantId }
+    const receipt = await handlePlanRun(request2, makePlanAdapter(client, session.tenantId))
     await client.query("COMMIT")
     return NextResponse.json(receipt.json, { status: receipt.status })
   } catch (e) {

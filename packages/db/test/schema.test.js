@@ -234,9 +234,69 @@ test('the §16.2 fields are all present on ledger_block', () => {
   }
 });
 
+console.log('\nM11 — authentication (0005_auth)');
+
+test('the sign-in audit trail is append-only at the privilege layer (the ledger pattern)', () => {
+  assert.ok(migration.includes('GRANT SELECT, INSERT ON "login_attempt" TO "sentinel_app";'),
+    'the SELECT+INSERT grant missing');
+  assert.ok(!/GRANT[^;]*UPDATE[^;]*ON "login_attempt"/.test(migration), 'an UPDATE grant leaked onto login_attempt');
+  assert.ok(!/GRANT[^;]*DELETE[^;]*ON "login_attempt"/.test(migration), 'a DELETE grant leaked onto login_attempt');
+  assert.ok(/"outcome" TEXT NOT NULL/.test(migration) && /login_attempt_outcome_check" CHECK \("outcome" IN \('SUCCESS', 'FAILURE', 'LOCKED_OUT'\)\)/.test(migration),
+    'the outcome CHECK is the audit vocabulary');
+});
+
+test('the session bearer token is stored ONLY as a hash: a UNIQUE index on token_hash, no token column', () => {
+  const session = migration.match(/CREATE TABLE "user_session" \([\s\S]*?\n\);/);
+  assert.ok(session, 'user_session missing');
+  assert.ok(session[0].includes('"token_hash" TEXT NOT NULL'), 'token_hash column missing');
+  assert.ok(!session[0].includes('"token"'), 'a raw token column leaked onto user_session');
+  assert.ok(migration.includes('CREATE UNIQUE INDEX "user_session_token_hash_key" ON "user_session"("token_hash");'),
+    'the token_hash UNIQUE index missing');
+});
+
+test('the idle window is DERIVED (last_seen_at), the absolute horizon is pinned at issuance, termination is a tombstone', () => {
+  const session = migration.match(/CREATE TABLE "user_session" \([\s\S]*?\n\);/);
+  assert.ok(session[0].includes('"last_seen_at"'), 'last_seen_at missing (the idle anchor)');
+  assert.ok(!session[0].includes('idle'), 'an idle column would drift from the §14.9 floor — idle is derived');
+  assert.ok(session[0].includes('"absolute_expires_at"'), 'absolute_expires_at missing');
+  assert.ok(session[0].includes('"terminated_at"'), 'terminated_at missing');
+  assert.ok(!/GRANT[^;]*DELETE[^;]*ON "user_session"/.test(migration), 'a DELETE grant would break the tombstone posture');
+});
+
+test('the MFA gate: an approval INSERT without a proven second factor is refused at the database', () => {
+  assert.ok(/CREATE POLICY "mfa_gate" ON "approval" AS RESTRICTIVE FOR INSERT TO PUBLIC\s*\n\s*WITH CHECK \(current_setting\('app\.mfa_ok', true\) = 'true'\);/.test(migration),
+    'the restrictive mfa_gate policy missing');
+});
+
+test('the auth layer discloses its pre-tenant posture: no RLS on the four auth tables, by design', () => {
+  for (const table of ['user_credential', 'mfa_enrolment', 'user_session', 'login_attempt']) {
+    const tableBlock = migration.split(`CREATE TABLE "${table}"`)[1] || '';
+    assert.ok(tableBlock.length > 0, `${table} missing`);
+  }
+  /* the D-031 boundary: the session RESOLUTION precedes the tenant GUC —
+   * a tenant_isolation fence on these tables is structurally impossible.
+   * The absence is the DESIGN; the comment in 0005_auth is its record. */
+  assert.ok(/-- RLS POSTURE \(the honest boundary, D-031\)/.test(migration),
+    'the D-031 RLS-posture disclosure comment missing');
+});
+
+test('the TOTP replay guard is a column with a row-level backstop shape (last_used_step)', () => {
+  const enrol = migration.match(/CREATE TABLE "mfa_enrolment" \([\s\S]*?\n\);/);
+  assert.ok(enrol && enrol[0].includes('"last_used_step" BIGINT'), 'the replay-guard column missing');
+  assert.ok(enrol[0].includes('"verified_at"'), 'the verified_at enrolment-confirmation column missing');
+});
+
 console.log('\nSchema ↔ migration consistency');
 
 function parsePrismaModels(sql) {
+  /* pre-pass: every model NAME — a field whose TYPE is a model name is a
+   * relation (back-references carry no @relation attribute on one-to-one
+   * inverses), never a column. */
+  const modelNames = new Set();
+  const nameRe = /^model\s+(\w+)\s*\{/gm;
+  let nm;
+  while ((nm = nameRe.exec(sql)) !== null) modelNames.add(nm[1]);
+
   const models = {};
   const modelRe = /^model\s+(\w+)\s*\{([^}]*)\}/gm;
   let m;
@@ -257,6 +317,10 @@ function parsePrismaModels(sql) {
       const field = fieldMatch[1];
       const rest = fieldMatch[2] + (fieldMatch[3] || '');
       if (/^enum\b/.test(rest)) continue;
+      /* a field whose type is another model is a relation, scalar or array,
+       * attributed or not — the SQL column never exists */
+      const baseType = rest.split(/\s+/)[0].replace(/\?$/, '').replace(/\[\]$/, '');
+      if (modelNames.has(baseType)) continue;
       const colMap = line.match(/@map\("([^"]+)"\)/);
       const col = colMap ? colMap[1] : field;
       // scalar columns only — a column must also have a SQL type annotation or be a plain scalar

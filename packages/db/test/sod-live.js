@@ -57,6 +57,10 @@ async function withCtx(probe, tenantId, actorId, fn) {
   await probe.query('BEGIN');
   await probe.query(`SELECT set_config('app.tenant_id', $1, true)`, [tenantId]);
   if (actorId) await probe.query(`SELECT set_config('app.actor_id', $1, true)`, [actorId]);
+  /* the M11 mfa_gate policy is restrictive on approval INSERT — these proofs
+   * test SoD, not MFA, so the second-factor verdict is 'true' here; the gate
+   * itself is proven in auth-live.js */
+  await probe.query(`SELECT set_config('app.mfa_ok', 'true', true)`);
   try {
     return await fn();
   } finally {
@@ -68,6 +72,10 @@ async function expectPgError(name, probe, tenantId, actorId, fn, { code, message
   await probe.query('BEGIN');
   await probe.query(`SELECT set_config('app.tenant_id', $1, true)`, [tenantId]);
   if (actorId) await probe.query(`SELECT set_config('app.actor_id', $1, true)`, [actorId]);
+  /* the M11 mfa_gate policy is restrictive on approval INSERT — these proofs
+   * test SoD, not MFA, so the second-factor verdict is 'true' here; the gate
+   * itself is proven in auth-live.js */
+  await probe.query(`SELECT set_config('app.mfa_ok', 'true', true)`);
   try {
     await fn();
     bad(name, `expected ${code || message} but the statement succeeded`);
