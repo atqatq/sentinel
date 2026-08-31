@@ -501,10 +501,15 @@ async function main() {
     if (r.role === 'VWR') ok('Origin grants roles — the matrix is Origin\'s to edit');
     else bad('Origin grants roles', JSON.stringify(r));
   });
-  await expectPgError('a non-Origin cannot amend the dual threshold',
-    probe, T1, USERS.manager,
-    () => probe.query(`UPDATE approval_config SET dual_threshold_amount = 1 WHERE tenant_id = $1`, [T1]),
-    { code: '42501' });
+  /* RLS semantics: an UPDATE's USING filters rows silently — a non-Origin
+   * editor cannot even SEE the tier row, so the honest assertion is that the
+   * statement amends NOTHING (0 rows), not that it errors. The INSERT denial
+   * above is the loud one (WITH CHECK → 42501). */
+  await withCtx(probe, T1, USERS.manager, async () => {
+    const r = await probe.query(`UPDATE approval_config SET dual_threshold_amount = 1 WHERE tenant_id = $1`, [T1]);
+    if (r.rowCount === 0) ok('a non-Origin\'s UPDATE amends nothing — the tier row is invisible to them (0 rows)');
+    else bad('a non-Origin cannot amend the dual threshold', `${r.rowCount} rows changed`);
+  });
   await withCtx(probe, T1, USERS.origin, async () => {
     await probe.query(`UPDATE approval_config SET dual_threshold_amount = 1000 WHERE tenant_id = $1`, [T1]);
     ok('Origin amends the threshold — tiers are data, tenant-amendable');
@@ -512,11 +517,17 @@ async function main() {
 
   /* ---- 14. the actor GUC lifecycle (ADR-0002 discipline, second GUC) ---- */
   console.log('\nThe app.actor_id fence is fail-closed by the same construction');
-  await expectPgError('approval INSERT with NO actor GUC refuses (NULL → denied)',
-    probe, T1, null,
-    () => probe.query(`INSERT INTO approval (tenant_id, proposal_id, approver_id, decision, reason)
-                       SELECT $1, p.id, p.raised_by, 'APPROVED', 'no actor' FROM proposal p WHERE p.tenant_id = $1 AND p.code = 'PR-1'`, [T1]),
+  /* The NEVER-set check needs a session that has never touched the GUC: once
+   * any set_config has run in a session, the placeholder is '' (the loud
+   * 22P02 below) — exactly the ADR-0002 matrix, now with a second GUC. */
+  const fresh = new Client({ connectionString: probeUrl() });
+  await fresh.connect();
+  await expectPgError('approval INSERT with NO actor GUC refuses (NULL → binding denied)',
+    fresh, T1, null,
+    () => fresh.query(`INSERT INTO approval (tenant_id, proposal_id, approver_id, decision, reason)
+                       SELECT $1, p.id, $2, 'APPROVED', 'no actor' FROM proposal p WHERE p.tenant_id = $1 AND p.code = 'PR-1'`, [T1, USERS.senior]),
     { code: '42501' });
+  await fresh.end();
   await expectPgError('approval INSERT after SET then RESET refuses loudly (\'\' → 22P02 cast error)',
     probe, T1, USERS.manager,
     async () => {
