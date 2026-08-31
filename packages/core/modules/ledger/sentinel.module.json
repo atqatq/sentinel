@@ -1,0 +1,26 @@
+{
+  "id": "ledger",
+  "version": "0.1.0",
+  "description": "The H5 ledger decision layer (gate 11, M3): RFC 8785 (JCS) canonicalization, the keyed HMAC-SHA256 block hash over seq ‖ prevHash ‖ canonicalJson(payload) with an injected secret-manager key, the §16.2 required-fields gate (all five log classes W/A/N/S/D in ONE chain — class is a field, not a store), payload hygiene (no secrets or PII — a field-name blocklist is the last-line scan behind the ingestion boundary), the pure chain verifier (seq continuity, hash linkage off GENESIS, keyed-hash recomputation, §16.2 integrity — a broken chain is reported, never thrown), and the Class-D consumption path that makes the C3 controls layer's refusal records durable verbatim (D-029). Tamper-evidence is completed at the database (0004_ledger: no UPDATE/DELETE for any actor including Origin, via grants + RLS + triggers; the verifier reads under the distinct read-only sentinel_verifier role).",
+  "dependencies": [],
+  "permissionScopes": [
+    "db:read:ledger_block",
+    "db:write:ledger_block"
+  ],
+  "ingestionKinds": [],
+  "uiSurfacePoints": [
+    "chain-integrity-indicator",
+    "audit-time-machine"
+  ],
+  "ledgerEventTypes": [
+    "LEDGER_BLOCK_APPENDED",
+    "LEDGER_MUTATION_REFUSED",
+    "LEDGER_CHAIN_VERIFY_FAILED"
+  ],
+  "goldenTests": [
+    {
+      "suite": "test/ledger.test.js",
+      "count": 50
+    }
+  ]
+}

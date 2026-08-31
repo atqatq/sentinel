@@ -1,0 +1,157 @@
+{
+  "meta": {
+    "standard": "RFC 8785 — JSON Canonicalization Scheme (JCS)",
+    "role": "The H5 ledger hashes canonicalJson(payload); these vectors pin the canonical form across implementations. Expected strings are stated from the spec, never computed by the implementation. The file is checksum-pinned (SHA256SUMS) — tamper-evident vectors, per the H12 discipline.",
+    "survivalNote": "survival[] carries the payload shapes the plan-service seal (D-022) and the C3 denial records emit; the suites prove the pre-JCS canonicalJson hashes survive the RFC 8785 transition byte-for-byte."
+  },
+  "vectors": [
+    {
+      "name": "empty object",
+      "section": "RFC 8785 §3.2.3",
+      "input": {},
+      "expected": "{}"
+    },
+    {
+      "name": "empty array",
+      "section": "RFC 8785 §3.2.3",
+      "input": [],
+      "expected": "[]"
+    },
+    {
+      "name": "numbers serialize per ES6 Number::toString (shortest round-trip, e-notation thresholds)",
+      "section": "RFC 8785 Appendix G.1",
+      "input": {
+        "numbers": [
+          333333333.3333333,
+          1e+30,
+          4.5,
+          0.002,
+          1e-27
+        ]
+      },
+      "expected": "{\"numbers\":[333333333.3333333,1e+30,4.5,0.002,1e-27]}"
+    },
+    {
+      "name": "object keys sort by UTF-16 code units; non-ASCII stays literal",
+      "section": "RFC 8785 Appendix G.2",
+      "input": {
+        "1": "One",
+        "€": "Euro Sign",
+        "\r": "Carriage Return",
+        "\n": "Newline",
+        "": "Control",
+        "❤": "Heart",
+        "": "Empty",
+        "ö": "Latin Small Letter O With Diaeresis"
+      },
+      "expected": "{\"\":\"Empty\",\"\\n\":\"Newline\",\"\\r\":\"Carriage Return\",\"1\":\"One\",\"\":\"Control\",\"ö\":\"Latin Small Letter O With Diaeresis\",\"€\":\"Euro Sign\",\"❤\":\"Heart\"}"
+    },
+    {
+      "name": "string escapes per §3.2.2.2: control chars minimal-or-lowercase-hex, quote/backslash escaped, slash and DEL literal",
+      "section": "RFC 8785 §3.2.2.2",
+      "input": {
+        "esc": "\u0000\u0001\b\t\n\f\r\u001f\"\\/"
+      },
+      "expected": "{\"esc\":\"\\u0000\\u0001\\b\\t\\n\\f\\r\\u001f\\\"\\\\/\"}"
+    },
+    {
+      "name": "negative zero serializes as 0",
+      "section": "RFC 8785 §3.2.2.3",
+      "input": 0,
+      "expected": "0"
+    },
+    {
+      "name": "nested keys sort recursively; explicit null is presence, not absence",
+      "section": "RFC 8785 §3.2.3",
+      "input": {
+        "b": 1,
+        "a": {
+          "d": null,
+          "c": 2
+        }
+      },
+      "expected": "{\"a\":{\"c\":2,\"d\":null},\"b\":1}"
+    },
+    {
+      "name": "array order is significant",
+      "section": "RFC 8785 §3.2.3",
+      "input": [
+        3,
+        1,
+        2
+      ],
+      "expected": "[3,1,2]"
+    },
+    {
+      "name": "Arabic script and symbols stay literal UTF-8 (no \\u-escaping of non-ASCII)",
+      "section": "RFC 8785 §3.2.2.2",
+      "input": {
+        "tenant": "قطر MP",
+        "amount": 1500.75
+      },
+      "expected": "{\"amount\":1500.75,\"tenant\":\"قطر MP\"}"
+    }
+  ],
+  "survival": [
+    {
+      "name": "seal-shaped: nested rows, arrays, fractional quantities, version stamps",
+      "value": {
+        "asOf": "2026-08-31",
+        "engineVersion": "1.0.0",
+        "schemaVersion": "0004",
+        "rows": [
+          {
+            "sku": "TS-0001",
+            "consumption": [
+              0,
+              1.5,
+              2
+            ],
+            "stock": 10
+          },
+          {
+            "sku": "TS-0002",
+            "consumption": [
+              0.25,
+              0,
+              0
+            ],
+            "stock": 3
+          }
+        ],
+        "kpi": {
+          "serviceLevel": 0.95,
+          "dataState": {
+            "state": "OK",
+            "stale": false
+          }
+        }
+      }
+    },
+    {
+      "name": "denial-shaped: the Class-D record the controls layer emits",
+      "value": {
+        "class": "D",
+        "outcome": "denied",
+        "actor": "u-buyer",
+        "role": "BYR",
+        "action": "proposal.approve",
+        "entity": "proposal",
+        "entityId": "p-1",
+        "reason": "SOD_SELF_APPROVAL"
+      }
+    },
+    {
+      "name": "mixed scripts, magnitudes, negative zero",
+      "value": {
+        "tenant": "قطر MP",
+        "amount": 1500.75,
+        "rates": [
+          1e+21,
+          0.000001,
+          0
+        ]
+      }
+    }
+  ]
+}
