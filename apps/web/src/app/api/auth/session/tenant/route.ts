@@ -39,21 +39,15 @@ export async function PUT(request: Request) {
   const token = readSessionCookie(request)
   if (!token) return unauthorized("SESSION_REQUIRED")
 
-  const auth = makeAuthAdapter(
-    { query: (text: string, values?: unknown[]) => pool.query(text, values as never[]) },
-    { wrapKey }
-  )
+  const auth = makeAuthAdapter(pool, { wrapKey })
 
   const resolved = await auth.resolveSession(token)
-  if (!resolved.resolved || !resolved.session) {
+  if (resolved.resolved !== true) {
     return unauthorized(resolved.reason || "AUTH_SESSION_UNKNOWN")
   }
   const session = resolved.session
 
-  const tenant = await resolveTenantByCode(
-    { query: (text: string, values?: unknown[]) => pool.query(text, values as never[]) },
-    tenantCode
-  )
+  const tenant = await resolveTenantByCode(pool, tenantCode)
   if (!tenant) {
     return Response.json({ verdict: "REFUSED", reason: "UNKNOWN_TENANT" }, { status: 404 })
   }

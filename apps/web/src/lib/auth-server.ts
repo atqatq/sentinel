@@ -53,12 +53,11 @@ function wrapKey(): string {
 
 export function makeAuthBoundary(pool: Pool) {
   return makeAuthAdapter(
-    // The adapter is client-injected; for the boundary the "client" is a
-    // minimal pg-compatible facade over one pooled connection per call —
-    // but the auth statements are single-round-trip reads/writes, so the
-    // pool itself is the client here. Every multi-statement flow (login's
-    // ledger emission) opens its own explicit transaction on a pool client.
-    { query: (text: string, values?: unknown[]) => pool.query(text, values as never[]) },
+    // The boundary's client is the shared pool itself: every auth statement
+    // the routes make is a single-round-trip read/write, and the ONE
+    // multi-statement atomic unit (attemptLogin) manages its own explicit
+    // transaction on a dedicated pool client at the login route.
+    pool,
     { wrapKey: wrapKey(), now: () => new Date() }
   )
 }
@@ -93,7 +92,7 @@ export async function resolveRequestSession(
   try {
     const auth = makeAuthBoundary(pool)
     const r = await auth.resolveSession(token)
-    if (!r.resolved || !r.session) {
+    if (r.resolved !== true) {
       return { ok: false, status: 401, reason: r.reason || "AUTH_SESSION_UNKNOWN" }
     }
     return {

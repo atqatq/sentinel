@@ -74,6 +74,8 @@ importers:
         specifier: ^6.0.0
         version: 6.19.3(typescript@5.9.3)
 
+  packages/ingest-service: {}
+
   packages/plan-service: {}
 
   packages/ui:

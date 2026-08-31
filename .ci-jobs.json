@@ -1,0 +1,829 @@
+{
+  "total_count": 6,
+  "jobs": [
+    {
+      "id": 99495473193,
+      "run_id": 33394440010,
+      "workflow_name": "CI",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/atqatq/sentinel/actions/runs/33394440010",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOUIUw9c8AAAAXKmRwKQ",
+      "head_sha": "e318ab5fc6d63eb2fdcd593be2075afb066ebb3e",
+      "url": "https://api.github.com/repos/atqatq/sentinel/actions/jobs/99495473193",
+      "html_url": "https://github.com/atqatq/sentinel/actions/runs/33394440010/job/99495473193",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-08-31T12:58:17Z",
+      "started_at": "2026-08-31T12:58:19Z",
+      "completed_at": "2026-08-31T12:58:26Z",
+      "name": "Golden tests (117)",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-08-31T12:58:20Z",
+          "completed_at": "2026-08-31T12:58:21Z"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-08-31T12:58:21Z",
+          "completed_at": "2026-08-31T12:58:22Z"
+        },
+        {
+          "name": "Run actions/setup-node@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-08-31T12:58:22Z",
+          "completed_at": "2026-08-31T12:58:23Z"
+        },
+        {
+          "name": "Engine golden suite (86)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-08-31T12:58:23Z",
+          "completed_at": "2026-08-31T12:58:23Z"
+        },
+        {
+          "name": "Feedback suite (31)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-08-31T12:58:23Z",
+          "completed_at": "2026-08-31T12:58:23Z"
+        },
+        {
+          "name": "KPI catalog — dataState envelope, A1/A2 named proofs (24)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-08-31T12:58:23Z",
+          "completed_at": "2026-08-31T12:58:23Z"
+        },
+        {
+          "name": "H4 canonical date boundary — tenant-TZ explicit, day-unit math (25)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-08-31T12:58:23Z",
+          "completed_at": "2026-08-31T12:58:23Z"
+        },
+        {
+          "name": "H9 working calendar — flat-tenant-identical + Ramadan adjustment (29)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-08-31T12:58:23Z",
+          "completed_at": "2026-08-31T12:58:23Z"
+        },
+        {
+          "name": "Plan service — engine live wiring + sealed snapshots (41)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-08-31T12:58:23Z",
+          "completed_at": "2026-08-31T12:58:23Z"
+        },
+        {
+          "name": "Ops freshness alarm — DAT-01 SLO + missing-deliveries channel (19)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-08-31T12:58:23Z",
+          "completed_at": "2026-08-31T12:58:23Z"
+        },
+        {
+          "name": "C3 approval decision layer — SoD, tiers, dual control, freeze (34)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-08-31T12:58:23Z",
+          "completed_at": "2026-08-31T12:58:23Z"
+        },
+        {
+          "name": "H5 ledger module — RFC 8785 JCS vectors, §16.2 gate, keyed chain verify (50)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-08-31T12:58:23Z",
+          "completed_at": "2026-08-31T12:58:24Z"
+        },
+        {
+          "name": "M11 auth module — RFC 6238 TOTP, session floor, lockout, mfa-approvals gate (27)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-08-31T12:58:24Z",
+          "completed_at": "2026-08-31T12:58:24Z"
+        },
+        {
+          "name": "Post Run actions/setup-node@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 25,
+          "started_at": "2026-08-31T12:58:24Z",
+          "completed_at": "2026-08-31T12:58:24Z"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 26,
+          "started_at": "2026-08-31T12:58:24Z",
+          "completed_at": "2026-08-31T12:58:24Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 27,
+          "started_at": "2026-08-31T12:58:24Z",
+          "completed_at": "2026-08-31T12:58:24Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/atqatq/sentinel/check-runs/99495473193",
+      "labels": [
+        "ubuntu-latest"
+      ],
+      "runner_id": 1000000172,
+      "runner_name": "GitHub Actions 1000000172",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 99495473279,
+      "run_id": 33394440010,
+      "workflow_name": "CI",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/atqatq/sentinel/actions/runs/33394440010",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOUIUw9c8AAAAXKmRwfw",
+      "head_sha": "e318ab5fc6d63eb2fdcd593be2075afb066ebb3e",
+      "url": "https://api.github.com/repos/atqatq/sentinel/actions/jobs/99495473279",
+      "html_url": "https://github.com/atqatq/sentinel/actions/runs/33394440010/job/99495473279",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-08-31T12:58:17Z",
+      "started_at": "2026-08-31T12:58:19Z",
+      "completed_at": "2026-08-31T12:58:56Z",
+      "name": "DB schema + RLS deny matrix (postgres 16)",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-08-31T12:58:20Z",
+          "completed_at": "2026-08-31T12:58:21Z"
+        },
+        {
+          "name": "Initialize containers",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-08-31T12:58:21Z",
+          "completed_at": "2026-08-31T12:58:37Z"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-08-31T12:58:37Z",
+          "completed_at": "2026-08-31T12:58:38Z"
+        },
+        {
+          "name": "Run actions/setup-node@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-08-31T12:58:38Z",
+          "completed_at": "2026-08-31T12:58:40Z"
+        },
+        {
+          "name": "Structural schema tests (no server)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-08-31T12:58:40Z",
+          "completed_at": "2026-08-31T12:58:40Z"
+        },
+        {
+          "name": "Ingest adapter — plan execution via stub client (17)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-08-31T12:58:40Z",
+          "completed_at": "2026-08-31T12:58:40Z"
+        },
+        {
+          "name": "Ledger adapter — statement-first append via stub client (11)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-08-31T12:58:40Z",
+          "completed_at": "2026-08-31T12:58:40Z"
+        },
+        {
+          "name": "Auth adapter — sessions, TOTP wrap-at-rest, attemptLogin via stub client (28)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-08-31T12:58:40Z",
+          "completed_at": "2026-08-31T12:58:41Z"
+        },
+        {
+          "name": "Install pg client for the matrix",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-08-31T12:58:41Z",
+          "completed_at": "2026-08-31T12:58:50Z"
+        },
+        {
+          "name": "RLS deny matrix (live)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-08-31T12:58:50Z",
+          "completed_at": "2026-08-31T12:58:50Z"
+        },
+        {
+          "name": "Plan-seal live — engine run, replay, divergent-replay disclosure, RLS (14)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-08-31T12:58:50Z",
+          "completed_at": "2026-08-31T12:58:51Z"
+        },
+        {
+          "name": "Ingest-replay live — per-tenant replay no-op, H7 merge through the freeze, RLS (25)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-08-31T12:58:51Z",
+          "completed_at": "2026-08-31T12:58:51Z"
+        },
+        {
+          "name": "SOD live — SoD invariant, dual control, supplier freeze, Origin-only (C3)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-08-31T12:58:51Z",
+          "completed_at": "2026-08-31T12:58:51Z"
+        },
+        {
+          "name": "LEDGER live — tamper-resistant, origin-cannot-mutate, chain guard, verifier role (H5)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 14,
+          "started_at": "2026-08-31T12:58:51Z",
+          "completed_at": "2026-08-31T12:58:52Z"
+        },
+        {
+          "name": "AUTH live — session floor, lockout, TOTP wrap-at-rest, the mfa gate (M11)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-08-31T12:58:52Z",
+          "completed_at": "2026-08-31T12:58:53Z"
+        },
+        {
+          "name": "Post Run actions/setup-node@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 28,
+          "started_at": "2026-08-31T12:58:53Z",
+          "completed_at": "2026-08-31T12:58:53Z"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 29,
+          "started_at": "2026-08-31T12:58:53Z",
+          "completed_at": "2026-08-31T12:58:53Z"
+        },
+        {
+          "name": "Stop containers",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 30,
+          "started_at": "2026-08-31T12:58:53Z",
+          "completed_at": "2026-08-31T12:58:54Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 31,
+          "started_at": "2026-08-31T12:58:54Z",
+          "completed_at": "2026-08-31T12:58:54Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/atqatq/sentinel/check-runs/99495473279",
+      "labels": [
+        "ubuntu-latest"
+      ],
+      "runner_id": 1000000170,
+      "runner_name": "GitHub Actions 1000000170",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 99495473380,
+      "run_id": 33394440010,
+      "workflow_name": "CI",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/atqatq/sentinel/actions/runs/33394440010",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOUIUw9c8AAAAXKmRw5A",
+      "head_sha": "e318ab5fc6d63eb2fdcd593be2075afb066ebb3e",
+      "url": "https://api.github.com/repos/atqatq/sentinel/actions/jobs/99495473380",
+      "html_url": "https://github.com/atqatq/sentinel/actions/runs/33394440010/job/99495473380",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-08-31T12:58:17Z",
+      "started_at": "2026-08-31T12:58:19Z",
+      "completed_at": "2026-08-31T12:58:35Z",
+      "name": "UI package (typecheck + theme compile)",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-08-31T12:58:20Z",
+          "completed_at": "2026-08-31T12:58:21Z"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-08-31T12:58:21Z",
+          "completed_at": "2026-08-31T12:58:23Z"
+        },
+        {
+          "name": "Run actions/setup-node@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-08-31T12:58:23Z",
+          "completed_at": "2026-08-31T12:58:25Z"
+        },
+        {
+          "name": "Enable pnpm (corepack, per packageManager field)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-08-31T12:58:25Z",
+          "completed_at": "2026-08-31T12:58:25Z"
+        },
+        {
+          "name": "Install workspace deps",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-08-31T12:58:25Z",
+          "completed_at": "2026-08-31T12:58:31Z"
+        },
+        {
+          "name": "Typecheck vendored primitives",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-08-31T12:58:31Z",
+          "completed_at": "2026-08-31T12:58:33Z"
+        },
+        {
+          "name": "Compile-verify SDS theme mapping",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-08-31T12:58:33Z",
+          "completed_at": "2026-08-31T12:58:33Z"
+        },
+        {
+          "name": "Status vocabulary binding — engine displayStatus/supplyStatus ↔ tones (53)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-08-31T12:58:33Z",
+          "completed_at": "2026-08-31T12:58:33Z"
+        },
+        {
+          "name": "Post Run actions/setup-node@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-08-31T12:58:33Z",
+          "completed_at": "2026-08-31T12:58:34Z"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 16,
+          "started_at": "2026-08-31T12:58:34Z",
+          "completed_at": "2026-08-31T12:58:34Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 17,
+          "started_at": "2026-08-31T12:58:34Z",
+          "completed_at": "2026-08-31T12:58:34Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/atqatq/sentinel/check-runs/99495473380",
+      "labels": [
+        "ubuntu-latest"
+      ],
+      "runner_id": 1000000171,
+      "runner_name": "GitHub Actions 1000000171",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 99495473413,
+      "run_id": 33394440010,
+      "workflow_name": "CI",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/atqatq/sentinel/actions/runs/33394440010",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOUIUw9c8AAAAXKmRxBQ",
+      "head_sha": "e318ab5fc6d63eb2fdcd593be2075afb066ebb3e",
+      "url": "https://api.github.com/repos/atqatq/sentinel/actions/jobs/99495473413",
+      "html_url": "https://github.com/atqatq/sentinel/actions/runs/33394440010/job/99495473413",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-08-31T12:58:17Z",
+      "started_at": "2026-08-31T12:58:19Z",
+      "completed_at": "2026-08-31T12:58:24Z",
+      "name": "Ingestion boundary suites (strict parse + file binding)",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-08-31T12:58:20Z",
+          "completed_at": "2026-08-31T12:58:21Z"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-08-31T12:58:21Z",
+          "completed_at": "2026-08-31T12:58:21Z"
+        },
+        {
+          "name": "Run actions/setup-node@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-08-31T12:58:21Z",
+          "completed_at": "2026-08-31T12:58:22Z"
+        },
+        {
+          "name": "Strict parse + bounds + quarantine + deliveries guard (32)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-08-31T12:58:22Z",
+          "completed_at": "2026-08-31T12:58:22Z"
+        },
+        {
+          "name": "File-kind binding + allow-list + purge enforcement (16, checksum-pinned fixtures)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-08-31T12:58:22Z",
+          "completed_at": "2026-08-31T12:58:22Z"
+        },
+        {
+          "name": "Unit resolution + C1 conversion + C2 money normalization (36)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-08-31T12:58:22Z",
+          "completed_at": "2026-08-31T12:58:22Z"
+        },
+        {
+          "name": "H8 window alignment guard — refuse to seed uncovered (26)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-08-31T12:58:22Z",
+          "completed_at": "2026-08-31T12:58:22Z"
+        },
+        {
+          "name": "H10 inbound hardening — magic bytes, zip caps, formula stripping, XXE, AV (46)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-08-31T12:58:22Z",
+          "completed_at": "2026-08-31T12:58:22Z"
+        },
+        {
+          "name": "H6 idempotent upsert wrapper — keys + replay plan (29)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-08-31T12:58:22Z",
+          "completed_at": "2026-08-31T12:58:22Z"
+        },
+        {
+          "name": "File-to-rows worker — gate to executor, persistence, day-expansion (32)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-08-31T12:58:22Z",
+          "completed_at": "2026-08-31T12:58:22Z"
+        },
+        {
+          "name": "Ingest worker adapter — ports + register lifecycle + task writers (26)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-08-31T12:58:22Z",
+          "completed_at": "2026-08-31T12:58:22Z"
+        },
+        {
+          "name": "Procure adapter — C3 workflow executor via stub client (13)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-08-31T12:58:22Z",
+          "completed_at": "2026-08-31T12:58:22Z"
+        },
+        {
+          "name": "Post Run actions/setup-node@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 23,
+          "started_at": "2026-08-31T12:58:22Z",
+          "completed_at": "2026-08-31T12:58:23Z"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 24,
+          "started_at": "2026-08-31T12:58:23Z",
+          "completed_at": "2026-08-31T12:58:23Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 25,
+          "started_at": "2026-08-31T12:58:23Z",
+          "completed_at": "2026-08-31T12:58:23Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/atqatq/sentinel/check-runs/99495473413",
+      "labels": [
+        "ubuntu-latest"
+      ],
+      "runner_id": 1000000175,
+      "runner_name": "GitHub Actions 1000000175",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 99495473418,
+      "run_id": 33394440010,
+      "workflow_name": "CI",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/atqatq/sentinel/actions/runs/33394440010",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOUIUw9c8AAAAXKmRxCg",
+      "head_sha": "e318ab5fc6d63eb2fdcd593be2075afb066ebb3e",
+      "url": "https://api.github.com/repos/atqatq/sentinel/actions/jobs/99495473418",
+      "html_url": "https://github.com/atqatq/sentinel/actions/runs/33394440010/job/99495473418",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-08-31T12:58:17Z",
+      "started_at": "2026-08-31T12:58:19Z",
+      "completed_at": "2026-08-31T12:58:25Z",
+      "name": "Policy guards (forbidden terms & secrets)",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-08-31T12:58:20Z",
+          "completed_at": "2026-08-31T12:58:21Z"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-08-31T12:58:21Z",
+          "completed_at": "2026-08-31T12:58:22Z"
+        },
+        {
+          "name": "Run actions/setup-node@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-08-31T12:58:22Z",
+          "completed_at": "2026-08-31T12:58:22Z"
+        },
+        {
+          "name": "Forbidden terms & secret scan",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-08-31T12:58:22Z",
+          "completed_at": "2026-08-31T12:58:22Z"
+        },
+        {
+          "name": "SDS token parity (design handoff vs theme)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-08-31T12:58:22Z",
+          "completed_at": "2026-08-31T12:58:22Z"
+        },
+        {
+          "name": "UI primitives scope (packages/ui only)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-08-31T12:58:22Z",
+          "completed_at": "2026-08-31T12:58:23Z"
+        },
+        {
+          "name": "Golden fixture checksums (H12)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-08-31T12:58:23Z",
+          "completed_at": "2026-08-31T12:58:23Z"
+        },
+        {
+          "name": "Post Run actions/setup-node@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-08-31T12:58:23Z",
+          "completed_at": "2026-08-31T12:58:23Z"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 14,
+          "started_at": "2026-08-31T12:58:23Z",
+          "completed_at": "2026-08-31T12:58:23Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-08-31T12:58:23Z",
+          "completed_at": "2026-08-31T12:58:23Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/atqatq/sentinel/check-runs/99495473418",
+      "labels": [
+        "ubuntu-latest"
+      ],
+      "runner_id": 1000000174,
+      "runner_name": "GitHub Actions 1000000174",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 99495473432,
+      "run_id": 33394440010,
+      "workflow_name": "CI",
+      "head_branch": "main",
+      "run_url": "https://api.github.com/repos/atqatq/sentinel/actions/runs/33394440010",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOUIUw9c8AAAAXKmRxGA",
+      "head_sha": "e318ab5fc6d63eb2fdcd593be2075afb066ebb3e",
+      "url": "https://api.github.com/repos/atqatq/sentinel/actions/jobs/99495473432",
+      "html_url": "https://github.com/atqatq/sentinel/actions/runs/33394440010/job/99495473432",
+      "status": "completed",
+      "conclusion": "failure",
+      "created_at": "2026-08-31T12:58:17Z",
+      "started_at": "2026-08-31T12:58:20Z",
+      "completed_at": "2026-08-31T12:58:47Z",
+      "name": "apps/web (Next.js build + typecheck)",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-08-31T12:58:21Z",
+          "completed_at": "2026-08-31T12:58:22Z"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-08-31T12:58:22Z",
+          "completed_at": "2026-08-31T12:58:23Z"
+        },
+        {
+          "name": "Run actions/setup-node@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-08-31T12:58:23Z",
+          "completed_at": "2026-08-31T12:58:23Z"
+        },
+        {
+          "name": "Enable pnpm (corepack, per packageManager field)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-08-31T12:58:23Z",
+          "completed_at": "2026-08-31T12:58:23Z"
+        },
+        {
+          "name": "Install workspace deps",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-08-31T12:58:23Z",
+          "completed_at": "2026-08-31T12:58:30Z"
+        },
+        {
+          "name": "Build the shell (Next.js 15, SDS theme, plan route)",
+          "status": "completed",
+          "conclusion": "failure",
+          "number": 6,
+          "started_at": "2026-08-31T12:58:30Z",
+          "completed_at": "2026-08-31T12:58:44Z"
+        },
+        {
+          "name": "Data-health facts composition — freshness envelope + register rules (15)",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 7,
+          "started_at": "2026-08-31T12:58:44Z",
+          "completed_at": "2026-08-31T12:58:44Z"
+        },
+        {
+          "name": "Status vocabulary guard",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 8,
+          "started_at": "2026-08-31T12:58:44Z",
+          "completed_at": "2026-08-31T12:58:44Z"
+        },
+        {
+          "name": "Post Run actions/setup-node@v4",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 15,
+          "started_at": "2026-08-31T12:58:44Z",
+          "completed_at": "2026-08-31T12:58:44Z"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 16,
+          "started_at": "2026-08-31T12:58:44Z",
+          "completed_at": "2026-08-31T12:58:44Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 17,
+          "started_at": "2026-08-31T12:58:44Z",
+          "completed_at": "2026-08-31T12:58:45Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/atqatq/sentinel/check-runs/99495473432",
+      "labels": [
+        "ubuntu-latest"
+      ],
+      "runner_id": 1000000173,
+      "runner_name": "GitHub Actions 1000000173",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    }
+  ]
+}

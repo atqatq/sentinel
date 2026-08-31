@@ -53,11 +53,61 @@ declare module "@sentinel/db" {
     countResolvedSince(sinceMs: number): Promise<number>
     countIngestFiles(): Promise<{ received: number; applied: number }>
   }
-  /** Tenant-registry lookup (unfenced by design — returns the fence identity). */
+  /** Tenant-registry lookup (unfenced by design — returns the fence identity).
+   *  The client is duck-typed on .query — a Pool or a PoolClient both work. */
   export function resolveTenantByCode(
-    client: import("pg").PoolClient,
+    client: import("pg").Pool | import("pg").PoolClient,
     code: string
   ): Promise<{ id: string; code: string; name: string } | null>
+  /* M11 auth surface (0005_auth + auth-adapter.js): the sign-in machine,
+   * session lifecycle and the tenant switcher. The full decision contract
+   * lives in the pure auth module and its suites; loosely typed here on
+   * purpose — the API contract lives in the module, not in a second TS copy. */
+  export function makeAuthAdapter(
+    client: unknown,
+    config: { wrapKey: string; now?: () => Date; ledger?: { forTenant(tenantId: string): unknown } }
+  ): {
+    attemptLogin(args: {
+      email: string
+      password: string
+      code?: string | null
+      ip?: string | null
+    }): Promise<
+      | { outcome: "REFUSED"; reason: string; until?: number }
+      | { outcome: "CHALLENGE_MFA"; tenantCode: string }
+      | {
+          outcome: "ISSUE"
+          token: string
+          session: Record<string, unknown>
+          principal: { userId: string; tenantId: string; tenantCode: string; role: string; mfaOk: boolean }
+        }
+    >
+    resolveSession(
+      token: string,
+      opts?: { noTouch?: boolean }
+    ): Promise<
+      | { resolved: false; reason: string; session?: Record<string, unknown> }
+      | {
+          resolved: true
+          session: {
+            sessionId: string
+            userId: string
+            tenantId: string
+            role: string
+            mfaOk: boolean
+            isOrigin: boolean
+            tenantCode: string
+          }
+          principal: { userId: string; role: string; mfaOk: boolean; isOrigin: boolean; tenantCode: string }
+        }
+    >
+    terminateSession(token: string): Promise<{ terminated: boolean }>
+    setSessionTenant(token: string, tenantId: string): Promise<{ moved: boolean }>
+    hasTenantRole(userId: string, tenantId: string): Promise<boolean>
+    listUserTenants(
+      userId: string
+    ): Promise<Array<{ tenantId: string; tenantCode: string; role: string }>>
+  }
 }
 
 declare module "@sentinel/module-ops" {

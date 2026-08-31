@@ -23,10 +23,7 @@ export async function POST(request: Request) {
     if (wrapKey.length < 32) {
       return Response.json({ verdict: "ERROR", message: "SESSION_WRAP_KEY is not configured." }, { status: 500 })
     }
-    const auth = makeAuthAdapter(
-      { query: (text: string, values?: unknown[]) => pool.query(text, values as never[]) },
-      { wrapKey }
-    )
+    const auth = makeAuthAdapter(pool, { wrapKey })
     try {
       const r = await auth.terminateSession(token)
       terminated = r.terminated
