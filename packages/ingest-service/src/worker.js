@@ -408,6 +408,17 @@ async function runFileToRows(deps, input) {
   counters.duplicateHits = plan.duplicateHits;
   counters.newKeys = plan.newKeys;
 
+  /* ---- M7 (§14.13b): the items seam's CF classification rides the apply ---- */
+  if (applied.cf) {
+    for (const t of applied.cf.tasks) tasks.push(t); // CF_INVALID_KEPT rows surface on Data Health
+    if (applied.cf.staged > 0) {
+      disclosures.push(`${applied.cf.staged} conversion-factor change(s) staged as PENDING versions — the stored factor keeps serving until the gate decides (§14.13b)`);
+    }
+    if (applied.cf.blanksKept > 0) {
+      disclosures.push(`${applied.cf.blanksKept} item row(s) carried no conversion factor — the stored factor kept serving (a blank never wipes, §14.13b)`);
+    }
+  }
+
   if (quarantineRecords.length > 0) await ports.insertQuarantineRecords(quarantineRecords, applied.fileId);
   if (quarantineRecords.length > 0) await ports.updateQuarantinedCount(applied.fileId, quarantineRecords.length);
   await persistTasks();

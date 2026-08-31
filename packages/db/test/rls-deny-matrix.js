@@ -44,7 +44,7 @@ const TENANT_SCOPED = [
   'plan_seal',
   'tenant_role', 'approval_config', 'approval_limit', 'proposal',
   'proposal_line', 'approval', 'purchase_order', 'po_line',
-  'supplier_change_hold',
+  'supplier_change_hold', 'item_cf_version',
 ];
 
 let passed = 0, failed = 0;

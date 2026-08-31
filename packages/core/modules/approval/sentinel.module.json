@@ -1,20 +1,23 @@
 {
   "id": "approval",
-  "version": "0.1.0",
-  "description": "The C3 financial-controls decision layer (gate 5, M3): the SoD invariant (approver ≠ raiser), value-tiered approval limits, dual control above the tenant's configurable threshold, and the supplier-identity change freeze with out-of-band verification. Pure and deterministic — the resolved principal, the tier config, the prior votes and the hold rows are always injected. Every invariant decided here is ENFORCED AGAIN at the database (the RESTRICTIVE sod_binding policy binds each decision to the app.actor_id GUC; the proposal_state_guard trigger requires the tier's votes; the supplier_identity_freeze trigger refuses any identity change without the verified hold) — the API+DB pair A4 demands, neither layer trusted alone. Refusals carry Class-D-shaped denial records; the durable ledger write lands with H5.",
+  "version": "0.2.0",
+  "description": "The C3 financial-controls decision layer (gate 5, M3): the SoD invariant (approver ≠ raiser), value-tiered approval limits, dual control above the tenant's configurable threshold, the supplier-identity change freeze with out-of-band verification, and (M7, §14.13b) the conversion-factor governance — classify-then-stage at the ingestion seam, a versioned change ledger, the dual-control decision gate, and the re-derivation derive from the sealed sizing basis. Pure and deterministic — the resolved principal, the tier config, the prior votes, the hold rows and the version rows are always injected. Every invariant decided here is ENFORCED AGAIN at the database (the RESTRICTIVE sod_binding policy binds each decision to the app.actor_id GUC; the proposal_state_guard trigger requires the tier's votes; the supplier_identity_freeze trigger refuses any identity change without the verified hold; the item_cf_freeze trigger refuses any factor delta without app.cf_apply_id naming the exact PENDING version) — the API+DB pair A4 demands, neither layer trusted alone. Refusals carry Class-D-shaped denial records; the durable ledger write lands with H5.",
   "dependencies": [],
   "permissionScopes": [
     "db:read:proposal",
     "db:write:proposal",
     "db:write:approval",
     "db:write:purchase_order",
-    "db:write:supplier_change_hold"
+    "db:write:supplier_change_hold",
+    "db:write:item_cf_version",
+    "db:write:item"
   ],
   "ingestionKinds": [],
   "uiSurfacePoints": [
     "approvals-tray",
     "order-proposals",
-    "supplier-master"
+    "supplier-master",
+    "item-master"
   ],
   "ledgerEventTypes": [
     "PROPOSAL_RAISED",
@@ -24,12 +27,15 @@
     "SOD_DENIAL",
     "SUPPLIER_CHANGE_HELD",
     "SUPPLIER_CHANGE_APPLIED",
-    "SUPPLIER_CHANGE_REJECTED"
+    "SUPPLIER_CHANGE_REJECTED",
+    "CF_VERSION_STAGED",
+    "CF_VERSION_APPLIED",
+    "CF_VERSION_REJECTED"
   ],
   "goldenTests": [
     {
       "suite": "test/approval.test.js",
-      "count": 35
+      "count": 55
     }
   ]
 }

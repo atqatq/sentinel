@@ -128,6 +128,35 @@ test('different inputs produce a different hash (the seal is a real fingerprint)
   assert.notStrictEqual(r1.payloadHash, r2.payloadHash);
 });
 
+/* ---- §14.13b — the sizing basis (M7: a later CF change never silently rebases a sealed row) ---- */
+
+test('§14.13b: every sealed ref row carries its sizing basis — the factor each member was sized under, sorted, null-preserving', async () => {
+  const r = await runPlan(REQ, makeDeps({ inputs: {
+    items: [
+      { sku: 'S2', recipeRef: 'REF-A', conversionFactor: 3.5, convertedUnit: 'piece', price: 2, shelfLifeDays: null, preferredForRecipeRef: false },
+      { sku: 'S1', recipeRef: 'REF-A', conversionFactor: 12, convertedUnit: 'piece', price: 6.5, shelfLifeDays: null, preferredForRecipeRef: true },
+      { sku: 'S3', recipeRef: 'REF-A', conversionFactor: null, convertedUnit: null, price: 1, shelfLifeDays: null, preferredForRecipeRef: false },
+    ],
+    stock: [], openPo: [], consumption: [],
+  } }));
+  const ref0 = r.seal.payload.refs[0];
+  assert.deepStrictEqual(ref0.sizingBasis, [
+    { sku: 'S1', conversionFactor: 12 },
+    { sku: 'S2', conversionFactor: 3.5 },
+    { sku: 'S3', conversionFactor: null }, // identity basis — disclosed in membersWithoutConversion, never guessed
+  ]);
+  assert.ok(ref0.sizingBasis.every((m, i, a) => i === 0 || String(a[i - 1].sku) <= String(m.sku)));
+});
+test('§14.13b: a changed factor changes the sizing basis — and the hash (a seal is judged on its basis)', async () => {
+  const r1 = await runPlan(REQ, makeDeps());
+  const r2 = await runPlan(REQ, makeDeps({ inputs: {
+    items: [{ sku: 'S1', recipeRef: 'REF-A', conversionFactor: 24, convertedUnit: 'piece', price: 6.5, shelfLifeDays: null, preferredForRecipeRef: true }],
+  } }));
+  assert.deepStrictEqual(r1.seal.payload.refs[0].sizingBasis, [{ sku: 'S1', conversionFactor: 12 }]);
+  assert.deepStrictEqual(r2.seal.payload.refs[0].sizingBasis, [{ sku: 'S1', conversionFactor: 24 }]);
+  assert.notStrictEqual(r1.payloadHash, r2.payloadHash);
+});
+
 /* ---- the driver (deliveries dashboard convention) ----------------------------- */
 
 test('driver is the dashboard entry: monthly 880 → dpd 40 on the flat basis', async () => {

@@ -212,6 +212,46 @@ async function main() {
     ok('values updated in place: items stay 3, register stays 3 (DO NOTHING), second file registered, names renamed');
   } else bad('upsert semantics wrong', JSON.stringify({ ...afterV2, keysRegistered: r3.keysRegistered }));
 
+  /* ---- 6b. M7 (§14.13b): a changed conversion factor STAGES, never applies ---- */
+  console.log('\nM7: a changed conversion factor stages — the stored factor keeps serving');
+  const procureCF = makeProcureAdapter(clientA, T.A);
+  const cfFactor = async () => { const v = (await clientA.query(`SELECT conversion_factor FROM item WHERE sku = 'SKU-1'`)).rows[0].conversion_factor; return v === null ? null : Number(v); };
+  const cfPending = async () => (await clientA.query(
+    `SELECT id, version, from_value, to_value, state::text AS state FROM item_cf_version WHERE tenant_id = $1 AND sku = 'SKU-1' AND state = 'PENDING' ORDER BY version`, [T.A])).rows;
+
+  /* step 1: the factor is currently NULL — a first usable value is a change too: stages */
+  const cfRows1 = [{ sku: 'SKU-1', itemName: 'Tomato paste', unit: 'CTN', price: 6.5, conversionFactor: 12 }];
+  const planCF1 = planIngestFile({ ...FIXTURE, checksum: sha('v2-cf1'), fileName: 'items-cf-1.xlsx', rows: cfRows1, seen: await adapterA.loadSeenKeys('items'), prior: await adapterA.findFile('items', sha('v2-cf1')) });
+  const rCF1 = await tx(clientA, () => adapterA.apply(planCF1));
+  const v1s = await cfPending();
+  if (rCF1.cf.staged === 1 && v1s.length === 1 && v1s[0].from_value === null && Number(v1s[0].to_value) === 12 && (await cfFactor()) === null) {
+    ok('from-none-to-some stages: PENDING v1 (NULL → 12), the stored factor keeps serving (NULL)');
+  } else bad('cf stage 1', JSON.stringify({ cf: rCF1.cf, versions: v1s, factor: await cfFactor() }));
+
+  /* step 2: the door applies v1 — the factor moves to 12 */
+  const procureV1 = v1s[0];
+  const door1 = await tx(clientA, () => procureCF.resolveCfVersion({ versionId: procureV1.id, decidedBy: null, decision: 'APPLY', latestSeal: null }));
+  if (door1.state === 'EFFECTIVE' && (await cfFactor()) === 12 && door1.tasksInserted === 0) {
+    ok('the APPLY door moves the factor to 12 (no seal → no re-derivation tasks)');
+  } else bad('cf door 1', JSON.stringify({ door: door1.state, factor: await cfFactor() }));
+
+  /* step 3: a genuinely changed drop (12 → 24) stages v2; the stored 12 keeps serving */
+  const cfRows2 = [{ sku: 'SKU-1', itemName: 'Tomato paste', unit: 'CTN', price: 6.5, conversionFactor: 24 }];
+  const planCF2 = planIngestFile({ ...FIXTURE, checksum: sha('v2-cf2'), fileName: 'items-cf-2.xlsx', rows: cfRows2, seen: await adapterA.loadSeenKeys('items'), prior: await adapterA.findFile('items', sha('v2-cf2')) });
+  const rCF2 = await tx(clientA, () => adapterA.apply(planCF2));
+  const v2s = await cfPending();
+  if (rCF2.cf.staged === 1 && v2s.length === 1 && Number(v2s[0].from_value) === 12 && Number(v2s[0].to_value) === 24 && (await cfFactor()) === 12) {
+    ok('a changed drop stages v2 (12 → 24) — the stored 12 keeps serving until the gate decides');
+  } else bad('cf stage 2', JSON.stringify({ cf: rCF2.cf, versions: v2s, factor: await cfFactor() }));
+
+  /* step 4: the same target proposed again (new checksum) does NOT fork the ledger */
+  const planCF2b = planIngestFile({ ...FIXTURE, checksum: sha('v2-cf2b'), fileName: 'items-cf-2b.xlsx', rows: cfRows2, seen: await adapterA.loadSeenKeys('items'), prior: await adapterA.findFile('items', sha('v2-cf2b')) });
+  const rCF2b = await tx(clientA, () => adapterA.apply(planCF2b));
+  const v2count = (await clientA.query(`SELECT count(*)::int AS n FROM item_cf_version WHERE tenant_id = $1 AND sku = 'SKU-1'`, [T.A])).rows[0].n;
+  if (rCF2b.cf.staged === 0 && rCF2b.cf.stagedExisting === 1 && v2count === 2) {
+    ok('the same target re-proposed never forks the ledger: stagedExisting 1, versions stay 2');
+  } else bad('cf dedupe', JSON.stringify({ cf: rCF2b.cf, versions: v2count }));
+
   /* ---- 7. a FAILED file reprocesses in place ---- */
   console.log('\nReprocess: a FAILED file retries into the SAME history slot');
   await asTenant(T.A, async () => {

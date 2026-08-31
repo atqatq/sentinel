@@ -239,6 +239,22 @@ test('the plan keys derive from the BUSINESS identity (Item SKU)', async () => {
   assert.strictEqual(r.verdict, 'APPLIED');
   assert.deepStrictEqual(ex.calls.plans[0].rows.map((x) => x.key), ['["TS-0001"]', '["TS-0002"]']);
 });
+test('§14.13b: the executor\'s CF summary rides the run — staged/blank disclosures, CF_INVALID_KEPT task on the register', async () => {
+  const ex = stubExecutor();
+  ex.apply = async (plan) => ({
+    fileId: 'file-uuid', appliedAt: 1756500000000, rowsApplied: plan.rows.length, keysRegistered: plan.rows.length,
+    cf: {
+      staged: 1, stagedExisting: 0, blanksKept: 2, invalidKept: 1,
+      tasks: [{ type: 'DATA_HEALTH', field: 'conversion_factor', severity: 'WARN', detail: 'sku X: incoming conversion factor unusable (0) — CF_INVALID_KEPT, the stored factor keeps serving (§14.13b)' }],
+    },
+  });
+  const r = await run({}, ex, { bytes: fixture('items_modeA.csv'), declaredName: 'items_modeA.csv' });
+  assert.strictEqual(r.verdict, 'APPLIED');
+  assert.strictEqual(r.tasksRaised, 2); // the unresolved-unit WARN + the CF_INVALID_KEPT WARN
+  assert.ok(r.disclosures.some((d) => d.includes('1 conversion-factor change(s) staged as PENDING versions')));
+  assert.ok(r.disclosures.some((d) => d.includes('2 item row(s) carried no conversion factor')));
+  assert.ok(r.disclosures.filter((d) => d.includes('conversion-factor') || d.includes('conversion factor')).every((d) => d.includes('§14.13b')));
+});
 test('REPLAY_NOOP: the same file twice changes nothing — zero writes, prior identity returned', async () => {
   const ports = stubPorts();
   const ex = stubExecutor({ prior: { id: 'prior-file', status: 'APPLIED', appliedAt: 1756500000000 } });

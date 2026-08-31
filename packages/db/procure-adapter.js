@@ -16,7 +16,9 @@
  * GUCs (ADR-0002 fence, extended): app.tenant_id (set by the caller,
  * transaction-local) fences RLS; app.actor_id binds approvals to the
  * authenticated principal; app.hold_apply_id is set INSIDE resolveHold(APPLY)
- * — the only door through the supplier freeze.
+ * — the only door through the supplier freeze; app.cf_apply_id is set INSIDE
+ * resolveCfVersion(APPLY) — the only door through the item_cf_freeze (M7,
+ * §14.13b).
  *
  * Statement-first discipline (the H6 executor lesson): multi-write methods
  * build every statement before the first one issues — a malformed intent
@@ -26,6 +28,8 @@
  * import this package without a database; the LIVE proof is
  * test/sod-live.js (CI db-rls job).
  * ==========================================================================*/
+
+const { deriveRederiveTasks: CF_DERIVE } = require('../core/modules/approval/src/cf.js');
 
 const PROPOSAL_COLS = `id, tenant_id AS "tenantId", code, state, raised_by AS "raisedBy",
     supplier_id AS "supplierId", currency_code AS "currencyCode", total_amount AS "totalAmount",
@@ -227,6 +231,101 @@ function makeProcureAdapter(client, tenantId) {
         [tenantId, holdId, verifiedBy, reference]);
       if (!done.rows.length) throw new Error('HOLD_NOT_PENDING');
       return done.rows[0];
+    },
+
+    /* ---- M7 (§14.13b): the conversion-factor door -------------------------
+     * The ONLY path through the item_cf_freeze trigger. The caller runs the
+     * pure gate first (cf.decideCfVersion — eligible decider, never the
+     * requester, PENDING only); this adapter owns the SQL mechanics:
+     *
+     *   APPLY: the version is locked FOR UPDATE (state re-proved),
+     *     app.cf_apply_id is set transaction-locally, the item's factor moves
+     *     to the version's EXACT target (the trigger demands id + tenant + sku
+     *     + state + to_value to match — a GUC on the wrong version raises
+     *     CF_VERSION_MISMATCH), the version lands EFFECTIVE, and the latest
+     *     seal's sizing basis is walked (cf.deriveRederiveTasks) to raise the
+     *     re-derivation tasks — one WARN per affected ref, inserted in the
+     *     same transaction. Explicit re-derivation, never a silent rebase.
+     *   REJECT: the version lands REJECTED with its required reason; the
+     *     stored factor simply keeps serving. */
+    loadPendingCfVersion: async (sku) => {
+      const r = await q(
+        `SELECT id, tenant_id AS "tenantId", sku, version, from_value, to_value, state::text AS state, requested_by AS "requestedBy"
+           FROM item_cf_version
+          WHERE tenant_id = $1 AND sku = $2 AND state = 'PENDING'
+          ORDER BY version DESC LIMIT 1`, [tenantId, sku]);
+      if (!r.rows[0]) return null;
+      const row = r.rows[0];
+      /* NUMERIC crosses the asNum boundary — node-pg ships DECIMAL as strings
+       * (the int8 lesson, read direction); a null FROM stays null. */
+      const from = row.from_value === null ? null : Number(row.from_value);
+      const to = Number(row.to_value);
+      return { ...row, fromValue: from, toValue: to, from: from === null ? null : String(from), to: String(to) };
+    },
+
+    resolveCfVersion: async ({ versionId, decidedBy, decision, reason, latestSeal }) => {
+      if (decision === 'REJECT') {
+        if (!reason || typeof reason !== 'string' || reason.trim() === '') throw new Error('MISSING_REASON');
+        const r = await q(
+          `UPDATE item_cf_version
+              SET state = 'REJECTED', decided_by = $3, decision_reason = $4, decided_at = now()
+            WHERE tenant_id = $1 AND id = $2 AND state = 'PENDING'
+       RETURNING id, state::text AS state, sku, version`,
+          [tenantId, versionId, decidedBy, reason]);
+        if (!r.rows.length) throw new Error('VERSION_NOT_PENDING');
+        return { ...r.rows[0], tasksInserted: 0 };
+      }
+      if (decision !== 'APPLY') throw new Error('INVALID_CF_DECISION');
+
+      /* Statement-first: the re-derivation bundle is derived BEFORE anything
+       * writes — a malformed seal refuses with zero statements issued. The
+       * to_value read back from the locked row is the value the item moves
+       * to; the core's CF_INVALID gate has already refused an unfit target. */
+      const lock = await q(
+        `SELECT id, sku, version, from_value, to_value, state::text AS state
+           FROM item_cf_version
+          WHERE tenant_id = $1 AND id = $2 AND state = 'PENDING'
+          FOR UPDATE`, [tenantId, versionId]);
+      if (!lock.rows.length) throw new Error('VERSION_NOT_PENDING');
+      const v = lock.rows[0];
+      /* NUMERIC crosses the asNum boundary (the int8 lesson, read direction);
+       * a null FROM stays null — Number(null) is 0, which would lie. */
+      v.fromValue = v.from_value === null ? null : Number(v.from_value);
+      v.toValue = Number(v.to_value);
+      v.from = v.fromValue === null ? null : String(v.fromValue);
+      v.to = String(v.toValue);
+      const derive = CF_DERIVE(latestSeal, v);
+
+      await q(`SELECT set_config('app.cf_apply_id', $1, true)`, [versionId]);
+      await q(
+        `UPDATE item SET conversion_factor = $3
+          WHERE tenant_id = $1 AND sku = $2`,
+        [tenantId, v.sku, v.toValue]);
+      const done = await q(
+        `UPDATE item_cf_version
+            SET state = 'EFFECTIVE', decided_by = $3, decided_at = now()
+          WHERE tenant_id = $1 AND id = $2 AND state = 'PENDING'
+     RETURNING id, state::text AS state, sku, version`,
+        [tenantId, versionId, decidedBy]);
+      if (!done.rows.length) throw new Error('VERSION_NOT_PENDING');
+
+      let tasksInserted = 0;
+      if (derive.tasks.length > 0) {
+        /* the worker's insertDataHealthTasks payload shape: type/severity are
+         * columns, never payload members — the door ships the same shape. */
+        const payloads = derive.tasks.map((x) => { const p = { ...x }; delete p.type; delete p.severity; return JSON.stringify(p); });
+        const ins = await q(
+          `INSERT INTO data_health_task (tenant_id, task_type, severity, status, payload)
+           SELECT $1, 'DATA_HEALTH', f.severity::data_health_severity, 'OPEN', f.payload::jsonb
+             FROM unnest($2::text[], $3::jsonb[]) AS f(severity, payload)`,
+          [tenantId, derive.tasks.map((x) => x.severity), payloads]);
+        tasksInserted = ins.rowCount;
+      }
+      return {
+        ...done.rows[0], sku: v.sku, to: v.to, from: v.from,
+        refsAffected: derive.refsAffected, refsUnaffected: derive.refsUnaffected,
+        tasksInserted,
+      };
     },
 
     /* Role grants (Origin's act — the controls_origin_only policy re-proves

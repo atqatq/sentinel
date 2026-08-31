@@ -234,6 +234,35 @@ test('the §16.2 fields are all present on ledger_block', () => {
   }
 });
 
+console.log('\nM7 — CF governance (0007_cf_governance)');
+
+test('the item_cf_freeze trigger exists and fails closed: no GUC, no factor delta; a wrong version refuses too', () => {
+  assert.ok(/CREATE TRIGGER "item_cf_freeze_trigger"[\s\S]*?EXECUTE FUNCTION "item_cf_freeze"\(\);/.test(migration), 'cf freeze trigger missing');
+  assert.ok(migration.includes("RAISE EXCEPTION 'CF_CHANGE_UNGOVERNED'"), 'ungoverned-delta refusal missing');
+  assert.ok(migration.includes("RAISE EXCEPTION 'CF_VERSION_MISMATCH'"), 'version-mismatch refusal missing');
+  assert.ok(/current_setting\('app\.cf_apply_id', true\)/.test(migration), 'cf_apply_id GUC not fail-closed');
+});
+test('the door is EXACT: the trigger matches the version row on id + tenant + sku + PENDING + the exact target value', () => {
+  const fn = migration.match(/CREATE OR REPLACE FUNCTION "item_cf_freeze"\(\)[\s\S]*?\$\$ LANGUAGE plpgsql;/);
+  assert.ok(fn, 'item_cf_freeze function missing');
+  for (const must of ["v.id = apply_id::uuid", "v.tenant_id = NEW.tenant_id", "v.sku = NEW.sku", "v.state = 'PENDING'", 'v.to_value = NEW.conversion_factor']) {
+    assert.ok(fn[0].includes(must), `the exact-target discipline lacks: ${must}`);
+  }
+});
+test('the version ledger is monotonic per (tenant, sku) and its states are exactly the §14.13b vocabulary', () => {
+  assert.ok(migration.includes('CREATE TYPE "cf_version_state" AS ENUM (\'PENDING\', \'EFFECTIVE\', \'REJECTED\');'), 'cf_version_state enum missing');
+  assert.ok(/CREATE UNIQUE INDEX "item_cf_version_tenant_sku_version_key"\s+ON "item_cf_version" \("tenant_id", "sku", "version"\);/.test(migration), 'the monotonic UNIQUE missing');
+});
+test('the ledger is tenant-isolated at RLS (enabled + forced)', () => {
+  assert.ok(/ALTER TABLE "item_cf_version" ENABLE ROW LEVEL SECURITY;/.test(migration), 'RLS not enabled');
+  assert.ok(/ALTER TABLE "item_cf_version" FORCE ROW LEVEL SECURITY;/.test(migration), 'RLS not forced');
+  assert.ok(/CREATE POLICY "tenant_isolation" ON "item_cf_version" AS PERMISSIVE FOR ALL TO PUBLIC/.test(migration), 'tenant_isolation policy missing');
+});
+test('the ledger is operable by the app role (the live tier caught its absence — pinned so it stays)', () => {
+  assert.ok(migration.includes('GRANT SELECT, INSERT, UPDATE, DELETE ON "item_cf_version" TO "sentinel_app";'),
+    'the sentinel_app grant missing (42501 at the door)');
+});
+
 console.log('\nM11 — authentication (0005_auth)');
 
 test('the sign-in audit trail is append-only at the privilege layer (the ledger pattern)', () => {

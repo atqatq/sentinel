@@ -941,7 +941,7 @@ never a silent rebase of quantities a buyer already saw.
 **Determinism and refusals.** Classification, decision and task derivation are pure and deterministic —
 sorted outputs, no clock (timestamps are the executor's), injected inputs only. Malformed shapes refuse
 with named errors: a non-object row, a version row that is not an object, a seal payload without its
-`refRows` (`WIRING_MALFORMED`), a decision on a version not `PENDING` (`VERSION_NOT_PENDING`),
+`refs` (`WIRING_MALFORMED`), a decision on a version not `PENDING` (`VERSION_NOT_PENDING`),
 `PRINCIPAL_UNRESOLVED`, `NOT_ELIGIBLE_VERIFIER`, `SOD_DECIDER_IS_REQUESTER`, `MISSING_REASON` (reject),
 `CF_INVALID`. Named proof: `governance/cf-change`.
 

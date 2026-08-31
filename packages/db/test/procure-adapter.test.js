@@ -27,7 +27,7 @@ function test(name, fn) {
 }
 
 /* Stub client: records every statement; SELECTs return scripted rows. */
-function stubClient({ proposalRow = null, controls = null } = {}) {
+function stubClient({ proposalRow = null, controls = null, cfVersionRow = null } = {}) {
   const calls = [];
   return {
     calls,
@@ -44,6 +44,14 @@ function stubClient({ proposalRow = null, controls = null } = {}) {
       if (/INSERT INTO purchase_order/i.test(text)) return { rows: [{ id: 'po-uuid', code: values[1] }], rowCount: 1 };
       if (/UPDATE proposal SET state/i.test(text)) return { rows: [{ id: 'p-uuid', state: values[2] }], rowCount: 1 };
       if (/UPDATE supplier_change_hold/i.test(text)) return { rows: [{ id: 'h-uuid', state: 'APPLIED' }], rowCount: 1 };
+      if (/FROM item_cf_version/i.test(text) && /FOR UPDATE/i.test(text)) {
+        return cfVersionRow ? { rows: [cfVersionRow], rowCount: 1 } : { rows: [], rowCount: 0 };
+      }
+      if (/UPDATE item_cf_version/i.test(text)) {
+        const st = /state = 'REJECTED'/.test(text) ? 'REJECTED' : 'EFFECTIVE';
+        return { rows: [{ id: values[1], state: st, sku: 'SKU-1', version: 3 }], rowCount: 1 };
+      }
+      if (/INSERT INTO data_health_task/i.test(text)) return { rows: [], rowCount: values[1].length };
       return { rows: [], rowCount: 1 };
     },
   };
@@ -61,8 +69,100 @@ const DELTA = {
 
 console.log('\nThe adapter is tenant-fenced and statement-first');
 
-test('SCHEMA_VERSION tracks the highest applied migration (0006)', () => {
-  assert.strictEqual(DB.SCHEMA_VERSION, '0006');
+console.log('\nThe M7 door: cf_apply_id set BEFORE the factor moves, the derive before anything writes');
+
+/* The REAL pg shape: NUMERIC arrives as a string (the int8 lesson, read
+ * direction); the door must normalize it at the boundary. */
+const CF_ROW = {
+  id: 'v-uuid', sku: 'SKU-1', version: 3,
+  from_value: '12.00000000', to_value: '24.00000000', state: 'PENDING',
+};
+const SEAL_PAYLOAD = {
+  refs: [
+    { ref: 'R-2', sizingBasis: [{ sku: 'SKU-1', conversionFactor: 24 }] },  // already on the target basis
+    { ref: 'R-1', sizingBasis: [{ sku: 'SKU-1', conversionFactor: 12 }] },  // stale
+  ],
+};
+
+test('resolveCfVersion(APPLY) sets app.cf_apply_id before the item UPDATE, stamps EFFECTIVE after — the only door', async () => {
+  const c = stubClient({ cfVersionRow: CF_ROW });
+  const a = makeProcureAdapter(c, T);
+  const out = await a.resolveCfVersion({ versionId: 'v-uuid', decidedBy: U.manager, decision: 'APPLY', latestSeal: SEAL_PAYLOAD });
+  const guc = c.calls.find((x) => /set_config\('app\.cf_apply_id'/.test(x.text));
+  assert.ok(guc, 'the GUC must be set');
+  assert.strictEqual(guc.values[0], 'v-uuid');
+  const upd = c.calls.find((x) => /UPDATE item SET conversion_factor/.test(x.text));
+  assert.ok(c.calls.indexOf(guc) < c.calls.indexOf(upd), 'GUC precedes the item UPDATE');
+  assert.strictEqual(upd.values[2], 24, 'the factor moves to the version\'s EXACT target (normalized at the NUMERIC boundary)');
+  assert.strictEqual(upd.values[1], 'SKU-1');
+  const stamp = c.calls.find((x) => /UPDATE item_cf_version/.test(x.text));
+  assert.ok(c.calls.indexOf(upd) < c.calls.indexOf(stamp), 'the version stamps EFFECTIVE after the factor moved');
+  assert.strictEqual(out.state, 'EFFECTIVE');
+  assert.strictEqual(out.from, '12');
+  assert.strictEqual(out.to, '24');
+  assert.strictEqual(out.refsAffected, 1);
+  assert.strictEqual(out.refsUnaffected, 1);
+  assert.strictEqual(out.tasksInserted, 1, 'one WARN task per affected ref');
+});
+test('resolveCfVersion(APPLY) derives BEFORE any write — a malformed seal refuses with only the lock read issued', async () => {
+  const c = stubClient({ cfVersionRow: CF_ROW });
+  const a = makeProcureAdapter(c, T);
+  await assert.rejects(() => a.resolveCfVersion({ versionId: 'v-uuid', decidedBy: U.manager, decision: 'APPLY', latestSeal: {} }), /WIRING_MALFORMED/);
+  assert.strictEqual(c.calls.length, 1, 'only the FOR UPDATE lock was issued');
+  assert.ok(/FOR UPDATE/.test(c.calls[0].text));
+});
+test('resolveCfVersion(APPLY) with no seal inserts no task — nothing in flight, nothing derived', async () => {
+  const c = stubClient({ cfVersionRow: CF_ROW });
+  const a = makeProcureAdapter(c, T);
+  const out = await a.resolveCfVersion({ versionId: 'v-uuid', decidedBy: U.manager, decision: 'APPLY', latestSeal: null });
+  assert.strictEqual(out.tasksInserted, 0);
+  assert.ok(c.calls.every((x) => !/INSERT INTO data_health_task/.test(x.text)));
+});
+test('resolveCfVersion(APPLY) refuses when the version is not PENDING — the lock re-proves the state', async () => {
+  const c = stubClient({ cfVersionRow: null });
+  const a = makeProcureAdapter(c, T);
+  await assert.rejects(() => a.resolveCfVersion({ versionId: 'v-uuid', decidedBy: U.manager, decision: 'APPLY', latestSeal: null }), /VERSION_NOT_PENDING/);
+});
+test('resolveCfVersion(REJECT) stamps REJECTED with the reason, never touches the item, no GUC', async () => {
+  const c = stubClient();
+  const a = makeProcureAdapter(c, T);
+  const out = await a.resolveCfVersion({ versionId: 'v-uuid', decidedBy: U.manager, decision: 'REJECT', reason: 'master confirmed 12 — typing error in the drop' });
+  assert.strictEqual(out.state, 'REJECTED');
+  assert.strictEqual(out.tasksInserted, 0);
+  assert.ok(c.calls.every((x) => !/UPDATE item SET conversion_factor/.test(x.text)), 'a rejected version moves nothing');
+  assert.ok(c.calls.every((x) => !/set_config\('app\.cf_apply_id'/.test(x.text)), 'a rejected version opens no door');
+});
+test('resolveCfVersion(REJECT) without a reason refuses statement-first', async () => {
+  const c = stubClient();
+  const a = makeProcureAdapter(c, T);
+  await assert.rejects(() => a.resolveCfVersion({ versionId: 'v-uuid', decidedBy: U.manager, decision: 'REJECT', reason: '' }), /MISSING_REASON/);
+  assert.strictEqual(c.calls.length, 0);
+});
+test('resolveCfVersion refuses an unknown decision', async () => {
+  const c = stubClient();
+  const a = makeProcureAdapter(c, T);
+  await assert.rejects(() => a.resolveCfVersion({ versionId: 'v-uuid', decidedBy: U.manager, decision: 'MAYBE' }), /INVALID_CF_DECISION/);
+});
+test('loadPendingCfVersion normalizes the NUMERIC boundary — strings in, numbers out, null FROM stays null', async () => {
+  const c = stubClient({ cfVersionRow: { id: 'v-uuid', sku: 'SKU-1', version: 3, from_value: null, to_value: '24.00000000', state: 'PENDING', requestedBy: null } });
+  // re-route the generic branch: the load SELECT has no FOR UPDATE
+  const real = c.query;
+  c.query = async (text, values) => {
+    if (/FROM item_cf_version/i.test(text) && !/FOR UPDATE/i.test(text)) {
+      return { rows: [{ id: 'v-uuid', sku: 'SKU-1', version: 3, from_value: null, to_value: '24.00000000', state: 'PENDING', requestedBy: null }], rowCount: 1 };
+    }
+    return real(text, values);
+  };
+  const a = makeProcureAdapter(c, T);
+  const v = await a.loadPendingCfVersion('SKU-1');
+  assert.strictEqual(v.fromValue, null);
+  assert.strictEqual(v.toValue, 24);
+  assert.strictEqual(v.from, null);
+  assert.strictEqual(v.to, '24');
+});
+
+test('SCHEMA_VERSION tracks the highest applied migration (0007)', () => {
+  assert.strictEqual(DB.SCHEMA_VERSION, '0007');
 });
 
 test('every statement carries the explicit tenant predicate or parameter', async () => {

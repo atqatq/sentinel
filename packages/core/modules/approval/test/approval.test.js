@@ -304,5 +304,155 @@ test('freeze lifecycle: only a COOLING_OFF hold verifies; rejecting needs a reas
   assert.strictEqual(denialCode(rejectSupplierHold({ hold: { id: 'h-3', state: 'COOLING_OFF', requestedBy: null }, actor: USERS.manager, reason: '' })), 'MISSING_REASON');
 });
 
+/* ===========================================================================
+ * NAMED PROOF governance/cf-change — conversion-factor governance (M7,
+ * §14.13b). The audit's three legs, decided here and re-proven at the
+ * database (item_cf_freeze trigger + resolveCfVersion door, sod-live.js):
+ * classification (stage, never apply), the C3 decision gate, and the
+ * re-derivation derive. Every refusal is a Class-D denial record.
+ * =========================================================================*/
+const { classifyCfChange, decideCfVersion, deriveRederiveTasks } = A.cf;
+
+console.log('\nNAMED PROOF governance/cf-change');
+
+/* ---- classifyCfChange: the ingestion seam's partition --------------------- */
+test('cf classify: no stored row is bootstrap — the first load applies freely', () => {
+  const r = classifyCfChange(null, { sku: 'SKU-1', conversionFactor: 12 });
+  assert.deepStrictEqual(r, { staged: false, apply: true });
+});
+test('cf classify: an equal factor rides — a no-op write, nothing fires', () => {
+  const r = classifyCfChange({ sku: 'SKU-1', conversionFactor: 12 }, { sku: 'SKU-1', conversionFactor: 12 });
+  assert.deepStrictEqual(r, { staged: false, apply: true });
+});
+test('cf classify: a different usable factor STAGES — from/to preserved as canonical strings', () => {
+  const r = classifyCfChange({ sku: 'SKU-1', conversionFactor: 12 }, { sku: 'SKU-1', conversionFactor: 24 });
+  assert.strictEqual(r.staged, true);
+  assert.strictEqual(r.from, '12');
+  assert.strictEqual(r.to, '24');
+  assert.strictEqual(r.fromValue, 12);
+  assert.strictEqual(r.toValue, 24);
+  assert.strictEqual(r.sku, 'SKU-1');
+});
+test('cf classify: a stored NULL factor with an incoming usable one stages too — from none to some is a change', () => {
+  const r = classifyCfChange({ sku: 'SKU-1', conversionFactor: null }, { sku: 'SKU-1', conversionFactor: 12 });
+  assert.strictEqual(r.staged, true);
+  assert.strictEqual(r.from, null);
+  assert.strictEqual(r.to, '12');
+});
+test('cf classify: a blank NEVER wipes — the stored factor keeps serving, disclosed', () => {
+  for (const blank of [null, undefined, '']) {
+    const r = classifyCfChange({ sku: 'SKU-1', conversionFactor: 12 }, { sku: 'SKU-1', conversionFactor: blank });
+    assert.deepStrictEqual(r, { staged: false, apply: false, keep: true, disclosure: 'CF_BLANK_KEEPS_SERVING' }, `blank ${String(blank)}`);
+  }
+});
+test('cf classify: an invalid incoming factor is kept and named — corrupt master is a data error, not a change request', () => {
+  for (const bad of [0, -3, 'abc', Number.NaN]) {
+    const r = classifyCfChange({ sku: 'SKU-1', conversionFactor: 12 }, { sku: 'SKU-1', conversionFactor: bad });
+    assert.strictEqual(r.staged, false, `invalid ${String(bad)}`);
+    assert.strictEqual(r.apply, false);
+    assert.strictEqual(r.keep, true);
+    assert.strictEqual(r.disclosure, 'CF_INVALID_KEPT');
+    assert.ok(typeof r.detail === 'string' && r.detail.length > 0);
+  }
+});
+test('cf classify: malformed shapes refuse by name — the wiring posture', () => {
+  assert.throws(() => classifyCfChange({}, null), /WIRING_MALFORMED/);
+  assert.throws(() => classifyCfChange(42, { sku: 'S' }), /WIRING_MALFORMED/);
+  assert.throws(() => classifyCfChange({ sku: 'S', conversionFactor: 1 }, [1, 2]), /WIRING_MALFORMED/);
+});
+
+/* ---- decideCfVersion: the C3 gate ----------------------------------------- */
+function cfVersion(over) {
+  return Object.assign({ id: 'v-1', sku: 'SKU-1', version: 3, state: 'PENDING', requestedBy: null, toValue: 24 }, over || {});
+}
+test('cf decide: an unresolved principal refuses', () => {
+  assert.strictEqual(denialCode(decideCfVersion({ version: cfVersion(), actor: null, decision: 'APPLY' })), 'PRINCIPAL_UNRESOLVED');
+  assert.strictEqual(denialCode(decideCfVersion({ version: cfVersion(), actor: { userId: 'x', role: 'NOPE' }, decision: 'APPLY' })), 'PRINCIPAL_UNRESOLVED');
+});
+test('cf decide: a malformed version refuses', () => {
+  assert.strictEqual(denialCode(decideCfVersion({ version: null, actor: USERS.manager, decision: 'APPLY' })), 'WIRING_MALFORMED');
+  assert.strictEqual(denialCode(decideCfVersion({ version: [1], actor: USERS.manager, decision: 'APPLY' })), 'WIRING_MALFORMED');
+});
+test('cf decide: only a PENDING version decides', () => {
+  assert.strictEqual(denialCode(decideCfVersion({ version: cfVersion({ state: 'EFFECTIVE' }), actor: USERS.manager, decision: 'APPLY' })), 'VERSION_NOT_PENDING');
+  assert.strictEqual(denialCode(decideCfVersion({ version: cfVersion({ state: 'REJECTED' }), actor: USERS.manager, decision: 'REJECT', reason: 'r' })), 'VERSION_NOT_PENDING');
+});
+test('cf decide: the gate is approval-eligible — BYR, DTA, VWR never decide a factor change', () => {
+  for (const u of [USERS.buyer, USERS.analyst, USERS.viewer]) {
+    assert.strictEqual(denialCode(decideCfVersion({ version: cfVersion(), actor: u, decision: 'APPLY' })), 'NOT_ELIGIBLE_DECIDER', u.role);
+  }
+  for (const u of [USERS.origin, USERS.manager, USERS.senior]) {
+    assert.ok(decideCfVersion({ version: cfVersion(), actor: u, decision: 'APPLY' }).ok, u.role);
+  }
+});
+test('cf decide: a user-requested version is never decided by its requester; pipeline-staged (null) may be decided by any eligible', () => {
+  const userRequested = cfVersion({ requestedBy: USERS.senior.userId });
+  assert.strictEqual(denialCode(decideCfVersion({ version: userRequested, actor: USERS.senior, decision: 'APPLY' })), 'SOD_DECIDER_IS_REQUESTER');
+  assert.ok(decideCfVersion({ version: userRequested, actor: USERS.manager, decision: 'APPLY' }).ok);
+  assert.ok(decideCfVersion({ version: cfVersion({ requestedBy: null }), actor: USERS.manager, decision: 'APPLY' }).ok);
+});
+test('cf decide: rejecting is a decision too — reason required, same gate', () => {
+  assert.ok(decideCfVersion({ version: cfVersion(), actor: USERS.manager, decision: 'REJECT', reason: 'wrong factor — master confirmed 12' }).ok);
+  assert.strictEqual(denialCode(decideCfVersion({ version: cfVersion(), actor: USERS.manager, decision: 'REJECT', reason: '' })), 'MISSING_REASON');
+  assert.strictEqual(denialCode(decideCfVersion({ version: cfVersion(), actor: USERS.buyer, decision: 'REJECT', reason: 'r' })), 'NOT_ELIGIBLE_DECIDER');
+});
+test('cf decide: an unknown decision refuses', () => {
+  assert.strictEqual(denialCode(decideCfVersion({ version: cfVersion(), actor: USERS.manager, decision: 'MAYBE' })), 'INVALID_DECISION');
+});
+test('cf decide: the core refuses what the trigger cannot see — an unfit target never applies (CF_INVALID)', () => {
+  assert.strictEqual(denialCode(decideCfVersion({ version: cfVersion({ toValue: 0 }), actor: USERS.manager, decision: 'APPLY' })), 'CF_INVALID');
+  assert.strictEqual(denialCode(decideCfVersion({ version: cfVersion({ toValue: -2 }), actor: USERS.manager, decision: 'APPLY' })), 'CF_INVALID');
+});
+test('cf decide: every refusal is a Class-D denial record naming the entity', () => {
+  const d = decideCfVersion({ version: cfVersion(), actor: USERS.buyer, decision: 'APPLY' }).denial;
+  assert.strictEqual(d.class, 'D');
+  assert.strictEqual(d.outcome, 'denied');
+  assert.strictEqual(d.entity, 'item_cf_version');
+  assert.strictEqual(d.action, 'item_cf_version.apply');
+  assert.strictEqual(d.reason, 'NOT_ELIGIBLE_DECIDER');
+});
+
+/* ---- deriveRederiveTasks: the third audit leg ------------------------------ */
+function sealRow(ref, basis) { return { ref, sizingBasis: basis }; }
+const SEAL = {
+  refs: [
+    sealRow('R-B', [{ sku: 'SKU-2', conversionFactor: 24 }]),          // already on the new basis
+    sealRow('R-A', [{ sku: 'SKU-1', conversionFactor: 12 }, { sku: 'SKU-1B', conversionFactor: null }]), // stale + identity member
+    sealRow('R-OLD', undefined),                                        // pre-§14.13b seal — nothing to compare
+  ],
+};
+test('cf derive: no seal — nothing is in flight, the change applies with no tasks', () => {
+  const r = deriveRederiveTasks(null, cfVersion());
+  assert.deepStrictEqual(r, { tasks: [], refsAffected: 0, refsUnaffected: 0 });
+});
+test('cf derive: one WARN task per affected ref naming ref, skus and the from→to delta; matching and identity members never task', () => {
+  const r = deriveRederiveTasks(SEAL, cfVersion({ from: '12', to: '24' }));
+  assert.strictEqual(r.refsAffected, 1);
+  assert.strictEqual(r.refsUnaffected, 2);
+  assert.strictEqual(r.tasks.length, 1);
+  const t = r.tasks[0];
+  assert.strictEqual(t.type, 'DATA_HEALTH');
+  assert.strictEqual(t.field, 'conversion_factor');
+  assert.strictEqual(t.severity, 'WARN');
+  assert.ok(t.detail.includes('R-A'));
+  assert.ok(t.detail.includes('SKU-1'));
+  assert.ok(t.detail.includes('12 → 24'));
+});
+test('cf derive: deterministic — sorted by ref, stable across runs', () => {
+  const two = { refs: [sealRow('R-Z', [{ sku: 'S1', conversionFactor: 1 }]), sealRow('R-A', [{ sku: 'S2', conversionFactor: 2 }])] };
+  const r1 = deriveRederiveTasks(two, cfVersion({ from: '1', to: '9' }));
+  const r2 = deriveRederiveTasks(two, cfVersion({ from: '1', to: '9' }));
+  assert.deepStrictEqual(r1, r2);
+  assert.strictEqual(r1.tasks.length, 2);
+  assert.ok(r1.tasks[0].detail.includes('R-A') && r1.tasks[1].detail.includes('R-Z'));
+});
+test('cf derive: malformed shapes refuse by name — a seal without refs is a wiring error, never an empty walk', () => {
+  assert.throws(() => deriveRederiveTasks({}, cfVersion()), /WIRING_MALFORMED/);
+  assert.throws(() => deriveRederiveTasks([], cfVersion()), /WIRING_MALFORMED/);
+  assert.throws(() => deriveRederiveTasks(SEAL, null), /WIRING_MALFORMED/);
+  assert.throws(() => deriveRederiveTasks(SEAL, cfVersion({ toValue: 0 })), /WIRING_MALFORMED/);
+  assert.throws(() => deriveRederiveTasks({ refs: [42] }, cfVersion()), /WIRING_MALFORMED/);
+});
+
 console.log(`\n  approval: ${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

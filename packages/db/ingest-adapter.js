@@ -35,7 +35,16 @@
  *
  * pg is NOT imported here at all: the client is injected, so structural
  * suites import this contract cleanly without a database or driver.
+ *
+ * M7 (§14.13b): the items seam CLASSIFIES every row's conversion factor
+ * against the stored row (approval/cf.js, the pure core) before anything
+ * writes — a different-and-usable factor STAGES a PENDING item_cf_version
+ * and the stored factor keeps serving; a blank NEVER wipes; invalid is kept
+ * and named; bootstrap applies freely. The item_cf_freeze trigger is the
+ * fail-closed backstop behind this seam.
  * ==========================================================================*/
+
+const CF = require('../core/modules/approval/src/cf.js');
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -122,6 +131,37 @@ function upsertItem(t, row, where) {
       is_banned=EXCLUDED.is_banned, is_inactive=EXCLUDED.is_inactive`;
   const values = [t, reqStr(row, 'sku', where), reqStr(row, 'itemName', where), reqStr(row, 'unit', where),
     optNum(row, 'conversionFactor', where), optStr(row, 'convertedUnit', where), optStr(row, 'category', where),
+    optStr(row, 'ingredientFamily', where), optStr(row, 'recipeRef', where), optStr(row, 'brand', where),
+    optStr(row, 'size', where), optNum(row, 'caseCount', where), optNum(row, 'price', where),
+    optStr(row, 'currency', where), optStr(row, 'businessUnit', where), optNum(row, 'shelfLifeDays', where),
+    optBool(row, 'preferredSkuFlag', where), optBool(row, 'nutritionApproved', where),
+    optBool(row, 'productionApproved', where), optBool(row, 'banned', where), optBool(row, 'inactive', where)];
+  return { text, values };
+}
+
+/* The M7 keep-CF variant: identical to upsertItem except conversion_factor is
+ * absent from the column list and the SET — the stored factor keeps serving
+ * (a staged/blank/invalid incoming factor must never touch the column). The
+ * INSERT branch (new item) never executes on this path: staging requires a
+ * stored row, and a blank/invalid keep is classified against one too. */
+function upsertItemKeepCf(t, row, where) {
+  const text = `
+    INSERT INTO item (tenant_id, sku, name, unit_code, converted_unit, category,
+                      ingredient_family, recipe_ref, brand, size, case_count, price, currency_code,
+                      business_unit, shelf_life_days, preferred_for_recipe_ref, nutrition_approved,
+                      production_approved, is_banned, is_inactive)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,COALESCE($16,false),COALESCE($17,false),COALESCE($18,false),COALESCE($19,false),COALESCE($20,false))
+    ON CONFLICT (tenant_id, sku) DO UPDATE SET
+      name=EXCLUDED.name, unit_code=EXCLUDED.unit_code,
+      converted_unit=EXCLUDED.converted_unit, category=EXCLUDED.category,
+      ingredient_family=EXCLUDED.ingredient_family, recipe_ref=EXCLUDED.recipe_ref,
+      brand=EXCLUDED.brand, size=EXCLUDED.size, case_count=EXCLUDED.case_count,
+      price=EXCLUDED.price, currency_code=EXCLUDED.currency_code, business_unit=EXCLUDED.business_unit,
+      shelf_life_days=EXCLUDED.shelf_life_days, preferred_for_recipe_ref=EXCLUDED.preferred_for_recipe_ref,
+      nutrition_approved=EXCLUDED.nutrition_approved, production_approved=EXCLUDED.production_approved,
+      is_banned=EXCLUDED.is_banned, is_inactive=EXCLUDED.is_inactive`;
+  const values = [t, reqStr(row, 'sku', where), reqStr(row, 'itemName', where), reqStr(row, 'unit', where),
+    optStr(row, 'convertedUnit', where), optStr(row, 'category', where),
     optStr(row, 'ingredientFamily', where), optStr(row, 'recipeRef', where), optStr(row, 'brand', where),
     optStr(row, 'size', where), optNum(row, 'caseCount', where), optNum(row, 'price', where),
     optStr(row, 'currency', where), optStr(row, 'businessUnit', where), optNum(row, 'shelfLifeDays', where),
@@ -347,18 +387,65 @@ function makeIngestAdapter(client, tenantId) {
         throw new TypeError(`KIND_NOT_WIRED: kind '${plan.kind}' has no proven row mapping in this adapter — the disclosure is recorded in DECISIONS.md, never applied blind`);
       }
 
-      /* Pre-validate EVERY row and build every statement BEFORE any write:
-       * a malformed row refuses the whole plan with zero statements issued —
-       * the wrapper can never half-apply, even outside a transaction. */
-      const stmts = plan.rows.map((entry, i) => {
+      /* Pre-validate EVERY row FIRST — a malformed row refuses the whole plan
+       * with ZERO client calls (not even reads): the wrapper can never
+       * half-apply, and the refusal shape does not depend on stored state. */
+      for (let i = 0; i < plan.rows.length; i++) {
+        const entry = plan.rows[i];
         if (!entry || typeof entry !== 'object' || Array.isArray(entry) || typeof entry.key !== 'string' || entry.key === '') {
           throw new TypeError(`apply: plan.rows[${i}] must be a { key, row } pair with a non-empty string key`);
         }
         if (entry.row === null || typeof entry.row !== 'object' || Array.isArray(entry.row)) {
           throw new TypeError(`apply: plan.rows[${i}].row must be an object`);
         }
-        return upsert(t, entry.row, `plan.rows[${i}] (${plan.kind})`);
-      });
+      }
+
+      /* M7 (§14.13b): the items seam classifies each row's conversion factor
+       * against the stored row BEFORE building statements — the builder is
+       * chosen per row (keep-Cf for staged/blank/invalid) and a PENDING
+       * version row is queued per staged sku. Only READS happen during the
+       * build (the prior-factor load and the pending-dedupe probe); every
+       * write lands after the loop, in the caller's one transaction. The
+       * stored factor keeps serving until the gate decides. */
+      let priorCfBySku = {};
+      if (plan.kind === 'items') {
+        const skus = plan.rows.map((e) => reqStr(e.row, 'sku', 'plan.rows'));
+        const prior = await client.query(
+          `SELECT sku, conversion_factor FROM item WHERE tenant_id = $1 AND sku = ANY($2::text[])`,
+          [t, skus]);
+        for (const r of prior.rows) priorCfBySku[r.sku] = r.conversion_factor;
+      }
+      const cfVersions = [];
+      const cfSummary = { staged: 0, stagedExisting: 0, blanksKept: 0, invalidKept: 0, tasks: [] };
+      const stmts = [];
+      for (let i = 0; i < plan.rows.length; i++) {
+        const entry = plan.rows[i];
+        const where = `plan.rows[${i}] (${plan.kind})`;
+        if (plan.kind !== 'items') { stmts.push(upsert(t, entry.row, where)); continue; }
+        const oldRow = Object.prototype.hasOwnProperty.call(priorCfBySku, entry.row.sku)
+          ? { sku: entry.row.sku, conversionFactor: priorCfBySku[entry.row.sku] } : null;
+        const cls = CF.classifyCfChange(oldRow, entry.row);
+        if (cls.disclosure === 'CF_BLANK_KEEPS_SERVING') cfSummary.blanksKept += 1;
+        if (cls.disclosure === 'CF_INVALID_KEPT') {
+          cfSummary.invalidKept += 1;
+          cfSummary.tasks.push({ type: 'DATA_HEALTH', field: 'conversion_factor', severity: 'WARN',
+            detail: `sku ${cls.sku}: incoming conversion factor unusable (${cls.detail}) — CF_INVALID_KEPT, the stored factor keeps serving (§14.13b)` });
+        }
+        if (cls.staged) {
+          const existingPending = await client.query(
+            `SELECT id FROM item_cf_version WHERE tenant_id = $1 AND sku = $2 AND state = 'PENDING' AND to_value = $3 LIMIT 1`,
+            [t, cls.sku, cls.toValue]);
+          if (existingPending.rows.length > 0) { cfSummary.stagedExisting += 1; }
+          else {
+            cfSummary.staged += 1;
+            cfVersions.push({ sku: cls.sku, fromValue: cls.fromValue, toValue: cls.toValue });
+          }
+          stmts.push(upsertItemKeepCf(t, entry.row, where));
+          continue;
+        }
+        if (cls.apply === false) { stmts.push(upsertItemKeepCf(t, entry.row, where)); continue; } // blank/invalid keep
+        stmts.push(upsert(t, entry.row, where));
+      }
 
       /* 1. the file register row — INSERT or UPDATE IN PLACE on the H6 unique
        *    (tenant, kind, checksum): a reprocessed FAILED/RECEIVED file never
@@ -377,6 +464,21 @@ function makeIngestAdapter(client, tenantId) {
         await client.query(stmt.text, stmt.values);
       }
 
+      /* 2b. the M7 version ledger — one PENDING row per newly staged change,
+       *     monotonic version per (tenant, sku) computed in-statement (the
+       *     unique index is the race backstop). Immutable facts: a second
+       *     drop proposing the same target finds the dedupe probe's row and
+       *     never forks the ledger. */
+      for (const v of cfVersions) {
+        await client.query(
+          `INSERT INTO item_cf_version (tenant_id, sku, version, from_value, to_value, state, requested_by)
+           SELECT $1, $2, COALESCE((SELECT MAX(version) FROM item_cf_version WHERE tenant_id = $1 AND sku = $2), 0) + 1,
+                  $3, $4, 'PENDING', NULL
+           WHERE NOT EXISTS (
+             SELECT 1 FROM item_cf_version WHERE tenant_id = $1 AND sku = $2 AND state = 'PENDING' AND to_value = $4)`,
+          [t, v.sku, v.fromValue, v.toValue]);
+      }
+
       /* 3. the register — the DAT-04 ledger. DO NOTHING: a reprocessed file
        *    re-registers nothing and never inflates the seen-before count. */
       const keys = await client.query(
@@ -390,6 +492,7 @@ function makeIngestAdapter(client, tenantId) {
         appliedAt: Number(file.rows[0].appliedAt),
         rowsApplied: plan.rows.length,
         keysRegistered: keys.rowCount,
+        ...(plan.kind === 'items' ? { cf: cfSummary } : {}),
       };
     },
 

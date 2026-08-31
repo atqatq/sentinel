@@ -68,6 +68,7 @@ model Tenant {
   proposals         Proposal[]
   purchaseOrders    PurchaseOrder[]
   supplierChangeHolds SupplierChangeHold[]
+  itemCfVersions    ItemCfVersion[]
   ledgerBlocks      LedgerBlock[]
   sessions          UserSession[]
 
@@ -90,6 +91,8 @@ model AppUser {
   purchaseOrdersConverted PurchaseOrder[] @relation("purchaseOrdersConverted")
   supplierHoldsRequested  SupplierChangeHold[] @relation("supplierHoldsRequested")
   supplierHoldsVerified   SupplierChangeHold[] @relation("supplierHoldsVerified")
+  cfVersionsRequested     ItemCfVersion[]      @relation("cfVersionsRequested")
+  cfVersionsDecided       ItemCfVersion[]      @relation("cfVersionsDecided")
   credential        UserCredential?
   mfaEnrolment      MfaEnrolment?
   sessions          UserSession[]
@@ -538,6 +541,43 @@ enum SupplierHoldState {
   REJECTED
 
   @@map("supplier_hold_state")
+}
+
+enum CfVersionState {
+  PENDING
+  EFFECTIVE
+  REJECTED
+
+  @@map("cf_version_state")
+}
+
+// The M7 versioned change ledger (§14.13b): one row per proposed conversion-
+// factor change, monotonic version per (tenant, sku). requested_by NULL =
+// pipeline-staged (any eligible principal may decide); the item_cf_freeze
+// trigger refuses any factor delta outside the resolveCfVersion door.
+model ItemCfVersion {
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String          @map("tenant_id") @db.Uuid
+  sku             String
+  version         Int
+  fromValue       Decimal?        @map("from_value") @db.Decimal(18, 8)
+  toValue         Decimal         @map("to_value") @db.Decimal(18, 8)
+  state           CfVersionState  @default(PENDING) @map("state")
+  requestedBy     String?         @map("requested_by") @db.Uuid
+  requestedReason String?         @map("requested_reason")
+  decidedBy       String?         @map("decided_by") @db.Uuid
+  decisionReason  String?         @map("decision_reason")
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  decidedAt       DateTime?       @map("decided_at") @db.Timestamptz(6)
+
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  requester AppUser? @relation("cfVersionsRequested", fields: [requestedBy], references: [id])
+  decider   AppUser? @relation("cfVersionsDecided", fields: [decidedBy], references: [id])
+
+  @@unique([tenantId, sku, version], map: "item_cf_version_tenant_sku_version_key")
+  @@index([tenantId, sku, state], map: "item_cf_version_tenant_sku_state_idx")
+  @@index([state], map: "item_cf_version_state_idx")
+  @@map("item_cf_version")
 }
 
 // H5 log classes — all five write the SAME hash-chained sequence (§16.1:

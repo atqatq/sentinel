@@ -36,7 +36,7 @@ function test(name, fn) {
  * scripted appliedAt is a STRING — node-pg delivers int8/bigint as strings,
  * and the adapter must convert at the boundary (the live proof inherits the
  * real behavior; this stub inherits the real shape). */
-function stubClient({ prior = null, seen = [] } = {}) {
+function stubClient({ prior = null, seen = [], priorCfs = {} } = {}) {
   const calls = [];
   return {
     calls,
@@ -49,6 +49,9 @@ function stubClient({ prior = null, seen = [] } = {}) {
       }
       if (/FROM idempotency_key/i.test(text)) return { rows: seen.map((idem_key) => ({ idem_key })), rowCount: seen.length };
       if (/INSERT INTO idempotency_key/i.test(text)) return { rows: [], rowCount: values[3].length };
+      if (/FROM item WHERE tenant_id/i.test(text)) {
+        return { rows: Object.entries(priorCfs).map(([sku, cf]) => ({ sku, conversion_factor: cf })), rowCount: Object.keys(priorCfs).length };
+      }
       if (/RETURNING id/i.test(text)) return { rows: [{ id: 'file-uuid', appliedAt: 1756500000000 }], rowCount: 1 };
       return { rows: [], rowCount: 1 };
     },
@@ -93,20 +96,23 @@ test('findFile converts the int8 appliedAt to a finite epoch-ms NUMBER (pg ships
 /* ---- apply(): statement sequence + conflict targets -------------------------- */
 console.log('\napply(): file register upsert → fact rows → key register, all tenant-fenced');
 
-test('apply() issues exactly: 1 file upsert + N row upserts + 1 register insert, in order', async () => {
+test('apply() issues exactly: 1 prior-CF read (items) + 1 file upsert + N row upserts + 1 register insert, in order', async () => {
   const c = stubClient();
   const out = await makeIngestAdapter(c, T).apply(plan({ rows: [{ sku: 'A' }, { sku: 'B' }].map((r) => ({ ...r, itemName: 'x', unit: 'PCS' })) }));
-  assert.strictEqual(c.calls.length, 4);
-  assert.ok(c.calls[0].text.startsWith('INSERT INTO ingest_file'));
-  assert.ok(c.calls[1].text.startsWith('INSERT INTO item'));
+  assert.strictEqual(c.calls.length, 5);
+  assert.ok(c.calls[0].text.startsWith('SELECT sku, conversion_factor FROM item'), 'the M7 prior-CF read comes first');
+  assert.ok(c.calls[1].text.startsWith('INSERT INTO ingest_file'));
   assert.ok(c.calls[2].text.startsWith('INSERT INTO item'));
-  assert.ok(c.calls[3].text.startsWith('INSERT INTO idempotency_key'));
-  assert.deepStrictEqual(out, { fileId: 'file-uuid', appliedAt: 1756500000000, rowsApplied: 2, keysRegistered: 2 });
+  assert.ok(c.calls[3].text.startsWith('INSERT INTO item'));
+  assert.ok(c.calls[4].text.startsWith('INSERT INTO idempotency_key'));
+  assert.strictEqual(out.rowsApplied, 2);
+  assert.strictEqual(out.keysRegistered, 2);
+  assert.deepStrictEqual(out.cf, { staged: 0, stagedExisting: 0, blanksKept: 0, invalidKept: 0, tasks: [] }, 'the CF summary rides the items apply');
 });
 test('the item conflict target is the H6 unique (tenant_id, sku) with DO UPDATE', () => {
   const c = stubClient();
   return makeIngestAdapter(c, T).apply(plan()).then(() => {
-    const s = c.calls[1].text;
+    const s = c.calls[2].text;
     assert.ok(s.includes('ON CONFLICT (tenant_id, sku) DO UPDATE'), s);
   });
 });
@@ -151,11 +157,58 @@ test('planning params upsert writes params as jsonb with source manual', async (
 test('the register insert stamps file_checksum and is ON CONFLICT DO NOTHING (a retry re-registers nothing)', () => {
   const c = stubClient();
   return makeIngestAdapter(c, T).apply(plan({ rows: [{ sku: 'A', itemName: 'x', unit: 'PCS' }] })).then(() => {
-    const s = c.calls[2].text;
+    const s = c.calls[3].text;
     assert.ok(s.includes('file_checksum'));
     assert.ok(s.includes('ON CONFLICT (tenant_id, kind, idem_key) DO NOTHING'));
-    assert.strictEqual(c.calls[2].values[2], SHA);
+    assert.strictEqual(c.calls[3].values[2], SHA);
   });
+});
+
+/* ---- M7 (§14.13b): the items seam stages a changed factor, never applies it --- */
+console.log('\nM7: a changed conversion factor STAGES — the stored factor keeps serving');
+
+test('a changed usable factor stages: the row rides the keep-CF statement and a PENDING version inserts', async () => {
+  const c = stubClient({ priorCfs: { 'SKU-001': '12.00000000' } });
+  const out = await makeIngestAdapter(c, T).apply(plan({ rows: [{ sku: 'SKU-001', itemName: 'Tomato', unit: 'CTN', conversionFactor: 24 }] }));
+  const rowStmt = c.calls[3].text; // [0] prior read, [1] dedupe probe, [2] file register, [3] item row, [4] version, [5] register
+  assert.ok(rowStmt.startsWith('INSERT INTO item'), rowStmt);
+  assert.ok(!rowStmt.includes('conversion_factor'), 'the stored factor is untouched by the staged row');
+  const verStmt = c.calls[4].text;
+  assert.ok(verStmt.startsWith('INSERT INTO item_cf_version'), verStmt);
+  assert.ok(verStmt.includes("'PENDING', NULL"), 'pipeline-staged: requested_by NULL');
+  assert.strictEqual(out.cf.staged, 1);
+  assert.strictEqual(out.cf.blanksKept, 0);
+  assert.strictEqual(out.cf.tasks.length, 0);
+});
+test('an equal factor rides the normal upsert (conversion_factor written, no version, no probe)', async () => {
+  const c = stubClient({ priorCfs: { 'SKU-001': '12.00000000' } });
+  const out = await makeIngestAdapter(c, T).apply(plan({ rows: [{ sku: 'SKU-001', itemName: 'Tomato', unit: 'CTN', conversionFactor: 12 }] }));
+  assert.ok(c.calls[2].text.includes('conversion_factor=EXCLUDED.conversion_factor'));
+  assert.strictEqual(out.cf.staged, 0);
+  assert.ok(c.calls.every((x) => !x.text.startsWith('INSERT INTO item_cf_version')));
+});
+test('a blank never wipes: keep-CF, disclosed, no version row', async () => {
+  const c = stubClient({ priorCfs: { 'SKU-001': '12.00000000' } });
+  const out = await makeIngestAdapter(c, T).apply(plan({ rows: [{ sku: 'SKU-001', itemName: 'Tomato', unit: 'CTN', conversionFactor: null }] }));
+  assert.ok(!c.calls[2].text.includes('conversion_factor'), 'the stored factor survives the blank column');
+  assert.strictEqual(out.cf.blanksKept, 1);
+  assert.strictEqual(out.cf.staged, 0);
+});
+test('an invalid incoming factor is kept and named: keep-CF + a CF_INVALID_KEPT WARN task, no version row', async () => {
+  const c = stubClient({ priorCfs: { 'SKU-001': '12.00000000' } });
+  const out = await makeIngestAdapter(c, T).apply(plan({ rows: [{ sku: 'SKU-001', itemName: 'Tomato', unit: 'CTN', conversionFactor: 0 }] }));
+  assert.ok(!c.calls[2].text.includes('conversion_factor'));
+  assert.strictEqual(out.cf.invalidKept, 1);
+  assert.strictEqual(out.cf.tasks.length, 1);
+  assert.strictEqual(out.cf.tasks[0].field, 'conversion_factor');
+  assert.strictEqual(out.cf.tasks[0].severity, 'WARN');
+  assert.ok(out.cf.tasks[0].detail.includes('CF_INVALID_KEPT'));
+});
+test('bootstrap (no stored row) applies the factor freely — first load is not a change', async () => {
+  const c = stubClient({ priorCfs: {} });
+  const out = await makeIngestAdapter(c, T).apply(plan({ rows: [{ sku: 'SKU-001', itemName: 'Tomato', unit: 'CTN', conversionFactor: 24 }] }));
+  assert.ok(c.calls[2].text.includes('conversion_factor'), 'a new item takes its factor on the first load');
+  assert.strictEqual(out.cf.staged, 0);
 });
 
 /* ---- fail-closed guardrails --------------------------------------------------- */

@@ -335,6 +335,10 @@ function assembleRef(ref, ctx) {
   return { ok: true, row: {
     ref,
     members: members.map((m) => m.sku),
+    /* §14.13b — the sizing basis: the factor each member's quantities were
+     * computed under, sealed with the row. A later CF change never silently
+     * rebases a sealed row; the basis is what the re-derivation tasks walk. */
+    sizingBasis: members.map((m) => ({ sku: m.sku, conversionFactor: asNum(m.conversionFactor) })),
     currency: tenant.currencyCode, // C2: rows are tenant-currency-normalized at ingestion
     ...(rateInputs ? { rateInputs } : {}),
     ...computed,

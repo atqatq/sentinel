@@ -39,7 +39,7 @@ const MIGRATION = fs.readdirSync(path.join(__dirname, '..', 'migrations'))
   .join('\n');
 
 const NEW_TABLES = ['tenant_role', 'approval_config', 'approval_limit', 'proposal', 'proposal_line',
-  'approval', 'purchase_order', 'po_line', 'supplier_change_hold'];
+  'approval', 'purchase_order', 'po_line', 'supplier_change_hold', 'item_cf_version'];
 
 let passed = 0, failed = 0;
 function ok(name) { passed++; console.log('  ✓ ' + name); }
@@ -497,6 +497,88 @@ async function main() {
     if (after.state === 'REJECTED') ok('a rejected hold lands REJECTED — the stored identity simply keeps serving');
     else bad('rejected hold', after.state);
   });
+
+  /* ---- 12b. NAMED PROOF (live half): governance/cf-change ---- */
+  console.log('\nNAMED PROOF governance/cf-change (live trigger half)');
+  const { classifyCfChange, deriveRederiveTasks } = require(path.join(REPO, 'packages', 'core', 'modules', 'approval', 'src', 'cf'));
+  const CF1 = (await db.query(
+    `INSERT INTO item (tenant_id, sku, name, unit_code, conversion_factor, converted_unit, price, currency_code)
+     VALUES ($1, 'CF-LIVE-1', 'CF Governance Live Item', 'CTN', 12, 'PCS', 6.5, 'BHD') RETURNING id`, [T1])).rows[0].id;
+  const cfStage = async (to, ver) => {
+    /* the ingestion pipeline stages with service privileges inside its own
+     * transaction — the admin client mirrors that posture here */
+    const r = await db.query(
+      `INSERT INTO item_cf_version (tenant_id, sku, version, from_value, to_value, state, requested_by)
+       VALUES ($1, 'CF-LIVE-1', $2, 12, $3, 'PENDING', NULL) RETURNING id, version`, [T1, ver, to]);
+    return r.rows[0];
+  };
+  await withCtx(probe, T1, USERS.manager, async () => {
+    await probe.query(`UPDATE item SET conversion_factor = 24 WHERE id = $1`, [CF1]);
+    bad('a direct CF change is refused', 'the UPDATE succeeded');
+  }).catch(async (e) => {
+    if (String(e.message).includes('CF_CHANGE_UNGOVERNED')) ok('a direct conversion-factor change is refused outright (CF_CHANGE_UNGOVERNED)');
+    else bad('direct CF change', e.message);
+  });
+  await withCtx(probe, T1, USERS.manager, async () => {
+    const stored = (await probe.query(`SELECT conversion_factor FROM item WHERE id = $1`, [CF1])).rows[0];
+    if (Number(stored.conversion_factor) === 12) ok('the stored factor keeps serving after the refused change — planning is never hostage to an unreviewed master edit');
+    else bad('stored factor keeps serving', String(stored.conversion_factor));
+  });
+  await withCtx(probe, T1, USERS.manager, async () => {
+    await probe.query(`UPDATE item SET name = 'CF Governance Live Item (renamed)' WHERE id = $1`, [CF1]);
+    ok('non-factor fields ride freely — only the factor is governed');
+  });
+  await withCtx(probe, T1, USERS.manager, async () => {
+    /* the ingestion seam's classification, replayed against the live stored row */
+    const stored = (await probe.query(`SELECT sku, conversion_factor FROM item WHERE id = $1`, [CF1])).rows[0];
+    const cls = classifyCfChange({ sku: stored.sku, conversionFactor: Number(stored.conversion_factor) }, { sku: stored.sku, conversionFactor: 24 });
+    if (!cls.staged) { bad('the classifier stages a changed factor', JSON.stringify(cls)); return; }
+    ok('the classifier partitions the live row: a changed factor STAGES (from 12 to 24)');
+    const v = await cfStage(cls.toValue, 1);
+    if (v.version === 1) ok('the changed factor stages a PENDING version (v1, pipeline-staged, from 12 to 24)');
+    else bad('version staged', JSON.stringify(v));
+  });
+  await expectPgError('an orphan GUC (no matching PENDING version) refuses — no bypass, only the door',
+    probe, T1, USERS.manager, async () => {
+      await probe.query(`SELECT set_config('app.cf_apply_id', gen_random_uuid()::text, true)`);
+      await probe.query(`UPDATE item SET conversion_factor = 24 WHERE id = $1`, [CF1]);
+    }, { message: 'CF_VERSION_MISMATCH' });
+  await withCtx(probe, T1, USERS.manager, async () => {
+    /* the door: APPLY through the adapter, with the latest seal's sizing basis driving the derive */
+    const v1 = await probe.query(`SELECT id FROM item_cf_version WHERE tenant_id = $1 AND sku = 'CF-LIVE-1' AND state = 'PENDING' LIMIT 1`, [T1]);
+    const latestSeal = { refs: [
+      { ref: 'R-STALE', sizingBasis: [{ sku: 'CF-LIVE-1', conversionFactor: 12 }] },  // sized under the OLD factor → tasked
+      { ref: 'R-CURRENT', sizingBasis: [{ sku: 'CF-LIVE-1', conversionFactor: 24 }] }, // already on the target basis → counted, never tasked
+    ] };
+    const out = await A1.resolveCfVersion({ versionId: v1.rows[0].id, decidedBy: USERS.manager, decision: 'APPLY', latestSeal });
+    const row = (await probe.query(`SELECT conversion_factor FROM item WHERE id = $1`, [CF1])).rows[0];
+    if (Number(row.conversion_factor) === 24 && out.state === 'EFFECTIVE') ok('the APPLY door moves the factor to the version\'s EXACT target and lands EFFECTIVE — the ONLY path through the freeze');
+    else bad('door apply', JSON.stringify({ out, factor: String(row.conversion_factor) }));
+    if (out.refsAffected === 1 && out.refsUnaffected === 1 && out.tasksInserted === 1) ok('the derive raises exactly one WARN re-derivation task for the stale-basis ref (explicit re-derivation, never a silent rebase)');
+    else bad('re-derivation derive', JSON.stringify({ refsAffected: out.refsAffected, refsUnaffected: out.refsUnaffected, tasksInserted: out.tasksInserted }));
+    const task = (await probe.query(`SELECT task_type, severity::text AS severity, payload FROM data_health_task WHERE tenant_id = $1 AND task_type = 'DATA_HEALTH' AND payload->>'field' = 'conversion_factor' ORDER BY created_at DESC LIMIT 1`, [T1])).rows[0];
+    if (task && task.payload.detail.includes('R-STALE') && task.payload.detail.includes('12 → 24')) ok('the re-derivation task names the ref, the sku and the from→to delta on the Data Health register');
+    else bad('re-derivation task', JSON.stringify(task));
+  });
+  await withCtx(probe, T1, USERS.manager, async () => {
+    const again = await A1.resolveCfVersion({ versionId: (await probe.query(`SELECT id FROM item_cf_version WHERE tenant_id = $1 AND sku = 'CF-LIVE-1' LIMIT 1`, [T1])).rows[0].id, decidedBy: USERS.manager, decision: 'APPLY', latestSeal: null })
+      .then(() => null, (e) => e);
+    if (again && again.message === 'VERSION_NOT_PENDING') ok('the door closes behind the applied version — VERSION_NOT_PENDING on a second pass');
+    else bad('door closes', JSON.stringify(again));
+  });
+  await withCtx(probe, T1, USERS.manager, async () => {
+    /* a REJECTED version: the stored factor simply keeps serving */
+    const v2 = await cfStage(48, 2);
+    await A1.resolveCfVersion({ versionId: v2.id, decidedBy: USERS.manager, decision: 'REJECT', reason: 'master confirmed 24 — the drop was wrong' });
+    const row = (await probe.query(`SELECT conversion_factor FROM item WHERE id = $1`, [CF1])).rows[0];
+    const ver = (await probe.query(`SELECT state::text AS state, decision_reason FROM item_cf_version WHERE id = $1`, [v2.id])).rows[0];
+    if (Number(row.conversion_factor) === 24 && ver.state === 'REJECTED') ok('a rejected version lands REJECTED with its reason — the stored factor (24) keeps serving');
+    else bad('rejected version', JSON.stringify({ factor: String(row.conversion_factor), ver }));
+  });
+  await expectPgError('the version ledger is monotonic: a duplicate (tenant, sku, version) refuses',
+    probe, T1, USERS.manager, async () => {
+      await cfStage(48, 2);
+    }, { code: '23505' });
 
   /* ---- 13. Origin-only authority on the control rows ---- */
   console.log('\nOrigin-only authority on roles, config and limits');
