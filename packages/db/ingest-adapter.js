@@ -22,23 +22,27 @@
  * reprocessed file re-registers nothing and the DAT-04 numerator stays
  * honest.
  *
- * Wiring disclosure (never silent): six fact kinds are wired here — items,
- * suppliers (H7 two-branch identity), open_pos, consumption_balances,
- * deliveries (daily rows only — the engine reads daily; weekly/monthly
- * triples are the H8 window's in-memory concern until a day-expansion unit
- * lands), planning_params. inventory_all_dimensions (needs item/warehouse
- * code→id resolution) and category_owners (control-plane identity) refuse
- * with KIND_NOT_WIRED — the wrapper never half-applies a kind whose row
- * mapping is not proven.
+ * Wiring disclosure (never silent): all eight dataset kinds are wired here —
+ * items, suppliers (H7 two-branch identity), open_pos, consumption_balances,
+ * deliveries (daily rows only — the engine reads daily; the file-to-rows
+ * worker expands coarser dashboard granularities upstream and this adapter
+ * stays the daily-only backstop), planning_params, inventory_all_dimensions
+ * (stock_line — the caller resolves item/warehouse codes to ids first; the
+ * M3 worker unit, D-028) and category_owners (control-plane identity).
+ * The former KIND_NOT_WIRED refusals for the last two are GONE because the
+ * mapping is now proven — a kind would only refuse again if it left UPSERTS,
+ * which the structural suite pins.
  *
  * pg is NOT imported here at all: the client is injected, so structural
  * suites import this contract cleanly without a database or driver.
  * ==========================================================================*/
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const WIRED_KINDS = Object.freeze([
   'items', 'suppliers', 'open_pos', 'consumption_balances', 'deliveries', 'planning_params',
+  'inventory_all_dimensions', 'category_owners',
 ]);
 
 const INGEST_FILE_STATUSES = Object.freeze(['RECEIVED', 'QUARANTINED', 'APPLIED', 'FAILED']);
@@ -63,6 +67,13 @@ function reqNum(row, field, where) {
     throw new TypeError(`INVALID_ROW: ${where} field '${field}' must be a finite number`);
   }
   return v;
+}
+function reqUuid(row, field, where) {
+  const v = row[field];
+  if (typeof v !== 'string' || !UUID_RE.test(v.trim())) {
+    throw new TypeError(`INVALID_ROW: ${where} field '${field}' must be a uuid string — resolve codes to ids BEFORE planning, never inside the executor`);
+  }
+  return v.trim().toLowerCase();
 }
 function optStr(row, field, where) {
   const v = row[field];
@@ -221,6 +232,49 @@ function upsertPlanningParam(t, row, where) {
   };
 }
 
+function upsertStockLine(t, row, where) {
+  /* inventory_all_dimensions → stock_line. The BUSINESS identity (sku +
+   * warehouse code) is the idempotency register's key; the row arrives with
+   * item_id / warehouse_id ALREADY RESOLVED by the caller (the worker's
+   * code→id port) — the executor never resolves, it validates the shape.
+   * Money arrives C2-normalized (value_document + document_currency +
+   * tenant_value) — the same discipline as open_po_line's tenantUnitPrice. */
+  return {
+    text: `
+    INSERT INTO stock_line (tenant_id, item_id, warehouse_id, quantity, unit_code,
+                            value_document, document_currency, tenant_value)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+    ON CONFLICT (tenant_id, item_id, warehouse_id) DO UPDATE SET
+      quantity=EXCLUDED.quantity, unit_code=EXCLUDED.unit_code,
+      value_document=EXCLUDED.value_document, document_currency=EXCLUDED.document_currency,
+      tenant_value=EXCLUDED.tenant_value`,
+    values: [t, reqUuid(row, 'itemId', where), reqUuid(row, 'warehouseId', where),
+      reqNum(row, 'quantity', where), reqStr(row, 'unitCode', where),
+      reqNum(row, 'valueDocument', where), reqStr(row, 'documentCurrency', where),
+      reqNum(row, 'tenantValue', where)],
+  };
+}
+
+function upsertCategoryOwner(t, row, where) {
+  /* category_owners → category_owner: control-plane identity, unique
+   * (tenant_id, category). owner_email is the carried identity; user_id is
+   * resolved from app_user by the caller when the user exists (the column is
+   * nullable — an unregistered owner email is honest data, not an error). */
+  const userId = optStr(row, 'userId', where);
+  if (userId !== null && !UUID_RE.test(userId)) {
+    throw new TypeError(`INVALID_ROW: ${where} field 'userId' must be a uuid string when present`);
+  }
+  return {
+    text: `
+    INSERT INTO category_owner (tenant_id, category, owner_email, user_id)
+    VALUES ($1,$2,$3,$4)
+    ON CONFLICT (tenant_id, category) DO UPDATE SET
+      owner_email=EXCLUDED.owner_email, user_id=EXCLUDED.user_id`,
+    values: [t, reqStr(row, 'category', where), optStr(row, 'ownerEmail', where),
+      userId === null ? null : userId.toLowerCase()],
+  };
+}
+
 const UPSERTS = {
   items: upsertItem,
   suppliers: upsertSupplier,
@@ -228,6 +282,8 @@ const UPSERTS = {
   consumption_balances: upsertConsumptionBalance,
   deliveries: upsertDeliveryDay,
   planning_params: upsertPlanningParam,
+  inventory_all_dimensions: upsertStockLine,
+  category_owners: upsertCategoryOwner,
 };
 
 /* ---- the adapter ------------------------------------------------------------- */
