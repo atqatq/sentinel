@@ -929,11 +929,22 @@ weekly KPI review (Atlas W-16; the human-readable glossary mirror lives in the A
 | INV-01 | IRA % | Inventory record accuracy from ingested count adjustments (§14.12 measure-only) | 1 − (lines with variance beyond tolerance ÷ counted lines) × 100 | count sessions + ingested adjustments | DTA / warehouse owner | weekly per session | ≥ 98% |
 | INV-02 | DIO (days) | Days of inventory outstanding | average inventory value ÷ daily COGS | inventory value + consumption | SCM | daily | tenant target band |
 | INV-03 | Reorder-breach count | SKUs below reorder point at each recompute | count of status-below-reorder SKUs | engine output (screen 2) | SCM / BYR | every recompute | trend; auto-tasks |
-| INV-04 | Service level % | Shortage-free SKU-days share | shortage-free SKU-days ÷ total SKU-days × 100 | engine run-outs | SCM | daily | ≥ 97% |
+| INV-04 | Service level % | Shortage-free plannable share (Amendment A16) | plannable refs without run-out ÷ plannable refs × 100 — the engine canon `1 − shortages ÷ active` | engine run-outs (per recompute) | SCM | daily | ≥ 97% |
 | INV-05 | Dead stock % | Value with no movement in 60 days | dead-stock value ÷ total value × 100 | movement ledger (ingested) | SCM | weekly | ≤ 5% |
 | INV-06 | Expiry-risk value | Value expiring within 7 days | Σ value(expiry ≤ 7d) | shelf-life + FEFO data | SCM | daily | ≤ agreed cap |
 | INV-07 | Transfer reconcile rate % | Approved transfer plans verified against ingested movement (§14.7) | RECONCILED ÷ (RECONCILED + MISMATCH) × 100 | transfer plans + goods-in/out aggregates | SCM | daily | ≥ 95%; MISMATCH > 7d escalates |
 | INV-08 | Quarantine aging (qty-days) | Open quarantine exposure over time | Σ(open quarantine qty × days open) | warehouse-kind reads (ingested, read-only) | warehouse owner | daily | downward trend |
+
+**Amendment A16 (INV-04 grain).** This row originally read "shortage-free
+SKU-days share — shortage-free SKU-days ÷ total SKU-days × 100". The verified
+canon it must render (the planning engine, golden-pinned) computes the share
+over **plannable refs** at a recompute: `1 − shortages ÷ active`, null when
+nothing is plannable (R2). The KPI layer carried the difference as a disclosure
+on every result (D-020) — a spec amendment, never a silent edit. This amendment
+reconciles the text to the canon: the grain is the per-recompute plannable-ref
+share, not a time-weighted SKU-day integral. The canon is untouched; the target
+(≥ 97%) and cadence (daily) are unchanged; the catalog module adopts the amended
+text with the module version bump the §16.8 governance requires.
 
 ### 16.3 Data Health (DAT) — owner: DTA
 

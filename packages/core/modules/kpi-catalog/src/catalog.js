@@ -25,7 +25,10 @@
  * same discipline as H8: the catalog carries the formula TEXT as spec
  * reference, the mapping functions carry engine OUTPUT into the dataState
  * envelope, and any grain difference between catalog text and verified canon
- * is DISCLOSED on the entry, never silently reconciled.
+ * is DISCLOSED on the entry, never silently reconciled. (The one historical
+ * difference — INV-04's SKU-days text over the plannable-refs canon — was
+ * reconciled by spec Amendment A16; the note on the result records that
+ * reconciliation so the disclosure's history stays auditable.)
  *
  * States (the dataState envelope):
  *   OK                — computed from a fresh seal; value present
@@ -66,7 +69,7 @@ const CATALOG = [
   { id: 'INV-01', group: 'INV', name: 'IRA %', definition: 'Inventory record accuracy from ingested count adjustments (§14.12 measure-only)', formula: '1 − (lines with variance beyond tolerance ÷ counted lines) × 100', source: 'count sessions + ingested adjustments', owner: 'DTA / warehouse owner', cadence: 'weekly per session', staleAfterHours: null, target: '≥ 98%' },
   { id: 'INV-02', group: 'INV', name: 'DIO (days)', definition: 'Days of inventory outstanding', formula: 'average inventory value ÷ daily COGS', source: 'inventory value + consumption', owner: 'SCM', cadence: 'daily', staleAfterHours: 26, target: 'tenant target band' },
   { id: 'INV-03', group: 'INV', name: 'Reorder-breach count', definition: 'SKUs below reorder point at each recompute', formula: 'count of status-below-reorder SKUs', source: 'engine output (screen 2)', owner: 'SCM / BYR', cadence: 'every recompute', staleAfterHours: null, target: 'trend; auto-tasks' },
-  { id: 'INV-04', group: 'INV', name: 'Service level %', definition: 'Shortage-free SKU-days share', formula: 'shortage-free SKU-days ÷ total SKU-days × 100', source: 'engine run-outs', owner: 'SCM', cadence: 'daily', staleAfterHours: 26, target: '≥ 97%' },
+  { id: 'INV-04', group: 'INV', name: 'Service level %', definition: 'Shortage-free plannable share (Amendment A16)', formula: 'plannable refs without run-out ÷ plannable refs × 100 — the engine canon 1 − shortages ÷ active', source: 'engine run-outs (per recompute)', owner: 'SCM', cadence: 'daily', staleAfterHours: 26, target: '≥ 97%' },
   { id: 'INV-05', group: 'INV', name: 'Dead stock %', definition: 'Value with no movement in 60 days', formula: 'dead-stock value ÷ total value × 100', source: 'movement ledger (ingested)', owner: 'SCM', cadence: 'weekly', staleAfterHours: 182, target: '≤ 5%' },
   { id: 'INV-06', group: 'INV', name: 'Expiry-risk value', definition: 'Value expiring within 7 days', formula: 'Σ value(expiry ≤ 7d)', source: 'shelf-life + FEFO data', owner: 'SCM', cadence: 'daily', staleAfterHours: 26, target: '≤ agreed cap' },
   { id: 'INV-07', group: 'INV', name: 'Transfer reconcile rate %', definition: 'Approved transfer plans verified against ingested movement (§14.7)', formula: 'RECONCILED ÷ (RECONCILED + MISMATCH) × 100', source: 'transfer plans + goods-in/out aggregates', owner: 'SCM', cadence: 'daily', staleAfterHours: 26, target: '≥ 95%; MISMATCH > 7d escalates' },
@@ -132,11 +135,13 @@ const MONEY_METRICS = Object.freeze([
   'actualDIO', 'targetInvValueTopDown', 'targetInvValueNoStaging',
 ]);
 
-// INV-04 grain note (disclosed, not silently reconciled): the catalog text
-// says "shortage-free SKU-days", while the verified engine canon computes the
-// share over plannable refs (1 − shortages ÷ active). The canon is frozen —
-// the mapping uses it as-is and discloses the grain here and on the result.
-const INV04_GRAIN_NOTE = 'engine canon computes the share over plannable refs (1 − shortages ÷ active); catalog text names SKU-days — difference disclosed, reconciliation owes a spec amendment';
+// INV-04 grain note (the reconciliation record): the catalog text once said
+// "shortage-free SKU-days" while the verified engine canon computes the
+// share over plannable refs (1 − shortages ÷ active). D-020 disclosed the
+// difference on every result — reconciliation owed a spec amendment, never a
+// silent edit. Spec Amendment A16 reconciled the text to the canon; the note
+// stays on the result so the disclosure's history remains auditable.
+const INV04_GRAIN_NOTE = 'grain reconciled by spec Amendment A16: catalog text and engine canon both name the share over plannable refs (1 − shortages ÷ active) — the former SKU-days text is superseded, the disclosure history (D-020) stands';
 
 function baseEnvelope(entry, freshness) {
   return {

@@ -193,10 +193,13 @@ test('state precedence: WITHHELD beats stale; INSUFFICIENT_DATA beats stale', ()
   const u = K.fromEnginePortfolio(unplannablePortfolio(), { asOf: ASOF_STALE, lastSealedAt: SEALED });
   assert.strictEqual(byMetric(u, 'serviceLevel').dataState, 'INSUFFICIENT_DATA');
 });
-test('the INV-04 grain difference is disclosed on the result, never silently reconciled', () => {
+test('the INV-04 grain note records the Amendment A16 reconciliation — text and canon agree, history auditable', () => {
   const out = K.fromEnginePortfolio(cleanPortfolio(), { asOf: ASOF, lastSealedAt: SEALED });
   const r = byMetric(out, 'serviceLevel');
-  assert.ok(r.grainNote.includes('plannable refs'));
+  assert.ok(r.grainNote.includes('Amendment A16'), 'the note names the amendment that reconciled the grain');
+  assert.ok(r.grainNote.includes('plannable refs'), 'the note keeps the canon grain named');
+  assert.strictEqual(r.catalogRef.definition.includes('Amendment A16'), true,
+    'the catalog entry itself carries the amended grain — no stale text survives');
   assert.ok(out.grainNotes.length === 1);
 });
 test('results are deterministic for identical inputs', () => {
