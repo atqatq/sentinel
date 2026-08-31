@@ -61,8 +61,8 @@ const DELTA = {
 
 console.log('\nThe adapter is tenant-fenced and statement-first');
 
-test('SCHEMA_VERSION tracks the highest applied migration (0005)', () => {
-  assert.strictEqual(DB.SCHEMA_VERSION, '0005');
+test('SCHEMA_VERSION tracks the highest applied migration (0006)', () => {
+  assert.strictEqual(DB.SCHEMA_VERSION, '0006');
 });
 
 test('every statement carries the explicit tenant predicate or parameter', async () => {

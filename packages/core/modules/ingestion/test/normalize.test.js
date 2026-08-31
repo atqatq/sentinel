@@ -230,6 +230,28 @@ test('rejects a malformed table structure', () => {
   assert.throws(() => N.validateRateTable({ usdToLocalByDay: [] }), TypeError);
 });
 
+/* ---- §14.6c — the Purchase Order Status surface ----------------------------------- */
+console.log('\nPo-status normalization (§14.6c: closed vocabulary, degrade-or-quarantine)');
+
+test('the vocabulary normalizes trim + case-fold', () => {
+  assert.deepStrictEqual(N.normalizePoStatus('OPEN'), { ok: true, value: 'OPEN', degraded: false });
+  assert.deepStrictEqual(N.normalizePoStatus(' cancelled '), { ok: true, value: 'CANCELLED', degraded: false });
+  assert.deepStrictEqual(N.normalizePoStatus('Closed'), { ok: true, value: 'CLOSED', degraded: false });
+});
+test('absent or blank degrades to live — never an error, never a guess', () => {
+  assert.strictEqual(N.normalizePoStatus(undefined).value, null);
+  assert.strictEqual(N.normalizePoStatus(null).value, null);
+  assert.strictEqual(N.normalizePoStatus('   ').value, null);
+  assert.strictEqual(N.normalizePoStatus('').degraded, true);
+});
+test('present-but-unknown refuses by name — the INVALID_CONVERSION_FACTOR posture', () => {
+  const r = N.normalizePoStatus('pending');
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.reason, 'PO_STATUS_UNKNOWN');
+  assert.ok(/OPEN \| CANCELLED \| CLOSED/.test(r.detail));
+  assert.strictEqual(N.normalizePoStatus(1).ok, false);
+});
+
 /* ---- summary --------------------------------------------------------------------- */
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

@@ -73,6 +73,7 @@ const ALIASES = {
     'receipt dates': 'receiptDates', 'currency': 'currency', 'item currency': 'currency',
     'currency code': 'currency', 'ordered (quantity)': 'ordered',
     'received (quantity)': 'received', 'waiting (quantity)': 'waiting',
+    'purchase order status': 'poStatus',
   },
   deliveries: {
     'period start': 'periodStart', 'period end': 'periodEnd',

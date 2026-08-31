@@ -225,13 +225,14 @@ const unconvertible = (c) => refused(
 /* Assemble + compute ONE ref. Every engine formula stays in the engine — this
  * function only aggregates tenant rows into the canon's input shapes. */
 function assembleRef(ref, ctx) {
-  const { inputs, tenant, disclosures, workingDaysOpts, dpd } = ctx;
+  const { inputs, tenant, disclosures, workingDaysOpts, dpd, asOf } = ctx;
   const members = inputs.items.filter((it) => it.recipeRef === ref).sort(bySkuThen);
   const params = E.activeParams(inputs.paramsByRef[ref]);
 
-  let onHand = 0, invValue = 0, openPO = 0;
+  let onHand = 0, invValue = 0;
   let masterPrice = 0, shelfLifeDays = null;
   const consumptionRows = []; // {item, row} in deterministic order
+  const poLines = [];         // §14.6c producer facts — live/dead decided in ONE place
 
   for (const m of members) {
     for (const s of inputs.stock.filter((r) => r.sku === m.sku)) {
@@ -248,9 +249,22 @@ function assembleRef(ref, ctx) {
       const w = asNum(p.waitingQtyConverted);
       if (w === null || w < 0) {
         disclosures.unconvertedOpenPo.push({ sku: p.sku, poNumber: p.poNumber });
-      } else {
-        openPO += w; // C1 already converted at ingestion — planning units in, planning units out
+        continue;
       }
+      // §14.6c: the producer owns liveness (status) and the supply facts; the
+      // engine's openPO input is its live-line sum — one canon, no forked sum.
+      // `received` rides the same asNum discipline as every NUMERIC the
+      // adapter loads — node-pg ships DECIMAL as strings (the int8 lesson,
+      // caught live by plan-seal on the first 0006 run); the producer refuses
+      // a string as the wiring error it would be.
+      const r = asNum(p.received);
+      poLines.push({
+        poNumber: String(p.poNumber), sku: p.sku, waiting: w,
+        ...(r !== null ? { received: r } : {}),
+        ...(p.expectedDelivery != null ? { expectedDelivery: String(p.expectedDelivery) } : {}),
+        ...(p.status != null ? { status: String(p.status) } : {}),
+        ...(p.supplierBanned != null ? { supplierBanned: p.supplierBanned === true } : {}),
+      });
     }
     const price = asNum(m.price);
     if (price !== null && price > 0 && (masterPrice === 0 || m.preferredForRecipeRef)) masterPrice = price;
@@ -306,8 +320,14 @@ function assembleRef(ref, ctx) {
     };
   }
 
+  /* §14.6c — the supply-status producer. Liveness, the sums and the banned-
+   * supplier flag are decided in ONE place; the engine's openPO input is the
+   * live-line sum (a cancelled line can no longer paint "Follow-up with
+   * Supplier" on a ref whose trucks are never coming). */
+  const supply = E.deriveSupplyFacts({ lines: poLines, asOf });
+
   const computed = E.computeRef(
-    { onHand, openPO, invValue, histMonthly, consPerDelivery,
+    { onHand, openPO: supply.openPO, invValue, histMonthly, consPerDelivery,
       masterPrice, shelfLifeDays: shelfLifeDays || 0, quarantine: 0, reserved: 0, damaged: 0 },
     params, dpd, workingDaysOpts,
   );
@@ -318,6 +338,7 @@ function assembleRef(ref, ctx) {
     currency: tenant.currencyCode, // C2: rows are tenant-currency-normalized at ingestion
     ...(rateInputs ? { rateInputs } : {}),
     ...computed,
+    supply: { status: E.supplyStatus(supply), ...supply }, // additive (§14.6c)
   } };
 }
 
@@ -399,7 +420,7 @@ async function runPlan(request, ports) {
     ...items.map((i) => i.recipeRef).filter((r) => typeof r === 'string' && r !== ''),
   ])).sort();
 
-  const ctx = { inputs, tenant, disclosures, workingDaysOpts, dpd };
+  const ctx = { inputs, tenant, disclosures, workingDaysOpts, dpd, asOf: asOfParsed.value };
   const refRows = [];
   for (const ref of refNames) {
     const r = assembleRef(ref, ctx);

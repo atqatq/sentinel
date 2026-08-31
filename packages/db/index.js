@@ -13,7 +13,7 @@
  * lives in the ledger module — this package owns the SQL).
  * pg is touched lazily so this contract imports cleanly without a database. */
 module.exports = {
-  SCHEMA_VERSION: '0005',
+  SCHEMA_VERSION: '0006',
   makePlanAdapter: require('./plan-adapter').makePlanAdapter,
   connectPlanClient: require('./plan-adapter').connectPlanClient,
   pgDriver: require('./plan-adapter').pgDriver,

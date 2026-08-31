@@ -1,7 +1,7 @@
 {
   "id": "planning-engine",
-  "version": "1.0.0",
-  "description": "Verified MRP planning engine — deliveries are the only raw demand primitive; consumption, cover, run-out, reorder, EOQ and max derive from the per-SKU consumption-per-delivery rate. Ported verbatim from the company workbook; formulas are golden-guarded and never re-derived.",
+  "version": "1.1.0",
+  "description": "Verified MRP planning engine — deliveries are the only raw demand primitive; consumption, cover, run-out, reorder, EOQ and max derive from the per-SKU consumption-per-delivery rate. Ported verbatim from the company workbook; formulas are golden-guarded and never re-derived. Version 1.1.0 adds the M5 supply-status producer layer (build spec §14.6c; named proof ingestion/supply-status-producers): the ref-level facts {openPO, overduePO, partialPO, supplierIssue} derived from live Open-POs lines against an explicit asOf — cancelled/closed lines leave the loop, banned suppliers raise Supplier Issue, unpromised and dead-line waiting is disclosed, and the engine's openPO input becomes the live-line sum.",
   "purity": "no-db, no-react, no-framework, no-io",
   "dependencies": [],
   "permissionScopes": ["plan:read", "plan:recompute", "proposal:create"],
@@ -21,5 +21,5 @@
     "PROPOSAL_CONVERTED",
     "RECOMPUTE_RUN"
   ],
-  "goldenTests": { "suite": "test/engine.test.js", "count": 86 }
+  "goldenTests": { "suite": "test/engine.test.js", "count": 86, "plus": { "suite": "test/supply.test.js", "count": 22 } }
 }

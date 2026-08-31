@@ -221,10 +221,32 @@ function normalizeMoney(row, tenantCurrency, rateTable) {
   return { ok: false, reason: 'CURRENCY_NOT_SUPPORTED', documentCurrency: doc, tenantCurrency: tenant, asOfDay };
 }
 
+/* ---------------------------------------------------------------------------
+ * §14.6c — the Purchase Order Status surface, normalized to the closed
+ * vocabulary. Trim + case-fold (the §3.1 header discipline, applied to the
+ * VALUE); the three lifecycle states are the only words the supply-status
+ * producer accepts. Absent is NOT an error — the caller degrades to
+ * live-line and discloses the degradation once per run. Present-but-unknown
+ * is the INVALID_CONVERSION_FACTOR posture: never coerced, quarantined by
+ * name (PO_STATUS_UNKNOWN).
+ * -------------------------------------------------------------------------*/
+const PO_STATUS_VOCABULARY = ['OPEN', 'CANCELLED', 'CLOSED'];
+
+function normalizePoStatus(raw) {
+  if (raw === undefined || raw === null) return { ok: true, value: null, degraded: true };
+  const s = String(raw).trim();
+  if (s === '') return { ok: true, value: null, degraded: true }; // a blank cell carries no claim
+  const u = s.toUpperCase();
+  if (PO_STATUS_VOCABULARY.includes(u)) return { ok: true, value: u, degraded: false };
+  return { ok: false, reason: 'PO_STATUS_UNKNOWN', detail: `"${s.slice(0, 60)}" is not one of ${PO_STATUS_VOCABULARY.join(' | ')}` };
+}
+
 module.exports = {
   validateUnitCatalog,
   resolveUnit,
   convertOpenPoRows,
   validateRateTable,
   normalizeMoney,
+  normalizePoStatus,
+  PO_STATUS_VOCABULARY,
 };

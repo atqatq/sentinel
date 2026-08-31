@@ -460,6 +460,55 @@ test('an unpinned USD day refuses RATE_NOT_PINNED per row — never a guessed ra
   assert.strictEqual(kept[0].tenantUnitPrice, 2);
 });
 
+/* ---- open POs: the §14.6c Purchase Order Status surface --------------------------- */
+
+const openPoStatusCsv = (rows, withHeader = true) => 'OPEN POS — synthetic\n'
+  + 'Purchase Order #,Supplier,SKU,Item Name,Unit,Purchase Order Delivery Date,Unit Price,Receipt Dates,Currency,Ordered (Quantity),Received (Quantity),Waiting (Quantity),Purchase Order Status\n'
+  + rows.join('\n') + '\n';
+test('a carried status normalizes to the closed vocabulary and rides the row (§14.6c)', async () => {
+  const ex = stubExecutor();
+  const csvText = openPoStatusCsv([
+    'PO-1,Supplier A,SKU-1,Item,CTN,2026-09-01,2,,USD,100,40,60,open',
+    'PO-2,Supplier A,SKU-1,Item,CTN,2026-09-01,2,,USD,100,0,100,CANCELLED',
+  ]);
+  const r = await run({ factors: { 'SKU-1': 1 }, pin: 3.75 }, ex, { bytes: Buffer.from(csvText), declaredName: 'pos.csv' });
+  assert.strictEqual(r.verdict, 'APPLIED');
+  const rows = ex.calls.plans[0].rows.map((x) => x.row);
+  assert.strictEqual(rows[0].poStatus, 'OPEN');
+  assert.strictEqual(rows[1].poStatus, 'CANCELLED');
+});
+test('a present-but-unknown status quarantines the row PO_STATUS_UNKNOWN — never coerced', async () => {
+  const ex = stubExecutor();
+  const ports = stubPorts({ factors: { 'SKU-1': 1 }, pin: 3.75 });
+  const csvText = openPoStatusCsv([
+    'PO-1,Supplier A,SKU-1,Item,CTN,2026-09-01,2,,USD,100,40,60,pending',
+    'PO-2,Supplier A,SKU-1,Item,CTN,2026-09-01,2,,SAR,100,0,100,OPEN',
+  ]);
+  const r = await run(ports, ex, { bytes: Buffer.from(csvText), declaredName: 'pos.csv' });
+  assert.strictEqual(r.verdict, 'APPLIED');
+  assert.strictEqual(r.counters.rowsApplied, 1);
+  assert.strictEqual(r.counters.rowsQuarantined, 1);
+  assert.strictEqual(ports.calls.quarantineRecords.records[0].reason, 'PO_STATUS_UNKNOWN');
+});
+test('a blank status among carried ones degrades that line to live and discloses the count', async () => {
+  const ex = stubExecutor();
+  const csvText = openPoStatusCsv([
+    'PO-1,Supplier A,SKU-1,Item,CTN,2026-09-01,2,,USD,100,40,60,',
+    'PO-2,Supplier A,SKU-1,Item,CTN,2026-09-01,2,,USD,100,0,100,OPEN',
+  ]);
+  const r = await run({ factors: { 'SKU-1': 1 }, pin: 3.75 }, ex, { bytes: Buffer.from(csvText), declaredName: 'pos.csv' });
+  assert.strictEqual(r.verdict, 'APPLIED');
+  assert.strictEqual(ex.calls.plans[0].rows[0].row.poStatus, null);
+  assert.ok(r.disclosures.some((d) => d.includes('1 open PO line(s) carried no Purchase Order Status value')));
+});
+test('a feed without the status column discloses the live-line degradation once (§14.6c)', async () => {
+  const ex = stubExecutor();
+  const r = await run({ factors: { 'SKU-1': 12 }, pin: 3.75 }, ex, { bytes: Buffer.from(openPoCsv('2')), declaredName: 'pos.csv' });
+  assert.strictEqual(r.verdict, 'APPLIED');
+  assert.strictEqual(ex.calls.plans[0].rows[0].row.poStatus, null);
+  assert.ok(r.disclosures.some((d) => d.includes('no Purchase Order Status column — every line degrades to live')));
+});
+
 /* ---- category owners + planning params ------------------------------------------- */
 console.log('\nControl plane: owner identity resolves honestly; params fold into the storage shape');
 

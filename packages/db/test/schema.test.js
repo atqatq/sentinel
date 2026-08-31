@@ -343,6 +343,14 @@ function parseSqlTables(sql) {
     while ((c = colRe.exec(m[2])) !== null) cols.add(c[1]);
     tables[m[1]] = cols;
   }
+  /* The contract is the CONCATENATION: columns added by later ALTERs
+   * (e.g. 0006_open_po_status) belong to the table's column set too. */
+  const alterRe = /ALTER TABLE "([^"]+)" ADD COLUMN "([^"]+)"/g;
+  let a;
+  while ((a = alterRe.exec(sql)) !== null) {
+    if (!tables[a[1]]) tables[a[1]] = new Set();
+    tables[a[1]].add(a[2]);
+  }
   return tables;
 }
 

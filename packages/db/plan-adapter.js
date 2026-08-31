@@ -39,8 +39,11 @@ function makePlanAdapter(client, tenantId) {
           `SELECT i.sku, s.quantity, s.tenant_value AS "tenantValue"
              FROM stock_line s JOIN item i ON i.id = s.item_id WHERE s.tenant_id = $1 ORDER BY i.sku`, [tenantId])).rows,
         openPo: (await client.query(
-          `SELECT sku, po_number AS "poNumber", waiting_qty_converted AS "waitingQtyConverted"
-             FROM open_po_line WHERE tenant_id = $1 ORDER BY sku, po_number`, [tenantId])).rows,
+          `SELECT o.sku, o.po_number AS "poNumber", o.waiting_qty_converted AS "waitingQtyConverted",
+                  o.received_qty AS "received", o.expected_delivery::text AS "expectedDelivery",
+                  o.status, COALESCE(s.is_banned, false) AS "supplierBanned"
+             FROM open_po_line o LEFT JOIN supplier s ON s.id = o.supplier_id
+            WHERE o.tenant_id = $1 ORDER BY o.sku, o.po_number`, [tenantId])).rows,
         consumption: (await client.query(
           `SELECT sku, period_start::text AS start, period_end::text AS "end",
                   start_balance AS "startBalance", goods_in AS "goodsIn", goods_out AS "goodsOut", end_balance AS "endBalance"

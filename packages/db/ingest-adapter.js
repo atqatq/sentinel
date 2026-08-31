@@ -166,19 +166,20 @@ function upsertOpenPoLine(t, row, where) {
     text: `
     INSERT INTO open_po_line (tenant_id, po_number, sku, ordered_qty, received_qty, waiting_qty,
                               waiting_qty_converted, unit_code, unit_price, currency_code,
-                              tenant_unit_price, expected_delivery, receipt_dates, po_created_at)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+                              tenant_unit_price, expected_delivery, receipt_dates, po_created_at, status)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
     ON CONFLICT (tenant_id, po_number, sku) DO UPDATE SET
       ordered_qty=EXCLUDED.ordered_qty, received_qty=EXCLUDED.received_qty, waiting_qty=EXCLUDED.waiting_qty,
       waiting_qty_converted=EXCLUDED.waiting_qty_converted, unit_code=EXCLUDED.unit_code,
       unit_price=EXCLUDED.unit_price, currency_code=EXCLUDED.currency_code,
       tenant_unit_price=EXCLUDED.tenant_unit_price, expected_delivery=EXCLUDED.expected_delivery,
-      receipt_dates=EXCLUDED.receipt_dates, po_created_at=EXCLUDED.po_created_at`,
+      receipt_dates=EXCLUDED.receipt_dates, po_created_at=EXCLUDED.po_created_at, status=EXCLUDED.status`,
     values: [t, reqStr(row, 'poNumber', where), reqStr(row, 'sku', where), reqNum(row, 'ordered', where),
       reqNum(row, 'received', where), reqNum(row, 'waiting', where), optNum(row, 'waitingQtyConverted', where),
       reqStr(row, 'unit', where), reqNum(row, 'unitPrice', where), reqStr(row, 'currency', where),
       reqNum(row, 'tenantUnitPrice', where), optStr(row, 'expectedDelivery', where),
-      optStr(row, 'receiptDates', where), optStr(row, 'poCreationDate', where)],
+      optStr(row, 'receiptDates', where), optStr(row, 'poCreationDate', where),
+      optStr(row, 'poStatus', where)],
   };
 }
 

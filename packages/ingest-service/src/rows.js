@@ -105,6 +105,10 @@ const FIELD_SPECS = {
     ordered: { type: 'number', required: true, bounds: { min: 0 } },
     received: { type: 'number', required: true, bounds: { min: 0 } },
     waiting: { type: 'number', required: true, bounds: { min: 0 } },
+    // §14.6c: the raw Purchase Order Status surface — the worker normalizes it
+    // against the closed vocabulary (absent → live-line degradation, disclosed;
+    // unknown value → PO_STATUS_UNKNOWN quarantine).
+    poStatus: { type: 'string', required: false },
   },
   deliveries: {
     periodStart: { type: 'date', required: true },

@@ -262,6 +262,8 @@ model OpenPoLine {
   expectedDelivery    DateTime? @map("expected_delivery") @db.Date
   receiptDates        String?  @map("receipt_dates")
   poCreatedAt         DateTime? @map("po_created_at") @db.Date
+  /// Purchase Order Status surface (§14.6c): OPEN | CANCELLED | CLOSED | NULL
+  status              String?  @map("status")
 
   item     Item      @relation(fields: [itemId], references: [id])
   supplier Supplier? @relation(fields: [supplierId], references: [id])

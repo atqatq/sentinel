@@ -261,8 +261,21 @@ async function runFileToRows(deps, input) {
     }
     const kept = [];
     let pinnedUsd = 0, pinnedRate = null;
+    let statusPresent = false, statusDegraded = 0;
     for (const row of conv.converted) {
       row.waitingQtyConverted = row.waitingConverted; // the executor's column name
+      /* §14.6c — the Purchase Order Status surface. Present-but-unknown is a
+       * wiring error: the row quarantines (PO_STATUS_UNKNOWN), never coerces.
+       * Absent/blank degrades to live — the run DISCLOSES the degradation
+       * once, and the producer treats the line exactly as an OPEN line. */
+      const st = stage.normalize.normalizePoStatus(row.poStatus);
+      if (!st.ok) {
+        quarantineRowAt(row.__lineNo, 'poStatus', row.poStatus, st.reason, st.detail);
+        continue;
+      }
+      if (st.value === null) statusDegraded++;
+      else statusPresent = true;
+      row.poStatus = st.value; // normalized | null — the executor stores NULL for degraded
       const money = stage.normalize.normalizeMoney({ amount: row.unitPrice, documentCurrency: row.currency, asOfDay }, settings.currencyCode, rateTable);
       if (!money.ok) {
         quarantineRowAt(row.__lineNo, 'unitPrice', row.unitPrice, money.reason, `document currency ${row.currency}`);
@@ -273,6 +286,11 @@ async function runFileToRows(deps, input) {
       kept.push(row);
     }
     if (pinnedUsd > 0) disclosures.push(`${pinnedUsd} open PO line(s) converted at the pinned USD→${settings.currencyCode} rate ${pinnedRate} for ${asOfDay} (C2)`);
+    if (statusPresent && statusDegraded > 0) {
+      disclosures.push(`${statusDegraded} open PO line(s) carried no Purchase Order Status value — degraded to live for the supply axis (§14.6c)`);
+    } else if (!statusPresent && kept.length > 0) {
+      disclosures.push('the feed carries no Purchase Order Status column — every line degrades to live for the supply axis (§14.6c: live-line degradation, disclosed)');
+    }
     rows = kept;
   }
 

@@ -252,6 +252,60 @@ test('open PO sums the C1-converted waiting quantities', async () => {
   const r = await runPlan(REQ, makeDeps());
   assert.strictEqual(r.seal.payload.refs[0].openPO, 240);
 });
+
+/* ---- supply-status producers (§14.6c, audit M5) ----------------------------------- */
+
+test('the receipt carries the §14.6c supply block — live lines classify Follow-up with Supplier', async () => {
+  const r = await runPlan(REQ, makeDeps());
+  const ref = r.seal.payload.refs[0];
+  assert.strictEqual(ref.supply.status, 'Follow-up with Supplier');
+  assert.strictEqual(ref.supply.openPO, 240);
+  assert.strictEqual(ref.supply.overduePO, 0);
+  assert.strictEqual(ref.supply.partialPO, 0);
+  assert.strictEqual(ref.supply.supplierIssue, false);
+  assert.strictEqual(ref.supply.unpromisedLines, 1, 'no promised date on the fixture line — disclosed');
+});
+test('a CANCELLED line leaves the engine openPO and is disclosed, never counted', async () => {
+  const r = await runPlan(REQ, makeDeps({ inputs: { openPo: [
+    { sku: 'S1', poNumber: 'PO-1', waitingQtyConverted: 240 },
+    { sku: 'S1', poNumber: 'PO-2', waitingQtyConverted: 500, status: 'CANCELLED' },
+  ] } }));
+  const ref = r.seal.payload.refs[0];
+  assert.strictEqual(ref.openPO, 240, 'the truck is not coming — dead waiting is not expected stock');
+  assert.strictEqual(ref.supply.status, 'Follow-up with Supplier', 'a cancelled commitment must not read as live follow-up');
+  assert.strictEqual(ref.supply.cancelledLines, 1);
+  assert.strictEqual(ref.supply.cancelledWaiting, 500);
+});
+test('an overdue live line classifies Late PO against the run asOf', async () => {
+  const r = await runPlan(REQ, makeDeps({ inputs: { openPo: [
+    { sku: 'S1', poNumber: 'PO-1', waitingQtyConverted: 240, expectedDelivery: '2026-02-01' },
+  ] } }));
+  const ref = r.seal.payload.refs[0];
+  assert.strictEqual(ref.supply.overduePO, 240);
+  assert.strictEqual(ref.supply.status, 'Late PO');
+});
+test('a banned supplier on a live line outranks lateness — Supplier Issue', async () => {
+  const r = await runPlan(REQ, makeDeps({ inputs: { openPo: [
+    { sku: 'S1', poNumber: 'PO-1', waitingQtyConverted: 240, expectedDelivery: '2026-02-01', supplierBanned: true },
+  ] } }));
+  const ref = r.seal.payload.refs[0];
+  assert.strictEqual(ref.supply.supplierIssue, true);
+  assert.strictEqual(ref.supply.status, 'Supplier Issue');
+});
+test('no open-PO lines at all → Normal, zero facts', async () => {
+  const r = await runPlan(REQ, makeDeps({ inputs: { openPo: [] } }));
+  const ref = r.seal.payload.refs[0];
+  assert.strictEqual(ref.supply.status, 'Normal');
+  assert.strictEqual(ref.supply.openPO, 0);
+});
+test('received arrives as node-pg ships NUMERIC — a string — and still feeds the producer (int8 lesson)', async () => {
+  const r = await runPlan(REQ, makeDeps({ inputs: { openPo: [
+    { sku: 'S1', poNumber: 'PO-1', waitingQtyConverted: 240, received: '40' },
+  ] } }));
+  const ref = r.seal.payload.refs[0];
+  assert.strictEqual(ref.supply.partialPO, 240, 'the asNum boundary converts the pg DECIMAL string before the producer sees it');
+  assert.strictEqual(ref.supply.status, 'Partial Delivery');
+});
 test('unconverted open-PO rows are excluded AND disclosed, never guessed', async () => {
   const r = await runPlan(REQ, makeDeps({ inputs: { openPo: [
     { sku: 'S1', poNumber: 'PO-1', waitingQtyConverted: 240 },

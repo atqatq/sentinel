@@ -35,6 +35,8 @@ jobs:
           node-version: 22
       - name: Engine golden suite (86)
         run: node packages/core/modules/planning-engine/test/engine.test.js
+      - name: M5 supply-status producers — named proof ingestion/supply-status-producers (22)
+        run: node packages/core/modules/planning-engine/test/supply.test.js
       - name: Feedback suite (31)
         run: node packages/core/modules/execution-feedback/test/feedback.test.js
       - name: M6 receipt→PO-line matching — named proof feedback/matching (23)
@@ -45,7 +47,7 @@ jobs:
         run: node packages/core/modules/calendar/test/dates.test.js
       - name: H9 working calendar — flat-tenant-identical + Ramadan adjustment (29)
         run: node packages/core/modules/calendar/test/calendar.test.js
-      - name: Plan service — engine live wiring + sealed snapshots (41)
+      - name: Plan service — engine live wiring + sealed snapshots (47)
         run: node packages/plan-service/test/plan.test.js
       - name: Ops freshness alarm — DAT-01 SLO + missing-deliveries channel (19)
         run: node packages/core/modules/ops/test/freshness.test.js
@@ -68,7 +70,7 @@ jobs:
         run: node packages/core/modules/ingestion/test/parse.test.js
       - name: File-kind binding + allow-list + purge enforcement (16, checksum-pinned fixtures)
         run: node packages/core/modules/ingestion/test/filebinding.test.js
-      - name: Unit resolution + C1 conversion + C2 money normalization (36)
+      - name: Unit resolution + C1 conversion + C2 money + §14.6c PO status (39)
         run: node packages/core/modules/ingestion/test/normalize.test.js
       - name: H8 window alignment guard — refuse to seed uncovered (26)
         run: node packages/core/modules/ingestion/test/window.test.js
@@ -76,7 +78,7 @@ jobs:
         run: node packages/core/modules/ingestion/test/hardening.test.js
       - name: H6 idempotent upsert wrapper — keys + replay plan (29)
         run: node packages/core/modules/ingestion/test/idempotency.test.js
-      - name: File-to-rows worker — gate to executor, persistence, day-expansion (32)
+      - name: File-to-rows worker — gate to executor, persistence, day-expansion (36)
         run: node packages/ingest-service/test/worker.test.js
       - name: Ingest worker adapter — ports + register lifecycle + task writers (26)
         run: node packages/db/test/ingest-worker-adapter.test.js
