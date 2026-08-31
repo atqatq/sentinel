@@ -13,7 +13,7 @@
     "guard:tokens": "node scripts/guards/sds-token-parity.mjs",
     "guard:ui-scope": "bash scripts/guards/ui-primitives-scope.sh",
     "guard:status": "bash scripts/guards/status-vocabulary-binding.sh",
-    "test": "npm run test:engine && npm run test:feedback && npm run test:kpi && npm run test:calendar && npm run test:plan && npm run test:status && npm run test:ops && npm run test:approval && npm run test:ingest && npm run test:db && npm run test:ingestsvc && npm run test:datahealth",
+    "test": "npm run test:engine && npm run test:feedback && npm run test:kpi && npm run test:calendar && npm run test:plan && npm run test:status && npm run test:ops && npm run test:approval && npm run test:ledger && npm run test:ingest && npm run test:db && npm run test:ingestsvc && npm run test:datahealth",
     "test:engine": "node packages/core/modules/planning-engine/test/engine.test.js",
     "test:feedback": "node packages/core/modules/execution-feedback/test/feedback.test.js",
     "test:kpi": "node packages/core/modules/kpi-catalog/test/catalog.test.js",
@@ -22,11 +22,13 @@
     "test:status": "node --experimental-strip-types packages/ui/test/status.test.ts",
     "test:ops": "node packages/core/modules/ops/test/freshness.test.js",
     "test:approval": "node packages/core/modules/approval/test/approval.test.js",
+    "test:ledger": "node packages/core/modules/ledger/test/ledger.test.js",
     "test:ingest": "node packages/core/modules/ingestion/test/parse.test.js && node packages/core/modules/ingestion/test/filebinding.test.js && node packages/core/modules/ingestion/test/normalize.test.js && node packages/core/modules/ingestion/test/window.test.js && node packages/core/modules/ingestion/test/hardening.test.js && node packages/core/modules/ingestion/test/idempotency.test.js",
-    "test:db": "node packages/db/test/schema.test.js && node packages/db/test/ingest-adapter.test.js && node packages/db/test/ingest-worker-adapter.test.js && node packages/db/test/procure-adapter.test.js",
+    "test:db": "node packages/db/test/schema.test.js && node packages/db/test/ingest-adapter.test.js && node packages/db/test/ingest-worker-adapter.test.js && node packages/db/test/procure-adapter.test.js && node packages/db/test/ledger-adapter.test.js",
     "test:ingestsvc": "node packages/ingest-service/test/worker.test.js",
     "test:datahealth": "node --experimental-strip-types apps/web/test/data-health-facts.test.ts",
     "test:rls": "node packages/db/test/rls-deny-matrix.js",
-    "test:sod": "node packages/db/test/sod-live.js"
+    "test:sod": "node packages/db/test/sod-live.js",
+    "test:ledgerlive": "node packages/db/test/ledger-live.js"
   }
 }

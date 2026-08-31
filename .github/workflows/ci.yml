@@ -49,6 +49,8 @@ jobs:
         run: node packages/core/modules/ops/test/freshness.test.js
       - name: C3 approval decision layer — SoD, tiers, dual control, freeze (34)
         run: node packages/core/modules/approval/test/approval.test.js
+      - name: H5 ledger module — RFC 8785 JCS vectors, §16.2 gate, keyed chain verify (50)
+        run: node packages/core/modules/ledger/test/ledger.test.js
 
   ingestion-tests:
     name: Ingestion boundary suites (strict parse + file binding)
@@ -103,6 +105,8 @@ jobs:
         run: node packages/db/test/schema.test.js
       - name: Ingest adapter — plan execution via stub client (17)
         run: node packages/db/test/ingest-adapter.test.js
+      - name: Ledger adapter — statement-first append via stub client (11)
+        run: node packages/db/test/ledger-adapter.test.js
       - name: Install pg client for the matrix
         run: npm install --prefix packages/db pg@8 --no-save --no-audit --no-fund
       - name: RLS deny matrix (live)
@@ -119,6 +123,10 @@ jobs:
           DATABASE_URL_ADMIN: postgres://postgres:postgres@127.0.0.1:5432/postgres
       - name: SOD live — SoD invariant, dual control, supplier freeze, Origin-only (C3)
         run: node packages/db/test/sod-live.js
+        env:
+          DATABASE_URL_ADMIN: postgres://postgres:postgres@127.0.0.1:5432/postgres
+      - name: LEDGER live — tamper-resistant, origin-cannot-mutate, chain guard, verifier role (H5)
+        run: node packages/db/test/ledger-live.js
         env:
           DATABASE_URL_ADMIN: postgres://postgres:postgres@127.0.0.1:5432/postgres
 
