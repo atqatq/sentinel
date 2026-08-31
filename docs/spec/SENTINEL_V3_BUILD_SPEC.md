@@ -588,6 +588,63 @@ exposes where the engine is blind.
 **Non-negotiable:** reconciliation is **evidence-based, not self-reported**. Adherence is computed from the
 imported PO/GRN facts, never from a checkbox someone ticks.
 
+### 14.6b Receipt→PO-line matching — the normative rules (audit M6; gate 16; named proof `feedback/matching`)
+
+*(§14.6 classifies a proposal once a commitment and its receipts are KNOWN. This section is the contract for
+how receipts become known — the matching rules the audit found "delegated to nobody" [M6]. Until these rules
+are normative, DoD 5b "the loop closes" is not verifiable. The implementation is the pure matching layer in
+the execution-feedback module; `reconcileProposal` remains the per-line leaf it consumes.)*
+
+**Line identity and keys.** A PO line is identified by `(poNumber, sku)` — the same business identity the
+ingestion layer keys (`open_pos`) and the schema uniques (`open_po_line`). A proposal links to its PO lines
+through the **closed task's PO number(s)** (§14.6 Capture: "the PO number is what makes reconciliation
+possible"): a proposal carries the poNumber set it was ordered against. Receipts and returns are **events**
+per line — `(poNumber, sku, type: receipt|return, qty, at, unitPrice?)` — split GRNs are several receipt
+events for one line. The matching layer receives facts; it never invents them.
+
+**Tolerance.** The §14.6 bands stand: proposal adherence (Σ ordered ÷ proposed) is FOLLOWED within
+**0.95–1.05**. At the PO line, receipts beyond **ordered + 5%** are flagged `OVER_RECEIVED` — the excess is
+a fact to investigate, never silently absorbed; the in-transit position still clamps at zero (over-receipt
+can never produce a negative open position).
+
+**Cancellation.** A PO line whose status is `CANCELLED` (the "Purchase Order Status" surface) leaves the
+loop: its outcome is `CANCELLED`, its lateness is void (`lateByDays` null — a cancelled promise is not a
+late one), and it is **excluded from adherence denominators and scorecard due-lines** (H2's rule: only DUE
+lines count — a cancelled line is not due). The in-transit guard **releases** a cancelled line's open
+quantity: the truck is not coming, and suppressing the re-order on a cancelled PO is the double-order guard
+failing in the opposite direction. Receipts observed after cancellation are flagged
+`RECEIPTS_AFTER_CANCEL` — an anomaly to investigate, reported, never hidden.
+
+**Amendment.** An amendment fact is `{poNumber, sku, field, from, to, amendedAt, reasonCode?}`. Only the
+ordered quantity is amendable in this contract (`field: 'ordered'`); the **latest** `amendedAt` wins; fill
+rate, in-transit and the in-transit guard compute against the **amended** ordered quantity, and proposal
+adherence is judged on it too — the proposal was still the signal. The deviation discipline extends to
+amendments: a missing `reasonCode` is flagged `AMENDMENT_UNEXPLAINED` and counts against data health, not
+against the buyer; the line carries `AMENDED`. Amendments referencing an unknown line are a wiring error
+and refuse by name.
+
+**Returns / credits.** A return event reduces received quantity: fill rate recomputes honestly (a fully
+returned line is `SHORT_DELIVERED` with `GOODS_RETURNED`), and the in-transit clamp keeps every position
+≥ 0. Returns are facts about the supplier and the goods, disclosed on the line — never averaged away.
+
+**Split and merge.** One proposal answered by several PO lines is a **split**: the aggregate reconciles the
+Σ of the lines' (amended) ordered quantities against the proposal, flags `SPLIT_ACROSS_POS`, and reports
+per-line evidence. One PO line answering several proposals (an `ORDER_CONSOLIDATION` merge) is allocated
+**deterministically — FIFO by proposal `raisedAt`** (ties by refId for reproducibility), with the
+allocation itself disclosed in the result; a silently averaged merge would poison every downstream score.
+A PO line answering **no** known proposal is reported `unlinked` — the §14.6 `UNSOLICITED` surface.
+
+**Honesty rules.** When the export carries no unit price (the known Open-POs gap), price variance is
+**null**, never a fabricated zero-variance. A `waiting` quantity that disagrees with the export's own
+arithmetic — `ordered − received` (gross: returns are credit facts outside the Open-POs export) — beyond
+rounding is flagged `WAITING_INCONSISTENT` — disclosed, not corrected. The in-transit position rides gross
+receipts too (what is still expected to arrive); fill rate rides **net** of returns (what the tenant
+actually kept). Identical inputs produce identical output; every malformed shape (unknown event type,
+non-finite quantity, unknown status value, unsupported amendment field) refuses with a named error. **The
+aggregate feeds the §14.6 shape unchanged** — outcomes, adherence, fill rate, lateness, price variance,
+flags — so every downstream node (scorecards, efficacy, the double-order guard) consumes matching output
+exactly as it consumed reconciliation output, with the new flags additive.
+
 ## 14.7 Inter-tenant / inter-warehouse transfers — plan + reconcile (rev 1.3 boundary)
 **Execution boundary (owner directive): Precoro executes; Sentinel plans, approves and verifies.** Inventory
 staff never execute a transfer in Sentinel — every physical movement happens in Precoro and reaches Sentinel
