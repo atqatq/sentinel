@@ -37,6 +37,8 @@ jobs:
         run: node packages/core/modules/planning-engine/test/engine.test.js
       - name: Feedback suite (31)
         run: node packages/core/modules/execution-feedback/test/feedback.test.js
+      - name: M6 receipt→PO-line matching — named proof feedback/matching (23)
+        run: node packages/core/modules/execution-feedback/test/matching.test.js
       - name: KPI catalog — dataState envelope, A1/A2 named proofs (24)
         run: node packages/core/modules/kpi-catalog/test/catalog.test.js
       - name: H4 canonical date boundary — tenant-TZ explicit, day-unit math (25)
