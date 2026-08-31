@@ -186,6 +186,10 @@ function matchPoLines(input) {
 
     const lineResult = {
       poNumber: line.poNumber, sku: line.sku, status,
+      /* §14.6d — attribution rides the line: the scorecard's second turn
+       * measures WHO DELIVERED (the export's Supplier column), never who was
+       * intended (the leaf's SUPPLIER_CHANGED flag discloses that deviation). */
+      supplier: line.supplierName != null ? line.supplierName : null,
       orderedAmended, receivedQty, returnedQty, netReceived, openQty,
       fillRate: orderedAmended > 0 ? netReceived / orderedAmended : null,
       flags: lflags, refIds: linked.map((p) => p.refId),
@@ -195,8 +199,33 @@ function matchPoLines(input) {
     if (!linked.length) {
       lineResult.outcome = 'UNSOLICITED';
       lineResult.flags = Array.from(lflags).sort();
+      /* §14.6d — an unsolicited line is EVIDENCE too: a real delivery from a
+       * real supplier. Its own line-fact reconciliation (no proposal exists to
+       * adhere to — adherenceQty null; price variance null, no expected price
+       * exists), the same fill and lateness arithmetic the linked path uses —
+       * one canon, no forked formula. */
+      const lastReceipt = receipts.length
+        ? receipts.slice().sort((a, b) => String(a.at).localeCompare(String(b.at))).pop()
+        : null;
+      const realizedLead = daysBetween(line.poCreationDate, lastReceipt && lastReceipt.at);
+      const promisedLead = daysBetween(line.poCreationDate, line.expectedDelivery);
+      lineResult.reconciliations = [{
+        poNumber: line.poNumber, sku: line.sku, outcome: 'UNSOLICITED',
+        adherenceQty: null,
+        fillRate: orderedAmended > 0 ? netReceived / orderedAmended : null,
+        receivedQty: netReceived,
+        realizedLeadDays: realizedLead, promisedLeadDays: promisedLead,
+        lateByDays: realizedLead !== null && promisedLead !== null ? realizedLead - promisedLead : null,
+        priceVariance: null, priceVariancePct: null,
+        flags: ['UNSOLICITED'],
+      }];
+      /* the derived flags the leaf itself would raise — one canon, no forked
+       * derivation (the §14.6b net-fill re-sync: SHORT against NET, no guard) */
+      const uRec = lineResult.reconciliations[0];
+      if (uRec.fillRate !== null && uRec.fillRate < 0.95) uRec.flags.push('SHORT_DELIVERED');
+      if (uRec.lateByDays !== null && uRec.lateByDays > 0) uRec.flags.push('LATE');
       perLine.push(lineResult);
-      unlinkedLines.push({ poNumber: line.poNumber, sku: line.sku, status, ordered: orderedAmended, receivedQty });
+      unlinkedLines.push({ poNumber: line.poNumber, sku: line.sku, status, ordered: orderedAmended, receivedQty, supplier: line.supplierName != null ? line.supplierName : null });
       continue;
     }
 

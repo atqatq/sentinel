@@ -224,6 +224,55 @@ function supplierScorecard(lines) {
   };
 }
 
+/* ---- 5b. SRM ← the loop's second turn: scorecards fed by matching (§14.6d) -
+ * The wiring the audit's M4 scorecards item names: `supplierScorecard()` (the
+ * M2 H2 canon, UNCHANGED above) composed over a `matchPoLines` RESULT.
+ * Attribution follows the DELIVERY — the line's actual supplier — never the
+ * proposal's intent (SUPPLIER_CHANGED stays the deviation disclosure where it
+ * happened). An UNSOLICITED line's own line-fact reconciliation is evidence
+ * too; a CANCELLED line never is (void fill, void lateness — it falls out of
+ * the H2 denominators by the engine's own filter and is DISCLOSED here). A
+ * line naming no supplier lands in `unattributed` — evidence is never dropped
+ * onto a guess, never silently discarded. One canon: this function composes
+ * `supplierScorecard`, it never re-implements a denominator. */
+function supplierScorecards(matched) {
+  const m = matched || {};
+  const refuse = (code, detail) => {
+    throw new TypeError(`supplierScorecards: ${code} — ${detail}`);
+  };
+  if (!Array.isArray(m.lines)) refuse('WIRING_MALFORMED', 'the matchPoLines result carries a lines array — feed the wiring the matching layer, not raw evidence');
+  const bySupplier = new Map();   // supplier → { evidence: [], flags: {} }
+  let unattributed = 0;
+  for (const line of m.lines) {
+    if (!line || !Array.isArray(line.reconciliations)) {
+      refuse('WIRING_MALFORMED', 'every line result carries its reconciliations array — feed the wiring the matching layer, not raw evidence');
+    }
+    const ev = line.reconciliations;
+    if (line.supplier == null || line.supplier === '') { unattributed += ev.length; continue; }
+    let bucket = bySupplier.get(line.supplier);
+    if (!bucket) { bucket = { evidence: [], flags: {} }; bySupplier.set(line.supplier, bucket); }
+    bucket.evidence.push(...ev);
+    /* the flag rollup counts LINES carrying the flag — on the line result
+     * (line-level facts: PO_CANCELLED, RECEIPTS_AFTER_CANCEL, GOODS_RETURNED,
+     * OVER_RECEIVED, WAITING_INCONSISTENT, AMENDED…) or on its evidence
+     * (reconciliation flags) — a flag present at both levels is one line's
+     * fact, counted once. */
+    const seen = new Set([...(line.flags || []), ...ev.flatMap((x) => (x && x.flags) || [])]);
+    for (const f of seen) bucket.flags[f] = (bucket.flags[f] || 0) + 1;
+  }
+  const suppliers = Array.from(bySupplier.keys()).sort();   // code-unit order — deterministic
+  return {
+    suppliers: suppliers.map((name) => {
+      const { evidence: ev, flags: flagCounts } = bySupplier.get(name);
+      const card = supplierScorecard(ev);
+      const unsolicited = ev.filter((x) => x && x.outcome === 'UNSOLICITED').length;
+      const cancelled = ev.filter((x) => x && x.outcome === 'CANCELLED').length;
+      return { supplier: name, ...card, unsolicitedLines: unsolicited, cancelledLines: cancelled, flagCounts };
+    }),
+    unattributedLines: unattributed,
+  };
+}
+
 /* ---- 6. SOURCE ← savings, realized rather than claimed -------------------
  * A saving only counts once goods are received at the actual price.           */
 function realizedSaving(baselines, actualUnitPrice, receivedQty) {
@@ -254,5 +303,5 @@ function inTransitPosition(commitments, receiptsByPo) {
 
 module.exports = {
   REASON_CODES, reconcileProposal, leadTimeEstimate, parameterEfficacy,
-  proposalQuality, supplierScorecard, realizedSaving, inTransitPosition,
+  proposalQuality, supplierScorecard, supplierScorecards, realizedSaving, inTransitPosition,
 };

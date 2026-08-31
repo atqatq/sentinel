@@ -726,10 +726,13 @@ already excludes not-yet-due lines, and the wiring **discloses** the exclusion p
 (fill AND lateness known) does this work; the wiring's pin is that the filter's EXCLUSION of cancelled
 evidence is asserted by the named proof, not left to accident.
 
-**Additive signals.** The per-supplier entry exposes the evidence's flag rollup (`flagCounts` — flag →
-count over that supplier's evidence): `GOODS_RETURNED`, `SPLIT_ACROSS_POS`, `PART_CANCELLED`,
-`RECEIPTS_AFTER_CANCEL`, `AMENDMENT_UNEXPLAINED` and every other flag the matching layer raises ride
-through untouched — the scorecard reader sees the same facts the reconciliation saw. The wiring also
+**Additive signals.** The per-supplier entry exposes the flag rollup (`flagCounts` — flag → the number of
+that supplier's **lines** carrying the flag, whether it rides the line result (the line-level facts:
+`PO_CANCELLED`, `RECEIPTS_AFTER_CANCEL`, `GOODS_RETURNED`, `OVER_RECEIVED`, `WAITING_INCONSISTENT`,
+`AMENDED`, `AMENDMENT_UNEXPLAINED`) or its evidence (the reconciliation flags: `LATE`, `SHORT_DELIVERED`,
+`SUPPLIER_CHANGED`, `UNSOLICITED`, …); a flag present at both levels is one line's fact, counted once).
+The proposal-level topology flags — `SPLIT_ACROSS_POS`, `PART_CANCELLED` — name the buyer's task, not the
+supplier: they stay on the §14.6b aggregates and never fuse onto one supplier's card. The wiring also
 discloses per supplier: `unsolicitedLines` (evidence from the unlinked surface) alongside the engine's
 own `dueLines`/`openLines`.
 

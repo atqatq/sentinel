@@ -402,5 +402,53 @@ test('determinism: identical inputs produce deep-equal output, JSON-round-trip s
   assert.strictEqual(a.allocations[0].refId, 'R1', 'allocation follows raisedAt, not array order');
 });
 
+/* ---- 11. §14.6d — attribution rides the line; UNSOLICITED is evidence ------ */
+test('the line result carries the line supplier — null when the feed names none', () => {
+  const out = matchPoLines({
+    proposals: [{ refId: 'R1', sku: 'TS-001', qty: 100, raisedAt: '2026-08-01', poNumbers: ['PO-A'] }],
+    poLines: [
+      { poNumber: 'PO-A', sku: 'TS-001', ordered: 100, waiting: 0, received: 100, supplierName: 'Nile Perch Ltd' },
+      { poNumber: 'PO-B', sku: 'TS-002', ordered: 50, waiting: 50 },
+    ],
+    events: [{ poNumber: 'PO-A', sku: 'TS-001', type: 'receipt', qty: 100, at: '2026-08-10' }],
+  });
+  assert.strictEqual(out.lines[0].supplier, 'Nile Perch Ltd');
+  assert.strictEqual(out.lines[1].supplier, null);
+});
+test('UNSOLICITED evidence: the line-fact reconciliation (net fill, lateness, no invented price)', () => {
+  const out = matchPoLines({
+    proposals: [],
+    poLines: [{ poNumber: 'PO-Z', sku: 'TS-009', ordered: 100, waiting: 20, received: 80, unitPrice: 3, poCreationDate: '2026-08-01', expectedDelivery: '2026-08-10', supplierName: 'Maziwa Fresh' }],
+    events: [
+      { poNumber: 'PO-Z', sku: 'TS-009', type: 'receipt', qty: 100, at: '2026-08-11' },
+      { poNumber: 'PO-Z', sku: 'TS-009', type: 'return', qty: 20, at: '2026-08-12' },
+    ],
+  });
+  const l = out.lines[0];
+  assert.strictEqual(l.outcome, 'UNSOLICITED');
+  const ev = l.reconciliations[0];
+  assert.strictEqual(ev.outcome, 'UNSOLICITED');
+  assert.strictEqual(ev.adherenceQty, null, 'no proposal exists to adhere to');
+  assert.ok(near(ev.fillRate, 0.8), 'fill is net of returns');
+  assert.strictEqual(ev.receivedQty, 80);
+  assert.strictEqual(ev.realizedLeadDays, 10);
+  assert.strictEqual(ev.promisedLeadDays, 9);
+  assert.strictEqual(ev.lateByDays, 1);
+  assert.strictEqual(ev.priceVariance, null, 'no expected price exists to vary from');
+  assert.strictEqual(ev.priceVariancePct, null);
+  assert.deepStrictEqual(ev.flags, ['UNSOLICITED', 'SHORT_DELIVERED', 'LATE'], 'the derived flags the leaf itself would raise (net fill 0.8 → SHORT, a day past the promise → LATE)');
+  assert.strictEqual(out.unlinked[0].supplier, 'Maziwa Fresh');
+});
+test('UNSOLICITED without a promised date: lateness void, never guessed', () => {
+  const out = matchPoLines({
+    proposals: [],
+    poLines: [{ poNumber: 'PO-Z', sku: 'TS-009', ordered: 100, waiting: 0, received: 100, poCreationDate: '2026-08-01', supplierName: 'Maziwa Fresh' }],
+    events: [{ poNumber: 'PO-Z', sku: 'TS-009', type: 'receipt', qty: 100, at: '2026-08-11' }],
+  });
+  const ev = out.lines[0].reconciliations[0];
+  assert.strictEqual(ev.lateByDays, null, 'a line with no promise date cannot be late against it');
+  assert.strictEqual(ev.realizedLeadDays, 10, 'the realized span is still a fact');
+});
+
 console.log(`\n  feedback/matching: ${passed} passed, ${failed} failed\n`);
 process.exit(failed ? 1 : 0);

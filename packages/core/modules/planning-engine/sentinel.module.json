@@ -21,5 +21,5 @@
     "PROPOSAL_CONVERTED",
     "RECOMPUTE_RUN"
   ],
-  "goldenTests": { "suite": "test/engine.test.js", "count": 86, "plus": { "suite": "test/supply.test.js", "count": 22 } }
+  "goldenTests": { "suite": "test/engine.test.js", "count": 86, "plus": [ { "suite": "test/supply.test.js", "count": 22 } ] }
 }

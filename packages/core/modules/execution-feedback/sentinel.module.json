@@ -1,7 +1,7 @@
 {
   "id": "execution-feedback",
-  "version": "1.1.0",
-  "description": "Closed-loop execution feedback — the chain of record: PROPOSAL → DECISION → COMMITMENT (PO) → RECEIPT. Reconciliation of transfer plans against ingested goods-in/out (RECONCILED | MISMATCH), lead-time learning, supplier scorecards, realized savings, double-order guard. Ported verbatim; golden-guarded. Version 1.1.0 adds the M6 receipt→PO-line matching layer (build spec §14.6b; gate 16; named proof feedback/matching): split, amended, cancelled and returned lines, FIFO merge allocation disclosed, over-receipt tolerance, the honesty rules, and the refusal family — composing reconcileProposal as the per-line leaf, no forked formulas.",
+  "version": "1.2.0",
+  "description": "Closed-loop execution feedback — the chain of record: PROPOSAL → DECISION → COMMITMENT (PO) → RECEIPT. Reconciliation of transfer plans against ingested goods-in/out (RECONCILED | MISMATCH), lead-time learning, supplier scorecards, realized savings, double-order guard. Ported verbatim; golden-guarded. Version 1.1.0 adds the M6 receipt→PO-line matching layer (build spec §14.6b; gate 16; named proof feedback/matching): split, amended, cancelled and returned lines, FIFO merge allocation disclosed, over-receipt tolerance, the honesty rules, and the refusal family — composing reconcileProposal as the per-line leaf, no forked formulas. Version 1.2.0 adds the loop's second turn (build spec §14.6d; audit M4 scorecards; named proof feedback/scorecard-matching-fed): supplierScorecards composes the unchanged M2 H2 scorecard engine over the matching layer's result — attribution follows the line's actual supplier, UNSOLICITED lines are evidence with their own line-fact reconciliation, cancelled evidence is disclosed not vanished, the flag rollup rides additively, and unattributed evidence is a named surface, never a guess.",
   "purity": "no-db, no-react, no-framework, no-io",
   "dependencies": ["planning-engine"],
   "permissionScopes": ["feedback:read", "feedback:reconcile"],
@@ -20,5 +20,5 @@
     "SAVINGS_REALIZED",
     "DOUBLE_ORDER_BLOCKED"
   ],
-  "goldenTests": { "suite": "test/feedback.test.js", "count": 31, "plus": { "suite": "test/matching.test.js", "count": 23 } }
+  "goldenTests": { "suite": "test/feedback.test.js", "count": 31, "plus": [ { "suite": "test/matching.test.js", "count": 26 }, { "suite": "test/scorecards.test.js", "count": 16 } ] }
 }
