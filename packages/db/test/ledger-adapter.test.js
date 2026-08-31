@@ -46,7 +46,8 @@ function stubClient({ tail = [], chain = [], insertSeq = null } = {}) {
     async query(text, values) {
       const norm = text.replace(/\s+/g, ' ').trim();
       calls.push({ text: norm, values });
-      if (/FOR UPDATE/.test(norm)) return { rows: tail, rowCount: tail.length };
+      if (/pg_advisory_xact_lock/.test(norm)) return { rows: [], rowCount: 0 };
+      if (/ORDER BY seq DESC LIMIT 1/.test(norm)) return { rows: tail, rowCount: tail.length };
       if (/INSERT INTO ledger_block/.test(norm)) {
         const seq = insertSeq === null ? values[0] : insertSeq;
         return { rows: [{ seq, prevHash: values[18], hash: values[19], at: PINNED }], rowCount: 1 };
@@ -93,9 +94,10 @@ function baseIntent(over) {
     assert.strictEqual(r.seq, 1);
     assert.strictEqual(r.prevHash, '0'.repeat(64));
     assert.ok(/^[0-9a-f]{64}$/.test(r.hash));
-    assert.strictEqual(c.calls.length, 2);
-    assert.ok(/FOR UPDATE/.test(c.calls[0].text), 'the tail must be locked');
-    assert.ok(/INSERT INTO ledger_block/.test(c.calls[1].text));
+    assert.strictEqual(c.calls.length, 3);
+    assert.ok(/pg_advisory_xact_lock/.test(c.calls[0].text), 'the tail lock must be the advisory xact lock (the app role holds no UPDATE privilege for FOR UPDATE)');
+    assert.ok(/ORDER BY seq DESC LIMIT 1/.test(c.calls[1].text), 'the tail read must be a SEPARATE statement taken while the lock is held');
+    assert.ok(/INSERT INTO ledger_block/.test(c.calls[2].text));
   });
 
   await test('the second append chains onto the tail: seq 2, prevHash = tail hash', async () => {
@@ -108,7 +110,7 @@ function baseIntent(over) {
   await test('the envelope travels from the config, never guessed', async () => {
     const c = stubClient();
     await DB.makeLedgerAdapter(c, T1, CONFIG).appendBlock(baseIntent());
-    const v = c.calls[1].values;
+    const v = c.calls[2].values;
     assert.strictEqual(v[3], 'u-origin');   // actor
     assert.strictEqual(v[5], 'O');          // role
     assert.strictEqual(v[6], '10.0.0.1');   // source_ip
@@ -122,7 +124,7 @@ function baseIntent(over) {
     const c = stubClient();
     const r = await DB.makeLedgerAdapter(c, T1, CONFIG).appendBlock(baseIntent());
     assert.strictEqual(r.at, '2026-08-31T08:15:00.123Z');
-    assert.strictEqual(c.calls[1].values[17], '2026-08-31T08:15:00.123Z');
+    assert.strictEqual(c.calls[2].values[17], '2026-08-31T08:15:00.123Z');
   });
 
   await test('statement-first: a §16.2-invalid block refuses with ZERO statements', async () => {
@@ -151,7 +153,7 @@ function baseIntent(over) {
     });
     assert.strictEqual(verdict.ok, false);
     await DB.makeLedgerAdapter(c, T1, CONFIG).appendDenialRecord(verdict.denial);
-    const v = c.calls[1].values;
+    const v = c.calls[2].values;
     assert.strictEqual(v[1], 'D');                    // class
     assert.strictEqual(v[11], 'denied');              // outcome
     assert.strictEqual(v[3], 'u-buyer');              // actor — verbatim from the denial, not the config
@@ -165,7 +167,7 @@ function baseIntent(over) {
     await DB.makeLedgerAdapter(c, T1, CONFIG).recordRefusedMutation({
       action: 'ledger.delete', entity: 'ledger_block', entityId: '3', reason: 'LEDGER_IMMUTABLE',
     });
-    const v = c.calls[1].values;
+    const v = c.calls[2].values;
     assert.strictEqual(v[1], 'D');
     assert.strictEqual(v[10], 'ledger.delete');
     assert.strictEqual(v[14], 'LEDGER_IMMUTABLE');

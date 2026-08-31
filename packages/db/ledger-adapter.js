@@ -75,13 +75,29 @@ function makeLedgerAdapter(client, tenantId, config) {
       actor: input.actor === undefined ? config.actor : input.actor,
       at,
     }));
-    /* The tail lock: serialize per-tenant appenders on the current last
-     * block (a FOR UPDATE on the row that must parent the next one). With
-     * an empty chain there is nothing to lock — a racing genesis pair
-     * collides on the composite PK (23505) and the loser retries; the
-     * chain-guard trigger is the structural backstop either way. */
+    /* The tail lock, without an UPDATE privilege: the app role holds
+     * SELECT, INSERT only on the ledger (immutability layer 1), so a
+     * SELECT … FOR UPDATE row lock is UNAVAILABLE to it — live-caught as
+     * 42501 permission denied on the first real append. Instead the
+     * appenders serialize on a TRANSACTION-SCOPED ADVISORY LOCK keyed by
+     * the tenant (hashtextextended — deterministic, derived in-database,
+     * zero table privileges; a cross-tenant key collision merely shares a
+     * lock, it can never affect correctness). TWO statements: the lock
+     * must be HELD before the tail snapshot is taken — READ COMMITTED
+     * takes each statement's snapshot at its start, so a fused
+     * lock-and-read would read the tail as of BEFORE the wait and race a
+     * competitor's committed append. The advisory lock releases at
+     * COMMIT/ROLLBACK (transaction scope — a failed append cannot strand
+     * it). Residual races (a repeatable-read caller, a snapshot that
+     * predates the predecessor's commit) still cannot fork the chain: the
+     * composite PK and the ledger_chain_guard trigger refuse loudly
+     * (23505 / LEDGER_SEQ_GAP) and the loser retries — the same contract
+     * a racing genesis pair has always had. */
+    await q(
+      `SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))`,
+      [tenantId]);
     const tail = await q(
-      `SELECT seq, hash FROM ledger_block WHERE tenant_id = $1 ORDER BY seq DESC LIMIT 1 FOR UPDATE`,
+      `SELECT seq, hash FROM ledger_block WHERE tenant_id = $1 ORDER BY seq DESC LIMIT 1`,
       [tenantId]);
     const seq = tail.rows.length ? asSeq(tail.rows[0].seq) + 1 : 1;
     const prevHash = tail.rows.length ? tail.rows[0].hash : ledger.hash.GENESIS;

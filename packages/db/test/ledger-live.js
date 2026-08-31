@@ -175,25 +175,25 @@ async function main() {
   console.log('\nChain guard: a wrong append is structurally impossible');
   await expectPgError('a seq gap refuses (LEDGER_SEQ_GAP)', probe, T1,
     () => probe.query(`INSERT INTO ledger_block (seq, class, tenant_id, actor, entity, action, outcome, engine_version, schema_version, at, prev_hash, hash)
-      VALUES (5, 'W', $1, $2, 'item', 'item.update', 'success', $3, $4, now(), '0'.repeat(64), 'a'.repeat(64))`, [T1, U1, ENGINE, SCHEMA]),
+      VALUES (5, 'W', $1, $2, 'item', 'item.update', 'success', $3, $4, now(), $5, $6)`, [T1, U1, ENGINE, SCHEMA, '0'.repeat(64), 'a'.repeat(64)]),
     { message: 'LEDGER_SEQ_GAP' });
   await expectPgError('a wrong prev_hash refuses (LEDGER_PREV_HASH_MISMATCH)', probe, T1,
     () => probe.query(`INSERT INTO ledger_block (seq, class, tenant_id, actor, entity, action, outcome, engine_version, schema_version, at, prev_hash, hash)
-      VALUES (3, 'W', $1, $2, 'item', 'item.update', 'success', $3, $4, now(), 'b'.repeat(64), 'c'.repeat(64))`, [T1, U1, ENGINE, SCHEMA]),
+      VALUES (3, 'W', $1, $2, 'item', 'item.update', 'success', $3, $4, now(), $5, $6)`, [T1, U1, ENGINE, SCHEMA, 'b'.repeat(64), 'c'.repeat(64)]),
     { message: 'LEDGER_PREV_HASH_MISMATCH' });
   await expectPgError('an empty tenant refuses seq ≠ 1 (LEDGER_SEQ_MUST_START_AT_ONE)', probe, T2,
     () => probe.query(`INSERT INTO ledger_block (seq, class, tenant_id, actor, entity, action, outcome, engine_version, schema_version, at, prev_hash, hash)
-      VALUES (2, 'W', $1, $2, 'item', 'item.update', 'success', $3, $4, now(), '0'.repeat(64), 'd'.repeat(64))`, [T2, U1, ENGINE, SCHEMA]),
+      VALUES (2, 'W', $1, $2, 'item', 'item.update', 'success', $3, $4, now(), $5, $6)`, [T2, U1, ENGINE, SCHEMA, '0'.repeat(64), 'd'.repeat(64)]),
     { message: 'LEDGER_SEQ_MUST_START_AT_ONE' });
   await expectPgError('genesis with a non-zero prev refuses (LEDGER_GENESIS_PREV_HASH)', probe, T2,
     () => probe.query(`INSERT INTO ledger_block (seq, class, tenant_id, actor, entity, action, outcome, engine_version, schema_version, at, prev_hash, hash)
-      VALUES (1, 'W', $1, $2, 'item', 'item.update', 'success', $3, $4, now(), 'e'.repeat(64), 'f'.repeat(64))`, [T2, U1, ENGINE, SCHEMA]),
+      VALUES (1, 'W', $1, $2, 'item', 'item.update', 'success', $3, $4, now(), $5, $6)`, [T2, U1, ENGINE, SCHEMA, 'e'.repeat(64), 'f'.repeat(64)]),
     { message: 'LEDGER_GENESIS_PREV_HASH' });
 
   /* ---- 7. NAMED PROOF: ledger/origin-cannot-mutate ---- */
   console.log('\nNAMED PROOF ledger/origin-cannot-mutate — three layers + the attempt recorded');
   await expectPgError('layer 1 — the app role holds no UPDATE grant: refused loudly (42501)', probe, T1,
-    () => probe.query(`UPDATE ledger_block SET hash = 'a'.repeat(64) WHERE seq = 1`), { code: '42501' });
+    () => probe.query(`UPDATE ledger_block SET hash = $1 WHERE seq = 1`, ['a'.repeat(64)]), { code: '42501' });
   await expectPgError('layer 1 — the app role holds no DELETE grant: refused loudly (42501)', probe, T1,
     () => probe.query(`DELETE FROM ledger_block WHERE seq = 1`), { code: '42501' });
 
@@ -207,7 +207,7 @@ async function main() {
   const rlsProbe = new Client({ connectionString: probeUrl('ledger_rls_probe') });
   await rlsProbe.connect();
   await withCtx(rlsProbe, T1, async () => {
-    const u = await rlsProbe.query(`UPDATE ledger_block SET hash = 'a'.repeat(64) WHERE seq = 1`);
+    const u = await rlsProbe.query(`UPDATE ledger_block SET hash = $1 WHERE seq = 1`, ['a'.repeat(64)]);
     const d = await rlsProbe.query(`DELETE FROM ledger_block WHERE seq = 1`);
     if (u.rowCount === 0 && d.rowCount === 0) {
       ok('layer 2 — even a role that HOLDS UPDATE+DELETE grants finds zero mutable rows (restrictive RLS, the honest silent filter)');
@@ -216,7 +216,7 @@ async function main() {
   await rlsProbe.end();
 
   await expectPgError('layer 3 — a superuser bypassing RLS still hits the immutable trigger (LEDGER_IMMUTABLE, UPDATE)', db, T1,
-    () => db.query(`UPDATE ledger_block SET hash = 'a'.repeat(64) WHERE tenant_id = $1 AND seq = 1`, [T1]),
+    () => db.query(`UPDATE ledger_block SET hash = $2 WHERE tenant_id = $1 AND seq = 1`, [T1, 'a'.repeat(64)]),
     { message: 'LEDGER_IMMUTABLE' });
   await expectPgError('layer 3 — a superuser bypassing RLS still hits the immutable trigger (LEDGER_IMMUTABLE, DELETE)', db, T1,
     () => db.query(`DELETE FROM ledger_block WHERE tenant_id = $1 AND seq = 1`, [T1]),
@@ -351,7 +351,7 @@ async function main() {
     /* Tampering requires direct superuser access — the §10 honest boundary:
      * in-app mutation is structurally impossible (layers 1–3 above). */
     await db.query(`ALTER TABLE ledger_block DISABLE TRIGGER ledger_immutable_update_trigger`);
-    await db.query(`UPDATE ledger_block SET hash = 'f'.repeat(64) WHERE tenant_id = $1 AND seq = 2`, [T1]);
+    await db.query(`UPDATE ledger_block SET hash = $2 WHERE tenant_id = $1 AND seq = 2`, [T1, 'f'.repeat(64)]);
     await db.query(`ALTER TABLE ledger_block ENABLE TRIGGER ledger_immutable_update_trigger`);
     const broken = await A1.verifyChain();
     if (!broken.ok && broken.brokenAt === 2 && broken.reason.startsWith('LEDGER_HASH_MISMATCH')) {
@@ -393,7 +393,7 @@ async function main() {
       await db.query('SET ROLE sentinel_verifier');
       try {
         await db.query(`INSERT INTO ledger_block (seq, class, tenant_id, actor, entity, action, outcome, engine_version, schema_version, at, prev_hash, hash)
-          VALUES (99, 'W', $1, 'x', 'x', 'x', 'success', 'x', 'x', now(), '0'.repeat(64), 'a'.repeat(64))`, [T1]);
+          VALUES (99, 'W', $1, 'x', 'x', 'x', 'success', 'x', 'x', now(), $2, $3)`, [T1, '0'.repeat(64), 'a'.repeat(64)]);
       } finally {
         await db.query('RESET ROLE');
       }
@@ -402,7 +402,7 @@ async function main() {
     async () => {
       await db.query('SET ROLE sentinel_verifier');
       try {
-        await db.query(`UPDATE ledger_block SET hash = 'a'.repeat(64) WHERE tenant_id = $1 AND seq = 1`, [T1]);
+        await db.query(`UPDATE ledger_block SET hash = $2 WHERE tenant_id = $1 AND seq = 1`, [T1, 'a'.repeat(64)]);
       } finally {
         await db.query('RESET ROLE');
       }
