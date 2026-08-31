@@ -113,7 +113,7 @@ jobs:
         run: node packages/db/test/plan-seal-live.js
         env:
           DATABASE_URL_ADMIN: postgres://postgres:postgres@127.0.0.1:5432/postgres
-      - name: Ingest-replay live — per-tenant replay no-op, H7 merge, RLS (22)
+      - name: Ingest-replay live — per-tenant replay no-op, H7 merge through the freeze, RLS (25)
         run: node packages/db/test/ingest-replay-live.js
         env:
           DATABASE_URL_ADMIN: postgres://postgres:postgres@127.0.0.1:5432/postgres

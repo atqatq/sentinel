@@ -23,7 +23,9 @@
  *        - a NEW file with overlapping keys: upsert in place, register
  *          unchanged, DAT-04 duplicateHits honest;
  *        - a FAILED file reprocesses in place (no forked history);
- *        - supplier H7 identity: same external ID, different spelling MERGES;
+ *        - supplier H7 identity: same external ID, different spelling — the
+ *          identity delta stages a COOLING_OFF hold (the C3 freeze refuses
+ *          the direct change) and the merge lands only out-of-band verified;
  *        - RLS: cross-tenant register reads/writes denied.
  * ==========================================================================*/
 const fs = require('fs');
@@ -34,6 +36,8 @@ const { Client } = require('pg');
 const REPO = path.join(__dirname, '..', '..', '..');
 const { planIngestFile } = require(path.join(REPO, 'packages/core/modules/ingestion/src/idempotency'));
 const { makeIngestAdapter } = require(path.join(REPO, 'packages/db/ingest-adapter'));
+const { makeProcureAdapter } = require(path.join(REPO, 'packages/db/procure-adapter'));
+const { classifySupplierChange } = require(path.join(REPO, 'packages/core/modules/approval/src/freeze'));
 
 const ADMIN_URL = process.env.DATABASE_URL_ADMIN || 'postgres://postgres@127.0.0.1:5433/postgres';
 const LIVE_DB = 'sentinel_ingest_live';
@@ -226,20 +230,52 @@ async function main() {
   if (v3rows === 1 && v3status === 'APPLIED') ok('the FAILED row is UPDATED in place — no forked file history');
   else bad('reprocess forked or lost the file row', JSON.stringify({ v3rows, v3status }));
 
-  /* ---- 8. H7 supplier identity, live ---- */
-  console.log('\nH7 supplier identity: same ID, different spelling MERGES');
+  /* ---- 8. H7 supplier identity, live — through the C3 freeze door ---- */
+  console.log('\nH7 supplier identity: a re-spelled import stages a hold; the merge lands only verified');
   await tx(clientA, () => adapterA.apply(planIngestFile({
     tenantId: T.A, kind: 'suppliers', checksum: sha('sup1'), fileName: 'suppliers.xlsx', byteSize: 64, mode: 'A',
     rows: [{ supplierExternalId: 'SUP-9', supplierName: 'Gulf Foods LLC' }],
   })));
-  await tx(clientA, () => adapterA.apply(planIngestFile({
-    tenantId: T.A, kind: 'suppliers', checksum: sha('sup2'), fileName: 'suppliers-r4.xlsx', byteSize: 64, mode: 'A',
-    rows: [{ supplierExternalId: 'SUP-9', supplierName: 'Gulf Foods L.L.C. (spelled differently)' }],
-  })));
-  const sup = (await clientA.query(`SELECT count(*)::int AS n FROM supplier WHERE external_id = 'SUP-9'`)).rows[0].n;
-  const supName = (await clientA.query(`SELECT name FROM supplier WHERE external_id = 'SUP-9'`)).rows[0].name;
-  if (sup === 1 && supName.includes('spelled differently')) ok('one supplier row per external ID; the re-spelled import merged into it');
-  else bad('supplier merge wrong', JSON.stringify({ sup, supName }));
+  const supFirst = (await clientA.query(`SELECT id, name FROM supplier WHERE external_id = 'SUP-9'`)).rows[0];
+  if (supFirst && supFirst.name === 'Gulf Foods LLC') ok('the first import CREATES the identity — creation is not frozen');
+  else bad('first supplier import', JSON.stringify(supFirst));
+
+  /* The re-spelled import is an IDENTITY change: the C3 freeze refuses it
+   * outright (the H6 executor flows ride the same supplier table), and the
+   * stored identity keeps serving. */
+  let frozen = false;
+  try {
+    await tx(clientA, () => adapterA.apply(planIngestFile({
+      tenantId: T.A, kind: 'suppliers', checksum: sha('sup2'), fileName: 'suppliers-r4.xlsx', byteSize: 64, mode: 'A',
+      rows: [{ supplierExternalId: 'SUP-9', supplierName: 'Gulf Foods L.L.C. (spelled differently)' }],
+    })));
+  } catch (e) { frozen = String(e.message).includes('SUPPLIER_IDENTITY_FROZEN'); }
+  const supHeld = (await clientA.query(`SELECT name FROM supplier WHERE external_id = 'SUP-9'`)).rows[0];
+  if (frozen && supHeld.name === 'Gulf Foods LLC') ok('the re-spelled import is REFUSED (SUPPLIER_IDENTITY_FROZEN); the stored identity keeps serving');
+  else bad('the freeze must refuse the re-spelled import', JSON.stringify({ frozen, name: supHeld && supHeld.name }));
+
+  /* The pipeline stages the hold; out-of-band verification opens the door and
+   * the H7 merge completes — one row per external ID, the verified spelling. */
+  const procure = makeProcureAdapter(clientA, T.A);
+  const storedRow = (await clientA.query(`SELECT external_id, name, payment_term_days, payment_terms_text, currency_code FROM supplier WHERE id = $1`, [supFirst.id])).rows[0];
+  const cls = classifySupplierChange(
+    { external_id: storedRow.external_id, name: storedRow.name, payment_term_days: storedRow.payment_term_days, payment_terms_text: storedRow.payment_terms_text, currency_code: storedRow.currency_code },
+    { external_id: storedRow.external_id, name: 'Gulf Foods L.L.C. (spelled differently)', payment_term_days: storedRow.payment_term_days, payment_terms_text: storedRow.payment_terms_text, currency_code: storedRow.currency_code });
+  if (!cls.frozen) bad('the classifier must freeze a name delta', JSON.stringify(cls));
+  else {
+    const hold = await tx(clientA, () => procure.stageSupplierHold({ supplierId: supFirst.id, changedFields: cls.delta, requestedBy: null }));
+    if (hold && hold.state === 'COOLING_OFF') ok('the identity delta stages a COOLING_OFF hold (pipeline-originated)');
+    else bad('hold staging', JSON.stringify(hold));
+    await tx(clientA, () => procure.resolveHold({
+      holdId: hold.id, supplierId: supFirst.id, changedFields: cls.delta,
+      verifiedBy: null, reference: 'OBV-2026-001 (out-of-band confirmed)', decision: 'APPLY',
+    }));
+    const sup = (await clientA.query(`SELECT count(*)::int AS n FROM supplier WHERE external_id = 'SUP-9'`)).rows[0].n;
+    const supName = (await clientA.query(`SELECT name FROM supplier WHERE external_id = 'SUP-9'`)).rows[0].name;
+    const holdState = (await clientA.query(`SELECT state::text AS s FROM supplier_change_hold WHERE id = $1`, [hold.id])).rows[0].s;
+    if (sup === 1 && supName.includes('spelled differently') && holdState === 'APPLIED') ok('one supplier row per external ID; the re-spelled merge landed THROUGH the verified hold');
+    else bad('supplier merge wrong', JSON.stringify({ sup, supName, holdState }));
+  }
 
   /* ---- 9. deliveries daily wiring + non-daily refusal ---- */
   console.log('\nDeliveries: daily rows upsert per day; other granularities refuse, named');
