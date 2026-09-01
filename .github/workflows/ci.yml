@@ -44,7 +44,7 @@ jobs:
       - name: Gate 2 — secret scanning, gitleaks full history (§14.18)
         uses: gitleaks/gitleaks-action@v2
         env:
-          GITLEAKS_VERSION: v8.24.3
+          GITLEAKS_VERSION: 8.24.3
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Gate 3 — licence scan, expression-evaluated, fail-closed (§14.18)
         run: node scripts/security/license-gate.mjs

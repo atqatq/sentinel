@@ -58,7 +58,7 @@ test('gate 1 dependency audit — the pure wrapper is the step, fail-on-high+ co
 
 test('gate 2 secret scanning — gitleaks pinned, full history, default ruleset unmodified', () => {
   assert.ok(jobBlock.includes('gitleaks/gitleaks-action@v2'), 'the gitleaks action must be pinned');
-  assert.ok(jobBlock.includes('GITLEAKS_VERSION: v8.24.3'), 'the gitleaks binary version must be pinned');
+  assert.ok(jobBlock.includes('GITLEAKS_VERSION: 8.24.3'), 'the gitleaks binary version must be pinned (bare — the action prepends the v)');
   assert.ok(jobBlock.includes('fetch-depth: 0'), 'full history requires fetch-depth 0');
   assert.ok(!/\[\[rules\]\]/.test(GITLEAKS), 'no custom rules — the default ruleset runs UNMODIFIED');
   assert.ok(/\[extend\]/.test(GITLEAKS) && /useDefault\s*=\s*true/.test(GITLEAKS), 'extend defaults');
