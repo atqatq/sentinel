@@ -1146,6 +1146,85 @@ block in the verified chain).
 
 ---
 
+## 14.18 CI security gates & SBOM — the supply chain is gated (audit M12; named proof `security/gates`)
+
+The audit's finding: "CI has no security gates… No dependency audit, secret scanning (gitleaks-class),
+license scan, SBOM, or container scanning is required — for a system whose handoff explicitly fears
+credential leakage." The fix text: add all five as merge-blocking gates; pin dependencies (the
+practice of pinning, generalized). This section is the normative gate contract; the acceptance test is
+`security/gates` — **CI config review, machine-checked, plus one deliberately vulnerable fixture
+dependency caught.** The gates run as a dedicated CI job; every step is merge-blocking — no
+`continue-on-error`, no conditional skip, no advisory mode. A gate that can be bypassed without a
+recorded decision is not a gate.
+
+**The gate surface.**
+
+1. **Dependency audit** — `pnpm audit --json` against the frozen lockfile, verdict computed by a pure
+   wrapper: any advisory at severity `high` or `critical` FAILS the build with the module, severity,
+   GHSA id and vulnerable range NAMED; moderate/low findings are reported in the log without failing
+   (the §7.1 posture: "deps, fail on high+"). The advisory database is live data — a new advisory can
+   turn a green tree red overnight, and that is the gate WORKING. The verdict logic is pure: the CI
+   step runs the wrapper against the real lockfile, and the named proof runs the SAME wrapper against
+   recorded advisory payloads (the deliberately vulnerable fixture: a real advisory shape for a
+   known-vulnerable range must be CAUGHT and named, a moderate-only payload must PASS).
+2. **Secret scanning** — gitleaks (pinned version) over FULL git history (`fetch-depth: 0`), default
+   ruleset UNMODIFIED. The only extension is `.gitleaks.toml`'s allowlist, under the naming
+   discipline: **every allowlist entry states WHY it is safe; a finding with no such name is a bug and
+   must be triaged, never allowlisted; no rule is ever weakened to make the gate green.** The landed
+   allowlist carries exactly one entry: the RFC 6238 Appendix-B TOTP test secret (base32
+   `GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ` — the RFC's own published vector, stated from the RFC text by
+   the M11 auth suites per the H12 discipline). The existing policy guard (forbidden terms + secret
+   shapes) remains in place beside it — two scanners, different failure classes.
+3. **License scan** — every workspace project's dependency tree is walked (the license-checker tool,
+   pinned exact as a root devDependency) and every third-party license expression is evaluated: an
+   OR-expression passes if ANY operand is allow-listed; an AND-expression passes only if ALL are; the
+   allow-list lives in `scripts/security/license-allowlist.json` (MIT, ISC, Apache-2.0, BSD-2/3-Clause,
+   0BSD, Unlicense, CC0-1.0, BlueOak-1.0.0, MPL-2.0, CC-BY-3.0/4.0, Unicode-3.0) and anything else —
+   including UNKNOWN and UNLICENSED third-party — FAILS CLOSED. First-party `@sentinel/*` workspace
+   packages are exempt (they are the product, not the supply chain); the exemption is by exact name
+   prefix, never by version.
+4. **SBOM** — Syft (pinned) generates an SPDX-2.3 JSON of the tree on every run; the artifact is
+   published with the run and parse-verified (a non-JSON or empty package list fails). The release
+   publication of the SBOM (§10 DoD item 5: "SBOM + checksums manifest published with the release")
+   rides the release workflow unit — the generation and verification are contract here.
+5. **Dependency pinning** — a pure gate walks EVERY `package.json` in the workspace: every entry in
+   `dependencies` and `devDependencies` must be an EXACT version (`1.2.3`) or the `workspace:*`
+   protocol; caret, tilde, star, `>=`, and `x` ranges refuse. `peerDependencies` are exempt — a
+   library declares its compatibility range there, and the CONSUMER's exact pin is what ships. The
+   gate closed the workspace's one real violation at landing (db's `prisma ^6.0.0` → `6.19.3`, the
+   lockfile-resolved version — behaviorally a no-op, contractually the practice generalized).
+6. **Closed-ecosystem grep** — the runtime surface (the `src` trees of apps, packages and modules, the
+   db adapters, the workers — never tests, docs, or scripts) carries no egress call: no `http(s)://`
+   URL literal outside `localhost`/`127.0.0.1`, no egress HTTP client import (`axios`, `undici`,
+   `XMLHttpRequest`, raw `http.request`/`https.request` to external hosts). The closed ecosystem's
+   network surface is its own PostgreSQL and its own HTTP API — ADR-0003's posture, now grep-enforced
+   per commit. The M13 egress ALLOW-LIST policy work (the Intelligence node's explicit outbound set)
+   rides its own section; this gate is the CI backstop that stops an egress call from landing silently.
+
+**The remediation record.** The audit gate's first local run against the real lockfile found FIVE real
+advisories in our own dependency tree — postcss (two HIGH: GHSA-6g55-p6wh-862q, GHSA-r28c-9q8g-f849;
+two moderate) pulled by next's pinned `postcss@8.4.31`, and deepmerge-ts (HIGH: GHSA-ggr8-5vv4-36mx)
+pulled by `@prisma/config`. Remediated in the same unit by pnpm overrides pinned in the root
+manifest (`postcss: 8.5.26`, `deepmerge-ts: 8.0.2` — exact, patched, verified against the advisory
+ranges) with the lockfile re-resolved and the web build, ui theme compile, prisma CLI and the full
+battery re-proven green on the remediated tree. The gate caught real vulnerable dependencies before it
+ever ran in CI — the audit's acceptance scenario, played out in production truth.
+
+**The container-scan leg — named, not descoped silently.** The audit's fifth gate (container
+scanning, Trivy per §7.1) has no subject yet: no Dockerfile exists in the tree (the image build is
+§7.1 step 7 / §7.4 reference-topology work, a named unit of its own). The container scan JOINS the
+image-build unit — the moment an image exists, the scan gates it. This is a scheduling disclosure,
+never a silent gap: gate 18 closes on the four applicable gates + pinning + the egress backstop, and
+its record names the fifth leg and where it lands.
+
+**Governance.** Tool versions are pinned (gitleaks version pinned in the workflow; Syft pinned by the
+action's version input; license-checker pinned exact as a root devDependency); third-party actions are
+pinned by major tag (the repo's existing practice — checkout@v4, setup-node@v4, gitleaks-action@v2,
+sbom-action). The named proof `security/gates` runs IN the security job it audits — the gate surface
+reviewing itself, machine-checked, so a removed or weakened gate fails the same push that removed it.
+
+---
+
 # 15. Audit remediation — SENT-AUDIT-002 (deep technical audit, $50M bar)
 
 An independent deep technical audit re-verified this package and raised 40 findings. **Every empirical
