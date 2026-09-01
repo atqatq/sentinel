@@ -25,6 +25,41 @@ jobs:
       - name: Golden fixture checksums (H12)
         run: bash scripts/check-fixtures.sh
 
+  security:
+    name: Security gates (M12: audit · secrets · licences · SBOM · pinning · egress)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Enable pnpm (corepack, per packageManager field)
+        run: corepack enable pnpm 2>/dev/null || npm i -g pnpm@9.12.0
+      - name: Install workspace deps (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+      - name: Gate 1 — dependency audit, fail on high+ (§14.18)
+        run: node scripts/security/audit-gate.mjs
+      - name: Gate 2 — secret scanning, gitleaks full history (§14.18)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITLEAKS_VERSION: v8.24.3
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Gate 3 — licence scan, expression-evaluated, fail-closed (§14.18)
+        run: node scripts/security/license-gate.mjs
+      - name: Gate 4 — SBOM, Syft SPDX-2.3, published with the run (§14.18)
+        uses: anchore/sbom-action@v0
+        with:
+          format: spdx-json
+          artifact-name: sentinel-sbom.spdx.json
+      - name: Gate 5 — dependency pinning, exact versions, peer exempt (§14.18)
+        run: node scripts/security/pinning-gate.mjs
+      - name: Gate 6 — closed-ecosystem egress grep, runtime surface (§14.18)
+        run: node scripts/security/closed-ecosystem-gate.mjs
+      - name: Named proof security/gates — the gate surface reviews itself (§14.18)
+        run: node scripts/security/test/gates.test.mjs
+
   golden-tests:
     name: Golden tests (117)
     runs-on: ubuntu-latest

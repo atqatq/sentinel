@@ -1,0 +1,25 @@
+# .gitleaks.toml — the M12 secret-scanning gate's configuration (§14.18).
+#
+# The rule this file exists for: the DEFAULT gitleaks ruleset runs UNMODIFIED
+# (all rules enabled, full history). The only extension is the allowlist below,
+# and every entry names WHY it is safe — a finding with no such name is a bug.
+#
+# The RFC 6238 TOTP Appendix-B test secret ("12345678901234567890", base32
+# GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ) is the RFC's own published test vector —
+# the least secret string in cryptography. The M11 auth suites state their
+# vectors FROM the RFC text (the H12 discipline applied to the paper), so this
+# literal appears in test files by design. Anything else gitleaks flags is a
+# real finding and must be triaged — never allowlisted.
+#
+# Never weaken a rule to make the gate green. If the gate rejects a commit,
+# the fix is to remove the secret — never to widen this file.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "RFC 6238 Appendix-B TOTP test vector — the RFC's own published secret, stated from the RFC text (H12 discipline)"
+regexTarget = "secret"
+regexes = [
+  '''GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ''',
+]

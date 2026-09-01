@@ -1,0 +1,18 @@
+{
+  "comment": "M12 license gate allow-list (build spec §14.18 gate 3). Fail-closed: any third-party license expression that does not evaluate against this list refuses — including UNKNOWN and UNLICENSED. First-party @sentinel/* workspace packages are exempt (they are the product, not the supply chain). An addition to this list is a contract change: it needs a DECISIONS record naming why the license is safe for a closed-ecosystem product.",
+  "allowed": [
+    "MIT",
+    "ISC",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "0BSD",
+    "Unlicense",
+    "CC0-1.0",
+    "BlueOak-1.0.0",
+    "MPL-2.0",
+    "CC-BY-3.0",
+    "CC-BY-4.0",
+    "Unicode-3.0"
+  ]
+}
