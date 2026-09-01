@@ -26,7 +26,7 @@ jobs:
         run: bash scripts/check-fixtures.sh
 
   security:
-    name: Security gates (M12: audit · secrets · licences · SBOM · pinning · egress)
+    name: "Security gates (M12: audit · secrets · licences · SBOM · pinning · egress)"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

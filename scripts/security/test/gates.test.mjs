@@ -46,7 +46,7 @@ const jobBlock = (() => {
 console.log('CI config review — the gate surface, machine-checked:');
 
 test('the security job is named for the milestone and runs unconditionally', () => {
-  assert.ok(/name:\s*Security gates \(M12/.test(jobBlock), 'job name must cite M12');
+  assert.ok(/name:\s*['"]?Security gates \(M12/.test(jobBlock), 'job name must cite M12');
   assert.ok(!/continue-on-error/.test(jobBlock), 'a gate that can be bypassed without a record is not a gate');
   assert.ok(!/if:\s*$/.test(jobBlock) && !/if:\s*\S/.test(jobBlock), 'no conditional skip in the security job');
 });
