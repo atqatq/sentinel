@@ -227,28 +227,245 @@ test('§4.1: a REAL workbook with one kind-bound sheet applies EXACTLY like its 
   const cRows = strip(csvEx.calls.plans[0].rows).map((x) => ({ sku: x.sku, price: x.price, unit: x.unit, recipeRef: x.recipeRef }));
   assert.deepStrictEqual(wRows, cRows);
 });
-test('§4.1: a workbook where SEVERAL sheets bind kinds refuses MULTI_KIND_WORKBOOK_NOT_WIRED with the sheets named — the Mode-B fan-out is a named follow-on, not a guess', async () => {
-  const ExcelJS = require('exceljs');
+/* ---- §14.26 the Mode-B per-kind fan-out ---------------------------------------
+ * The pin that held the line ("MULTI_KIND_WORKBOOK_NOT_WIRED … the Mode-B
+ * fan-out is a named follow-on, not a guess") became the fan-out's own proof
+ * in the same diff that retired the refusal — the contract is §14.26. */
+const ExcelJS = require('exceljs');
+const ITEMS_HEADER = ['SKU *', 'Item Name *', 'Price *', 'Unit', 'Item Type *', 'Recipe Ref Name (required if the Code field is empty)', 'Conversion Factor*'];
+const ITEMS_ROW = ['TS-0001', 'One', 1, 'kg', 'Ingredient', 'R1', 1];
+const DELS_HEADER = ['Period Start', 'Period End', 'Granularity', 'Deliveries'];
+const DELS_ROW = ['2026-02-01', '2026-02-01', 'daily', 120];
+async function workbookBytes(build) {
   const wb = new ExcelJS.Workbook();
-  const items = wb.addWorksheet('1_ITEMS');
-  items.addRow(['SKU *', 'Item Name *', 'Price *', 'Unit', 'Item Type *', 'Recipe Ref Name (required if the Code field is empty)', 'Conversion Factor*']);
-  items.addRow(['TS-0001', 'One', 1, 'kg', 'Ingredient', 'R1', 1]);
-  const dels = wb.addWorksheet('6_DELIVERIES');
-  dels.addRow(['Period Start', 'Period End', 'Granularity', 'Deliveries']);
-  dels.addRow(['2026-02-01', '2026-02-01', 'daily', 120]);
-  const bytes = new Uint8Array(await wb.xlsx.writeBuffer());
+  build(wb);
+  return new Uint8Array(await wb.xlsx.writeBuffer());
+}
+const runXlsx = (portsOver, executorOver, bytes, declaredName) => run(portsOver, executorOver, { bytes, declaredName });
 
+test('§14.26: a MULTI-KIND workbook fans out — one H6 register row per kind, the map disclosed, per-sheet receipts carried', async () => {
+  const bytes = await workbookBytes((wb) => {
+    const items = wb.addWorksheet('1_ITEMS');
+    items.addRow(ITEMS_HEADER); items.addRow(ITEMS_ROW);
+    const dels = wb.addWorksheet('6_DELIVERIES');
+    dels.addRow(DELS_HEADER); dels.addRow(DELS_ROW);
+  });
+  const ex = stubExecutor();
+  const r = await runXlsx({}, ex, bytes, 'template.xlsx');
+  assert.strictEqual(r.verdict, 'APPLIED');
+  assert.strictEqual(r.fanout, true);
+  assert.strictEqual(r.sheets.length, 2);
+  assert.strictEqual(r.sheets[0].sheetName, '1_ITEMS');
+  assert.strictEqual(r.sheets[0].kind, 'items');
+  assert.strictEqual(r.sheets[0].verdict, 'APPLIED');
+  assert.strictEqual(r.sheets[0].fileId, 'file-uuid');
+  assert.strictEqual(r.sheets[1].sheetName, '6_DELIVERIES');
+  assert.strictEqual(r.sheets[1].kind, 'deliveries');
+  assert.strictEqual(r.sheets[1].verdict, 'APPLIED');
+  // one apply per kind, workbook order, the SAME checksum under both
+  assert.strictEqual(ex.calls.plans.length, 2);
+  assert.deepStrictEqual(ex.calls.plans.map((p) => p.kind), ['items', 'deliveries']);
+  assert.deepStrictEqual(ex.calls.findCalls.map((c) => c.kind), ['items', 'deliveries']);
+  assert.ok(ex.calls.findCalls.every((c) => c.checksum === ex.calls.findCalls[0].checksum));
+  // the summed counters and the map disclosure
+  assert.strictEqual(r.counters.rowsApplied, 2);
+  assert.strictEqual(r.counters.rowsRead, 2);
+  assert.ok(r.disclosures.some((d) => d.includes('workbook fan-out (Mode-B)')));
+  assert.ok(r.disclosures.some((d) => d.includes("'1_ITEMS' → items") && d.includes("'6_DELIVERIES' → deliveries")));
+  assert.strictEqual(r.tasksRaised, 0);
+});
+test('§14.26: the single-tab workbook keeps the pre-fan-out receipt shape — no fanout marker, no sheets array', async () => {
+  const bytes = await workbookBytes((wb) => {
+    const items = wb.addWorksheet('1_ITEMS');
+    items.addRow(ITEMS_HEADER); items.addRow(ITEMS_ROW);
+  });
+  const r = await runXlsx({}, stubExecutor(), bytes, 'items.xlsx');
+  assert.strictEqual(r.verdict, 'APPLIED');
+  assert.strictEqual(r.kind, 'items');
+  assert.strictEqual(r.fanout, undefined);
+  assert.strictEqual(r.sheets, undefined);
+  assert.ok(r.disclosures.some((d) => d.includes("sheet '1_ITEMS' bound as items")));
+});
+test('§14.26: a tab that binds no kind refuses the workbook WHOLE — the unbound named beside the bound it refuses to half-serve', async () => {
+  const bytes = await workbookBytes((wb) => {
+    const items = wb.addWorksheet('1_ITEMS');
+    items.addRow(ITEMS_HEADER); items.addRow(ITEMS_ROW);
+    const mystery = wb.addWorksheet('mystery');
+    mystery.addRow(['a', 'b', 'c']); mystery.addRow(['1', '2', '3']);
+  });
   const ports = stubPorts();
-  const r = await runFileToRows(
-    { ports, executor: stubExecutor() },
-    { tenantId: TENANT, bytes, declaredName: 'template.xlsx', asOfMs: ASOF, avScan: async () => ({ clean: true, engine: 'stub-av' }) },
-  );
+  const ex = stubExecutor();
+  const r = await runXlsx(ports, ex, bytes, 'mixed.xlsx');
   assert.strictEqual(r.verdict, 'QUARANTINED');
   assert.strictEqual(r.stage, 'bind');
-  assert.strictEqual(r.reason, 'MULTI_KIND_WORKBOOK_NOT_WIRED');
-  assert.ok(r.detail.includes("'1_ITEMS' (items)"));
-  assert.ok(r.detail.includes("'6_DELIVERIES' (deliveries)"));
+  assert.strictEqual(r.reason, 'NO_HEADER_ROW_FOUND');
+  assert.ok(r.detail.includes("unbound: 'mystery'"));
+  assert.ok(r.detail.includes("bound: '1_ITEMS' (items)"));
+  assert.strictEqual(ports.calls.registerQuarantine.length, 0); // pre-binding — no register row
+  assert.strictEqual(ex.calls.plans.length, 0); // nothing applied, not even the bound tab
+});
+test('§14.26: two data tabs binding ONE kind refuse MULTI_SHEET_KIND_COLLISION — the second would silently replay its twin, ZERO executor calls', async () => {
+  const bytes = await workbookBytes((wb) => {
+    const a = wb.addWorksheet('1_ITEMS');
+    a.addRow(ITEMS_HEADER); a.addRow(ITEMS_ROW);
+    const b = wb.addWorksheet('1_ITEMS_COPY');
+    b.addRow(ITEMS_HEADER); b.addRow(['TS-0002', 'Two', 2, 'kg', 'Ingredient', 'R2', 1]);
+  });
+  const ports = stubPorts();
+  const ex = stubExecutor();
+  const r = await runXlsx(ports, ex, bytes, 'dup.xlsx');
+  assert.strictEqual(r.verdict, 'QUARANTINED');
+  assert.strictEqual(r.stage, 'bind');
+  assert.strictEqual(r.reason, 'MULTI_SHEET_KIND_COLLISION');
+  assert.ok(r.detail.includes("'1_ITEMS' and '1_ITEMS_COPY' both bind items"));
+  assert.ok(r.detail.includes('ONE data tab per kind'));
   assert.strictEqual(ports.calls.registerQuarantine.length, 0);
+  assert.strictEqual(ex.calls.plans.length, 0);
+});
+test('§14.26: headers-only tabs are the template\'s unused state — skipped and disclosed, never registered; the data tab still applies', async () => {
+  const bytes = await workbookBytes((wb) => {
+    const items = wb.addWorksheet('1_ITEMS');
+    items.addRow(ITEMS_HEADER); items.addRow(ITEMS_ROW);
+    const d1 = wb.addWorksheet('6_DELIVERIES');
+    d1.addRow(DELS_HEADER); // headers only — the template's unused tab
+    const d2 = wb.addWorksheet('6B_DELIVERIES_COPY');
+    d2.addRow(DELS_HEADER); // a duplicate headers-only tab does NOT collide — collision is for DATA tabs
+  });
+  const ports = stubPorts();
+  const ex = stubExecutor();
+  const r = await runXlsx(ports, ex, bytes, 'template.xlsx');
+  assert.strictEqual(r.verdict, 'APPLIED');
+  assert.strictEqual(r.kind, 'items'); // the SINGLE-grid path — one data sheet
+  assert.strictEqual(r.fanout, undefined);
+  assert.ok(r.disclosures.some((d) => d.includes('2 tab(s) carried headers only') && d.includes("'6_DELIVERIES' (deliveries)") && d.includes("'6B_DELIVERIES_COPY' (deliveries)")));
+  assert.strictEqual(ports.calls.registerQuarantine.length, 0); // the empty tabs registered nothing
+  assert.strictEqual(ex.calls.plans.length, 1);
+});
+test('§14.26: EVERY tab headers-only refuses WORKBOOK_NO_DATA_ROWS — nothing to ingest, nothing applied', async () => {
+  const bytes = await workbookBytes((wb) => {
+    const d = wb.addWorksheet('6_DELIVERIES');
+    d.addRow(DELS_HEADER);
+    const i = wb.addWorksheet('1_ITEMS');
+    i.addRow(ITEMS_HEADER);
+  });
+  const ports = stubPorts();
+  const ex = stubExecutor();
+  const r = await runXlsx(ports, ex, bytes, 'empty-template.xlsx');
+  assert.strictEqual(r.verdict, 'QUARANTINED');
+  assert.strictEqual(r.stage, 'bind');
+  assert.strictEqual(r.reason, 'WORKBOOK_NO_DATA_ROWS');
+  assert.ok(r.detail.includes('carried headers only'));
+  assert.ok(r.detail.includes('EVERY tab was empty'));
+  assert.strictEqual(ports.calls.registerQuarantine.length, 0);
+  assert.strictEqual(ex.calls.plans.length, 0);
+});
+test('§14.26: the split outcome — one sheet applies, one quarantines NO_SURVIVOR_ROWS — aggregates QUARANTINED, the split named, one register row per kind', async () => {
+  const bytes = await workbookBytes((wb) => {
+    const items = wb.addWorksheet('1_ITEMS');
+    items.addRow(ITEMS_HEADER); items.addRow(ITEMS_ROW);
+    const dels = wb.addWorksheet('6_DELIVERIES');
+    dels.addRow(DELS_HEADER);
+    dels.addRow(['2026-02-01', '2026-02-01', 'hourly', 120]); // not a delivery_granularity — the row quarantines, the sheet has no survivors
+  });
+  const ports = stubPorts();
+  const ex = stubExecutor();
+  const r = await runXlsx(ports, ex, bytes, 'split.xlsx');
+  assert.strictEqual(r.verdict, 'QUARANTINED'); // the file settles quarantine/ — the folder grammar must not hide the dead tab
+  assert.strictEqual(r.fanout, true);
+  assert.strictEqual(r.sheets[0].verdict, 'APPLIED');
+  assert.strictEqual(r.sheets[1].sheetName, '6_DELIVERIES');
+  assert.strictEqual(r.sheets[1].verdict, 'QUARANTINED');
+  assert.strictEqual(r.sheets[1].reason, 'NO_SURVIVOR_ROWS');
+  // the split named in the detail, with the committed kinds disclosed
+  assert.ok(r.detail.includes("applied — '1_ITEMS' (items, 1 row(s))"));
+  assert.ok(r.detail.includes("quarantined — '6_DELIVERIES' (deliveries, NO_SURVIVOR_ROWS)"));
+  assert.ok(r.detail.includes('the applied kinds replay as no-ops'));
+  // exactly one register row — the DELIVERIES kind's, quarantined; the items row is an APPLIED register write
+  assert.strictEqual(ports.calls.registerQuarantine.length, 1);
+  assert.strictEqual(ports.calls.registerQuarantine[0].kind, 'deliveries');
+  assert.strictEqual(ports.calls.registerQuarantine[0].quarantinedCount, 1);
+  assert.strictEqual(ex.calls.plans.length, 1);
+  assert.strictEqual(ex.calls.plans[0].kind, 'items');
+  assert.strictEqual(r.counters.rowsApplied, 1);
+  assert.strictEqual(r.counters.rowsQuarantined, 1);
+});
+test('§14.26: the all-replay workbook aggregates REPLAY_NOOP — re-importing the same workbook changes nothing (§4)', async () => {
+  const bytes = await workbookBytes((wb) => {
+    const items = wb.addWorksheet('1_ITEMS');
+    items.addRow(ITEMS_HEADER); items.addRow(ITEMS_ROW);
+    const dels = wb.addWorksheet('6_DELIVERIES');
+    dels.addRow(DELS_HEADER); dels.addRow(DELS_ROW);
+  });
+  const ex = stubExecutor({ prior: { id: 'file-prior', status: 'APPLIED', appliedAt: 1756500000000 } });
+  const r = await runXlsx({}, ex, bytes, 'template.xlsx');
+  assert.strictEqual(r.verdict, 'REPLAY_NOOP');
+  assert.strictEqual(r.fanout, true);
+  assert.deepStrictEqual(r.sheets.map((s) => s.verdict), ['REPLAY_NOOP', 'REPLAY_NOOP']);
+  assert.strictEqual(r.sheets[0].priorStatus, 'APPLIED');
+  assert.strictEqual(ex.calls.plans.length, 0); // replay persists NOTHING
+  assert.ok(r.detail.includes('every sheet replayed'));
+});
+test('§14.26: the mixed replay — one kind\'s prior APPLIED, the other applies — aggregates APPLIED', async () => {
+  const bytes = await workbookBytes((wb) => {
+    const items = wb.addWorksheet('1_ITEMS');
+    items.addRow(ITEMS_HEADER); items.addRow(ITEMS_ROW);
+    const dels = wb.addWorksheet('6_DELIVERIES');
+    dels.addRow(DELS_HEADER); dels.addRow(DELS_ROW);
+  });
+  const ex = stubExecutor();
+  ex.findFile = async (kind, checksum) => {
+    ex.calls.findCalls.push({ kind, checksum });
+    return kind === 'items' ? { id: 'file-prior', status: 'APPLIED', appliedAt: 1756500000000 } : null;
+  };
+  const r = await runXlsx({}, ex, bytes, 'template.xlsx');
+  assert.strictEqual(r.verdict, 'APPLIED');
+  assert.strictEqual(r.sheets[0].verdict, 'REPLAY_NOOP'); // items replayed
+  assert.strictEqual(r.sheets[1].verdict, 'APPLIED'); // deliveries applied
+  assert.strictEqual(ex.calls.plans.length, 1);
+  assert.strictEqual(ex.calls.plans[0].kind, 'deliveries');
+  assert.ok(r.detail.includes('applied —'));
+  assert.ok(r.detail.includes("replayed — '1_ITEMS' (items)"));
+});
+test('§14.26: an executor fault on a later sheet PROPAGATES — one fence per FILE, the caller\'s rollback is whole-file', async () => {
+  const bytes = await workbookBytes((wb) => {
+    const items = wb.addWorksheet('1_ITEMS');
+    items.addRow(ITEMS_HEADER); items.addRow(ITEMS_ROW);
+    const dels = wb.addWorksheet('6_DELIVERIES');
+    dels.addRow(DELS_HEADER); dels.addRow(DELS_ROW);
+  });
+  const ex = stubExecutor();
+  const realApply = ex.apply;
+  ex.apply = async (plan) => {
+    if (plan.kind === 'deliveries') throw new Error('boom: the second sheet faults');
+    return realApply(plan);
+  };
+  await assert.rejects(runXlsx({}, ex, bytes, 'template.xlsx'), /boom/);
+  // items' apply RAN before the fault — the transaction's rollback (the caller's, per ADR-0002) is what undoes it
+  assert.strictEqual(ex.calls.plans.length, 1);
+  assert.strictEqual(ex.calls.plans[0].kind, 'items');
+});
+test('§14.26: fan-out tasks and banners carry the tab\'s name — ctx.sheetName → payload.sheet, banners prefixed at the file level', async () => {
+  const history = [...Array(7).keys()].map((i) => ({ date: `2026-02-0${i + 1}`, qty: 100 }));
+  const bytes = await workbookBytes((wb) => {
+    const items = wb.addWorksheet('1_ITEMS');
+    items.addRow(ITEMS_HEADER); items.addRow(ITEMS_ROW);
+    const dels = wb.addWorksheet('6_DELIVERIES');
+    dels.addRow(DELS_HEADER);
+    dels.addRow(['2026-02-01', '2026-02-01', 'daily', 12000]); // breaches the ±50% band (50..150) — guard substitutes + task + banner
+  });
+  const ports = stubPorts({ history });
+  const ex = stubExecutor();
+  const r = await runXlsx(ports, ex, bytes, 'template.xlsx');
+  assert.strictEqual(r.verdict, 'APPLIED');
+  // the banner aggregates to the file level with the tab's name prefixed; the sheet entry keeps it clean
+  assert.strictEqual(r.banners.length, 1);
+  assert.ok(r.banners[0].message.startsWith('[6_DELIVERIES] '));
+  assert.strictEqual(r.sheets[1].banners[0].message, r.banners[0].message.slice('[6_DELIVERIES] '.length));
+  // the WARN task's insert context carries the sheet name → payload.sheet
+  assert.strictEqual(ports.calls.tasks.length, 1);
+  assert.strictEqual(ports.calls.tasks[0].ctx.sheetName, '6_DELIVERIES');
+  assert.ok(ports.calls.tasks[0].tasks.some((t) => t.severity === 'WARN'));
+  assert.strictEqual(r.sheets[1].disclosures.some((d) => d.includes('trailing 7-day mean')), true);
 });
 test('§4.1: a workbook where NO sheet matches a signature binds no kind — NO_HEADER_ROW_FOUND, quarantined whole', async () => {
   const ExcelJS = require('exceljs');

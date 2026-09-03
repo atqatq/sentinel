@@ -1,8 +1,8 @@
 {
   "name": "@sentinel/ingest-service",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "File-to-rows worker: the production ingestion caller. Drives file bytes through the H10 gate, the text-to-grid boundary, the strict parse/normalize stages and the H6 idempotent executor, and persists what the pure layers could only return — the file register lifecycle, the quarantine ledger and the data_health_task register (D-028).",
+  "description": "File-to-rows worker: the production ingestion caller. Drives file bytes through the H10 gate, the text-to-grid boundary, the strict parse/normalize stages and the H6 idempotent executor, and persists what the pure layers could only return — the file register lifecycle, the quarantine ledger and the data_health_task register (D-028). v0.2.0: the §14.26 Mode-B per-kind fan-out — a multi-kind workbook fans out, one H6 register row per kind under the file's checksum, honest aggregation, per-sheet receipts.",
   "main": "index.js",
   "dependencies": {
     "exceljs": "4.4.0"

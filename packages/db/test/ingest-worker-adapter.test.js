@@ -246,6 +246,21 @@ test('insertDataHealthTasks persists the guard tasks verbatim: type→task_type,
   assert.strictEqual(payloads[1].severity, undefined);
   assert.strictEqual(payloads[1].checksum, SHA);
 });
+test('insertDataHealthTasks carries ctx.sheetName into payload.sheet — the §14.26 fan-out names WHICH tab spoke', async () => {
+  const c = stubClient();
+  await makeIngestWorkerAdapter(c, T).insertDataHealthTasks([
+    { type: 'DATA_HEALTH', field: 'qty', detail: 'Deliveries value breached plausibility bounds; substituted pending confirmation.' },
+  ], { fileName: 'TEMPLATE.xlsx', checksum: SHA, sheetName: '6_DELIVERIES' });
+  const payload = JSON.parse(c.calls[0].values[2][0]);
+  assert.strictEqual(payload.sheet, '6_DELIVERIES');
+  assert.strictEqual(payload.sourceFile, 'TEMPLATE.xlsx');
+  // the single-grid path passes NO sheetName — the payload gains no sheet key
+  const c2 = stubClient();
+  await makeIngestWorkerAdapter(c2, T).insertDataHealthTasks([
+    { type: 'DATA_HEALTH', field: 'ingest', detail: 'refused' },
+  ], { fileName: 'ITEMS.csv', checksum: SHA });
+  assert.strictEqual(JSON.parse(c2.calls[0].values[2][0]).sheet, undefined);
+});
 rejects('insertDataHealthTasks refuses a non-DATA_HEALTH object — fail-closed at the SQL boundary',
   () => makeIngestWorkerAdapter(stubClient(), T).insertDataHealthTasks([{ type: 'BANNER', field: 'x', detail: 'y' }]),
   'every task must be a');

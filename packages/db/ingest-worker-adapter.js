@@ -300,6 +300,9 @@ function makeIngestWorkerAdapter(client, tenantId) {
         delete payload.severity;
         if (ctx.fileName !== undefined) payload.sourceFile = ctx.fileName;
         if (ctx.checksum !== undefined) payload.checksum = ctx.checksum;
+        /* §14.26: a fan-out run passes sheetName — the payload names the tab,
+         * so a data-health task from a multi-kind workbook says WHICH tab spoke. */
+        if (ctx.sheetName !== undefined) payload.sheet = ctx.sheetName;
         return { severity, payload };
       });
       const r = await client.query(

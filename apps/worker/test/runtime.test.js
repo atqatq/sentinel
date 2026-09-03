@@ -231,6 +231,32 @@ test('the outcome mapping is EXHAUSTIVE: APPLIED and REPLAY_NOOP → done, QUARA
   } finally { fs.rmSync(inbox, { recursive: true, force: true }); }
 });
 
+test('§14.26: the fan-out receipt maps by its AGGREGATED verdict — the daemon reads the top level, the per-sheet truth rides along', async () => {
+  // the worker's fan-out receipt: fanout + sheets entries + a top verdict already in the daemon's enum — NO daemon change needed
+  const fanout = (verdict) => ({
+    verdict, fanout: true,
+    sheets: [
+      { sheetName: '1_ITEMS', kind: 'items', verdict: 'APPLIED', fileId: 'file-uuid', counters: { rowsApplied: 2 }, disclosures: [], banners: [], tasksRaised: 0 },
+      { sheetName: '6_DELIVERIES', kind: 'deliveries', verdict: 'QUARANTINED', reason: 'NO_SURVIVOR_ROWS', counters: {}, disclosures: [], banners: [], tasksRaised: 0 },
+    ],
+    counters: { rowsApplied: 2 }, disclosures: [], banners: [], tasksRaised: 0,
+  });
+  for (const [top, expected] of [['QUARANTINED', 'quarantine'], ['APPLIED', 'done'], ['REPLAY_NOOP', 'done']]) {
+    assert.strictEqual(outcomeForVerdict(top), expected, top);
+    const inbox = tmpInbox();
+    const deps = stubDeps({ runFileToRows: async () => fanout(top) });
+    deps.config.inbox = inbox;
+    try {
+      const claim = claimLayer.claimFile({ tenantCode: 'BHMP', originalName: 'template.xlsx', inboxPath: mkFile(inbox, 'BHMP/template.xlsx', 'x') });
+      const r = await processClaim(deps, claim);
+      assert.strictEqual(r.outcome, expected, `fanout top verdict ${top} → ${expected}`);
+      assert.strictEqual(r.receipt.fanout, true);
+      assert.strictEqual(r.receipt.sheets.length, 2);
+      assert.ok(claimLayer.settleFile(inbox, claim, r.outcome).includes(path.join(expected, 'BHMP')));
+    } finally { fs.rmSync(inbox, { recursive: true, force: true }); }
+  }
+});
+
 test('the fault path: ROLLBACK, NO FAILED register write (a fault without bound identity — a pre-binding refusal is never registered), the file lands failed/', async () => {
   const deps = stubDeps({ runFileToRows: async () => { throw new Error('executor exploded'); } });
   const inbox = tmpInbox();
