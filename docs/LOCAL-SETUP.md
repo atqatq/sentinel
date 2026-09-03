@@ -105,8 +105,10 @@ node set-local-password.mjs manager@sentinel.synthetic 'Local-Dev-Pass-2026!'
 ## 6. Run the web app
 
 ```bash
-DATABASE_URL='postgres://sentinel_web:smoke-only@127.0.0.1:5433/sentinel' \
-SESSION_WRAP_KEY='0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef' \
+# generate ONCE (restarts keep their sessions); .env.local is gitignored:
+printf 'SESSION_WRAP_KEY=%s\n' "$(openssl rand -hex 32)" >> apps/web/.env.local
+printf 'DATABASE_URL=%s\n' "postgres://sentinel_web:smoke-only@127.0.0.1:5433/sentinel" >> apps/web/.env.local
+
 pnpm --filter @sentinel/web dev
 ```
 
