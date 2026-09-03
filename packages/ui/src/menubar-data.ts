@@ -61,7 +61,9 @@ export const MENUBAR_GROUPS: readonly MenubarGroup[] = [
   {
     label: "Suppliers",
     entries: [
-      e("Suppliers"), e("Supplier Scorecards"), e("Buyer Scorecard"), e("Lead-time Suggestions"), e("Preferred SKU"),
+      // Screen 10's SRC-05 slice: the single-source exposure tile (A15.2).
+      { label: "Suppliers", route: "/suppliers" },
+      e("Supplier Scorecards"), e("Buyer Scorecard"), e("Lead-time Suggestions"), e("Preferred SKU"),
     ],
   },
   {

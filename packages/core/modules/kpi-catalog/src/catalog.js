@@ -266,7 +266,87 @@ function fromEnginePortfolio(portfolio, opts) {
   };
 }
 
+/* ---- SRC-05 · Single-source exposure (A15.2; the Suppliers tile) ----------
+ * Definition (§16.5, verbatim): share of ACTIVE categories with EXACTLY ONE
+ * approved supplier. Formula: single-source categories ÷ active categories
+ * × 100; target ≤ 15%.
+ *
+ * The facts are INJECTED — the evaluator owns no SQL, no clock (the module's
+ * purity contract). Each fact row is one category:
+ *   { category, active, supplierCount }
+ *   active        — the category holds ≥ 1 non-inactive item (the denominator)
+ *   supplierCount — the DISTINCT approved (active, non-banned) suppliers the
+ *                   sourcing evidence carries for the category; null = the
+ *                   category exists but the evidence carries NO supplier for
+ *                   it (unsourced — a DIFFERENT risk than single-source, and
+ *                   never silently merged into either bucket)
+ *
+ * Honesty rules (the module's fail-closed posture):
+ *   - an EMPTY population is INSUFFICIENT_DATA with value null (R2's posture:
+ *     a day-one 0% would read as a healthy mix; it is a missing one);
+ *   - a null supplierCount does not count as single-source and does not
+ *     vanish — unsourced categories surface in the result's own counts;
+ *   - the value is null unless the population produces it; the reason names
+ *     the basis (open-PO evidence), so a reader knows what "approved" meant.
+ */
+
+function evaluateSrc05(facts, opts) {
+  if (typeof opts !== 'object' || opts === null) throw new TypeError('evaluateSrc05: opts required');
+  const asOf = opts.asOf;
+  if (typeof asOf !== 'number' || !Number.isFinite(asOf)) throw new TypeError('evaluateSrc05: asOf must be epoch ms');
+  const lastSealedAt = opts.lastSealedAt;
+  if (typeof lastSealedAt !== 'number' || !Number.isFinite(lastSealedAt)) {
+    throw new TypeError('evaluateSrc05: lastSealedAt (the §16 freshness stamp) is mandatory');
+  }
+  if (!facts || typeof facts !== 'object' || !Array.isArray(facts.categories)) {
+    throw new TypeError('evaluateSrc05: facts.categories (array) required');
+  }
+
+  const entry = kpiById('SRC-05');
+  const fresh = evaluateStaleness(lastSealedAt, entry ? entry.staleAfterHours : 182, asOf);
+  const out = baseEnvelope(entry, fresh);
+
+  const rows = facts.categories.map((c) => {
+    if (!c || typeof c !== 'object' || typeof c.category !== 'string' || c.category === '') {
+      throw new TypeError('evaluateSrc05: each category fact needs a non-empty category name');
+    }
+    if (typeof c.active !== 'boolean') throw new TypeError('evaluateSrc05: category.active must be a boolean');
+    if (c.supplierCount !== null && c.supplierCount !== undefined
+      && (!Number.isInteger(c.supplierCount) || c.supplierCount < 0)) {
+      throw new TypeError(`evaluateSrc05: category ${c.category} supplierCount must be a non-negative integer or null`);
+    }
+    return { category: c.category, active: c.active, supplierCount: c.supplierCount === undefined ? null : c.supplierCount };
+  });
+
+  const active = rows.filter((c) => c.active);
+  const singleSource = active.filter((c) => c.supplierCount === 1).length;
+  const unsourced = active.filter((c) => c.supplierCount === null).length;
+
+  out.metric = 'Single-source exposure';
+  out.basis = 'approved = active and not banned, per the sourcing evidence (open PO lines)';
+  out.counts = {
+    activeCategories: active.length,
+    singleSourceCategories: singleSource,
+    multiSourceCategories: active.filter((c) => (c.supplierCount ?? 0) > 1).length,
+    unsourcedCategories: unsourced,
+    inactiveCategories: rows.length - active.length,
+  };
+  out.rows = rows.sort((a, b) => (a.category < b.category ? -1 : a.category > b.category ? 1 : 0));
+
+  if (active.length === 0) {
+    return stampState(out, KPI_STATES.INSUFFICIENT_DATA,
+      'no active categories in scope — a 0% or 100% mix on an empty population would impersonate a steering number');
+  }
+  out.value = Math.round((singleSource / active.length) * 1000) / 10;
+  const staleNote = fresh.stale ? `stale ${Math.round(fresh.ageHours)}h` : null;
+  const target = entry ? entry.target : '≤ 15%';
+  out.reason = `basis: open-PO sourcing evidence; target ${target}${staleNote ? `; ${staleNote}` : ''}`;
+  stampState(out, KPI_STATES.OK, out.reason);
+  if (fresh.stale) stampState(out, KPI_STATES.STALE, 'seal older than the KPI cadence — the value still computes, staleness is rendered');
+  return out;
+}
+
 module.exports = {
   KPI_STATES, MONEY_METRICS, INV04_GRAIN_NOTE,
-  getCatalog, kpiById, evaluateStaleness, fromEnginePortfolio,
+  getCatalog, kpiById, evaluateStaleness, fromEnginePortfolio, evaluateSrc05,
 };

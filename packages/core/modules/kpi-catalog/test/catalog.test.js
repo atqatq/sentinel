@@ -208,6 +208,72 @@ test('results are deterministic for identical inputs', () => {
   assert.deepStrictEqual(a, b);
 });
 
+/* ---- SRC-05 · single-source exposure (the Suppliers tile; A15.2) ---- */
+
+const cat = (category, active, supplierCount) => ({ category, active, supplierCount });
+function src05Opts(over) { return Object.assign({ asOf: ASOF, lastSealedAt: SEALED }, over || {}); }
+
+test('SRC-05: the formula is single-source ÷ active × 100, counted from the evidence rows', () => {
+  const r = K.evaluateSrc05({ categories: [
+    cat('Dairy', true, 1),      // single-source
+    cat('Spices', true, 3),     // multi-source
+    cat('Bakery', true, 1),     // single-source
+    cat('Packaging', true, 2),  // multi-source
+  ] }, src05Opts());
+  assert.strictEqual(r.dataState, 'OK');
+  assert.strictEqual(r.value, 50, '2 of 4 active categories single-source');
+  assert.strictEqual(r.counts.activeCategories, 4);
+  assert.strictEqual(r.counts.singleSourceCategories, 2);
+  assert.strictEqual(r.id, 'SRC-05', 'the envelope carries its catalog identity');
+});
+
+test('SRC-05: an UNSOURCED category (null supplierCount) is neither single-source nor hidden', () => {
+  const r = K.evaluateSrc05({ categories: [
+    cat('Dairy', true, 1),
+    cat('Chemicals', true, null), // exists, but no sourcing evidence carries a supplier
+  ] }, src05Opts());
+  assert.strictEqual(r.value, 50, 'only the sourced single-supplier category counts');
+  assert.strictEqual(r.counts.unsourcedCategories, 1, 'the unsourced category surfaces by name of count');
+  assert.strictEqual(r.counts.multiSourceCategories, 0);
+});
+
+test('SRC-05: an EMPTY active population is INSUFFICIENT_DATA with value null — a day-one 0% would lie', () => {
+  const r1 = K.evaluateSrc05({ categories: [] }, src05Opts());
+  assert.strictEqual(r1.dataState, 'INSUFFICIENT_DATA');
+  assert.strictEqual(r1.value, null);
+  const r2 = K.evaluateSrc05({ categories: [cat('Dairy', false, 1)] }, src05Opts());
+  assert.strictEqual(r2.dataState, 'INSUFFICIENT_DATA', 'only inactive categories is also an empty population');
+});
+
+test('SRC-05: the basis is named on the result — a reader knows what approved meant', () => {
+  const r = K.evaluateSrc05({ categories: [cat('Dairy', true, 1)] }, src05Opts());
+  assert.ok(r.basis.includes('open PO lines'), 'the evidence basis is on the record');
+  assert.ok(r.reason.includes('target'), 'the catalog target rides the reason');
+});
+
+test('SRC-05: staleness rides the catalog entry (weekly → 182h) and flips the state, never silent', () => {
+  const fresh = K.evaluateSrc05({ categories: [cat('Dairy', true, 1)] }, src05Opts());
+  assert.strictEqual(fresh.dataState, 'OK');
+  assert.strictEqual(fresh.freshness.stale, false);
+  const stale = K.evaluateSrc05({ categories: [cat('Dairy', true, 1)] }, src05Opts({ asOf: SEALED + 183 * HOUR }));
+  assert.strictEqual(stale.dataState, 'STALE', 'value present but the freshness stamp says stale');
+  assert.strictEqual(stale.value, 100, 'the value still computes — staleness is rendered, not hidden');
+});
+
+test('SRC-05: malformed facts refuse loudly (the module purity contract)', () => {
+  assert.throws(() => K.evaluateSrc05({ categories: 'nope' }, src05Opts()), TypeError);
+  assert.throws(() => K.evaluateSrc05({ categories: [cat('', true, 1)] }, src05Opts()), TypeError);
+  assert.throws(() => K.evaluateSrc05({ categories: [{ category: 'Dairy', active: 'yes', supplierCount: 1 }] }, src05Opts()), TypeError);
+  assert.throws(() => K.evaluateSrc05({ categories: [cat('Dairy', true, -1)] }, src05Opts()), TypeError);
+  assert.throws(() => K.evaluateSrc05({ categories: [cat('Dairy', true, 1)] }, { asOf: 'now', lastSealedAt: SEALED }), TypeError);
+  assert.throws(() => K.evaluateSrc05({ categories: [cat('Dairy', true, 1)] }, { asOf: ASOF }), TypeError, 'no freshness stamp — no evaluation');
+});
+
+test('SRC-05: deterministic for identical inputs', () => {
+  const facts = { categories: [cat('B', true, 2), cat('A', true, 1)] };
+  assert.deepStrictEqual(K.evaluateSrc05(facts, src05Opts()), K.evaluateSrc05(facts, src05Opts()));
+});
+
 /* ---- summary --------------------------------------------------------------------- */
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

@@ -1,0 +1,10 @@
+{
+  "name": "@sentinel/module-kpi-catalog",
+  "version": "0.4.0",
+  "private": true,
+  "description": "Sentinel module: screen-34 KPI definitions as data + the dataState envelope (fail-closed: OK / WITHHELD / INSUFFICIENT_DATA / STALE). v0.4.0: + evaluateSrc05 — the Suppliers tile's single-source exposure evaluator (A15.2), facts injected, freshness stamped, the basis named on the result.",
+  "main": "index.js",
+  "scripts": {
+    "test": "node test/catalog.test.js"
+  }
+}

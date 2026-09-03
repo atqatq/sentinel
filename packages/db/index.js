@@ -26,4 +26,5 @@ module.exports = {
   makeScorecardAdapter: require('./scorecard-adapter').makeScorecardAdapter,
   makeLedgerAdapter: require('./ledger-adapter').makeLedgerAdapter,
   makeAuthAdapter: require('./auth-adapter').makeAuthAdapter,
+  makeSourcingAdapter: require('./sourcing-adapter').makeSourcingAdapter,
 };

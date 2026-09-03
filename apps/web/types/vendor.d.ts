@@ -207,6 +207,19 @@ declare module "@sentinel/db" {
       userId: string
     ): Promise<Array<{ tenantId: string; tenantCode: string; role: string }>>
   }
+  /* The SRC-05 evidence read (the Suppliers tile; the kpi-catalog's
+   * evaluateSrc05 owns the formula — this adapter owns the evidence rows). */
+  export function makeSourcingAdapter(
+    client: import("pg").PoolClient,
+    tenantId: string
+  ): {
+    loadLastSealStamp(): Promise<number | null>
+    loadCategorySupplierEvidence(): Promise<{
+      categories: Array<{ category: string; itemCount: number; supplierCount: number | null }>
+      openLines: number
+      unattributedLines: number
+    }>
+  }
 }
 
 declare module "@sentinel/module-ops" {

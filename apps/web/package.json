@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@sentinel/db": "workspace:*",
+    "@sentinel/module-kpi-catalog": "workspace:^",
     "@sentinel/module-ops": "workspace:*",
     "@sentinel/plan-service": "workspace:*",
     "@sentinel/procure-service": "workspace:*",
