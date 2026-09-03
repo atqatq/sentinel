@@ -1807,6 +1807,97 @@ build minute.
 
 ---
 
+## 14.24 The e2e-smoke — the ephemeral compose stack, the fence on screen (§7.1 step 6; named proof `e2e/smoke`)
+
+§14.23 named the compose file as riding its own unit: "the compose file lands where it is
+exercised." This section is that unit. The stack comes up on every push and PR, and what it
+proves is deliberately NOT a browser tour — it is the deployment's spine walked over HTTP: the
+real image (the same digest-pinned Dockerfile §14.23 scans) started by compose, against a real
+PostgreSQL 16 migrated with the REAL migration files, and the assertions are the §8 honest
+states — the ADR-0002 fence's named outcomes rendered on a real screen. The smoke answers one
+question end to end: does this artifact, stood up the way a customer would stand it up, refuse
+honestly when the data is not there and stamp itself truthfully when it is?
+
+**The stack contract (normative):**
+
+1. **Two services, named honestly.** `db` and `web` — nothing else. §7.4's reference topology
+   (redis, minio, keycloak, otel-collector) has NO runtime consumer in the tree yet: no worker
+   daemon polls a queue, no IdP is wired, no collector receives spans. A service with no
+   consumer is set dressing, and the smoke does not ship set dressing; each joins when its
+   consumer lands (the worker image rides the worker-runtime unit, per §14.23's naming).
+2. **One image, one definition.** Compose declares `sentinel-web:ci` and NO build context —
+   the image is built once by the job from THE Dockerfile, and compose consumes it. Two build
+   stories are two artifacts that can drift; the smoke-tested tag is the image definition's
+   output, full stop. (The container scan is §14.23's gate on the image-build job; this job
+   rebuilds from the same definition — same Dockerfile, same pinned digests — and does not
+   duplicate the scan.)
+3. **Every base image the stack pulls is pinned BY DIGEST.** `postgres:16` is pinned to its
+   current multi-arch manifest digest — the same exactness §14.23's clause 2 demands of the
+   Dockerfile's bases. Bumping the digest is a reviewed diff, never a silent drift.
+4. **Loopback-only publishing.** The db's 5432 and web's 3000 publish to `127.0.0.1` only —
+   the smoke's surface is the runner's loopback plus the compose-internal bridge, never
+   `0.0.0.0`. A stack that advertises its database to the host network to make a test pass has
+   failed a test more important than the one it passed.
+5. **The compose credentials are not a secret.** An ephemeral throwaway database that exists
+   for one CI job, published to loopback, destroyed by the teardown — no layer is built from
+   it and nothing real is reachable with it; §14.23's no-secrets clause governs image layers
+   and remains untouched.
+
+**The database contract (normative):**
+
+6. **Migrations are the SAME files.** The prepare script applies `packages/db/migrations/` in
+   sorted order — the exact set the live proofs apply. One schema truth; no compose-side
+   parallel migration path exists to drift from it.
+7. **The web role is the deployment shape, not the admin shortcut.** The prepare script
+   creates `sentinel_web`: LOGIN, NOBYPASSRLS, non-superuser, member of the migrations'
+   NOLOGIN `sentinel_app` (which carries the table grants). `DATABASE_URL` connects as it. An
+   admin-connection smoke would skip the very thing §14's RLS discipline exists to prove —
+   the smoke connects the way production connects, and the GUC fence (ADR-0002) does the rest.
+8. **The tenant registry is seeded, synthetically (D-003).** The smoke tenant is the screens'
+   default code, so the assertion rides the URL a real user's first click produces; the
+   registry insert is idempotent (`ON CONFLICT DO NOTHING`) because prepare must be re-runnable
+   without apology.
+
+**The smoke contract (normative):**
+
+9. **HTTP, no browser — scope named.** §7.1 step 6's original text said Playwright; the
+   as-built smoke asserts over HTTP what the server can prove at this stage, and the
+   browser-level happy paths (ingest → plan → approve → PO → receive) ride the staging build
+   (§7.2) — named, not descoped, the §14.22 pattern. This gate proves the STACK and THE FENCE:
+   it does not claim §8's Lighthouse budgets and does not render a pixel off-screen.
+10. **The assertions, each named.** (a) `/health` answers 200 with `ok`, `service`,
+    `dataState`, `no-store`, and the §16 stamps — app, engine, schema — each EXACTLY equal to
+    the workspace's real public-surface values, so the running image must BE this tree's code,
+    not a neighbor's; (b) `/` renders 200 — the shell stands; (c) `/suppliers` with an unknown
+    tenant code renders 200 with the fence's `TENANT` state verbatim — an unknown registry
+    code is a named state, never a 500; (d) `/suppliers` with the seeded tenant (which has
+    never sealed) renders 200 with the fence's `FRESHNESS` state verbatim — no seal, no
+    freshness stamp, an honest refusal through the real path (§16's no-silent-numbers, walked
+    in a container). A fence that returned 500s or invented data fails this smoke.
+11. **Teardown is part of the contract.** `docker compose down -v` runs under `if: always()` —
+    an ephemeral stack must not leak volumes, containers or state into the next run.
+12. **The job is merge-blocking and proof-first.** No `continue-on-error`, no conditional skip;
+    the named proof runs BEFORE any docker minute is spent (the §14.23 ordering, repeated),
+    and the job needs the policy guard and the web shell — a red shell never reaches the stack.
+
+**Named proof `e2e/smoke`** — the structural contract proven WITHOUT docker (the runtime
+environment carries no daemon; compose proves the reality in CI, the proof pins the shape):
+the compose service set exactly (`db`, `web` — and no `build` key in `web`); the postgres
+digest pinned; loopback-only publishing; the db healthcheck and the `service_healthy` gate;
+`DATABASE_URL` connecting as `sentinel_web`; the prepare script's migrations read from the
+real directory in sorted order, the role created with the deployment shape, the membership
+grant, the idempotent tenant seed, and the script's own role-shape verification; the smoke
+script's assertion surface — every named assertion present, the version stamps asserted by
+EXACT match against the real modules, the nonzero exit on any red; and the ci.yml job text —
+job name, needs, proof step first, the build, the up/prepare/up sequence, the teardown under
+`if: always()`. A weakened or skipped smoke fails the same push that weakened it.
+
+The closed ecosystem is untouched: compose files and e2e scripts are tooling outside the
+egress gate's runtime surface (ADR-0003's grep scope is unchanged), and the stack's only
+network story is the compose-internal bridge plus the runner's loopback.
+
+---
+
 # 15. Audit remediation — SENT-AUDIT-002 (deep technical audit, $50M bar)
 
 An independent deep technical audit re-verified this package and raised 40 findings. **Every empirical
