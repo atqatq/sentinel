@@ -34,6 +34,7 @@ export type SessionEnvelope = {
   role: string
   mfaOk: boolean
   isOrigin?: boolean
+  mustChange?: boolean
   tenantCode?: string
 }
 
@@ -104,6 +105,7 @@ export async function resolveRequestSession(
         role: r.session.role,
         mfaOk: r.session.mfaOk,
         isOrigin: r.session.isOrigin,
+        mustChange: r.session.mustChange,
         tenantCode: r.session.tenantCode,
       },
     }
