@@ -1714,6 +1714,83 @@ rows; the p95 budget asserted with the measured percentiles printed; the breach 
 
 ---
 
+## 14.23 The image build & the container scan — the artifact becomes a subject (M12's fifth leg; named proof `build/image-gate`)
+
+§14.18 closed gate 18 on four applicable gates + pinning + the egress backstop and DISCLOSED the
+fifth leg: the container scan had no subject, because no Dockerfile existed. This section is the
+subject arriving. The moment an image exists, the scan gates it — the scheduling disclosure is
+retired, not silently forgotten.
+
+**The subject — one image today, named honestly.** The tree's only long-running process is the
+Next.js server (`apps/web`): it is the plan route's transport, the data-health / approvals / audit
+surfaces, and the §14.13c API. The release artifact is the image `sentinel-web` (§6.2's naming —
+`ghcr.io/<org>/sentinel-web:X.Y.Z` at tag time; CI builds and scans `sentinel-web:ci` on every push
+and PR). The §6.2 `sentinel-worker` artifact has NO counterpart yet: `packages/ingest-service`
+exposes `runFileToRows` — a library function, not a daemon. An image with nothing to exec is a lie
+in a tag, so the worker image JOINS the worker-runtime unit (the queue-grouped poll loop of §7.4's
+topology) exactly as the container scan joined this unit — named, not descoped. The e2e-smoke
+ephemeral compose stack (§7.1 step 6) rides its own unit too: the compose file lands where it is
+exercised.
+
+**The image contract (normative):**
+
+1. **Multi-stage, three stages, each with one job.** `deps` resolves the pnpm workspace from the
+   frozen lockfile; `build` compiles the standalone bundle with the FULL toolchain; `runtime`
+   carries ONLY the standalone output (`apps/web/.next/standalone` + `.next/static` + `public`).
+   The runtime stage never sees the toolchain, the workspace sources, or the full `node_modules` —
+   a smaller surface is a smaller attack surface, and a smaller SBOM.
+2. **Every base image pinned BY DIGEST.** The builder is `node:22.22-bookworm-slim` pinned to its
+   current digest; the runtime is `gcr.io/distroless/nodejs22-debian12:nonroot` pinned to its
+   current digest. A floating tag is an unpinned dependency — the same exactness the pinning gate
+   demands of npm is demanded of the base images. Bumping a digest is a reviewed diff, never a
+   silent drift.
+3. **Non-root, no shell, no package manager in the runtime.** The distroless `:nonroot` variant
+   runs as UID 65532; every `COPY` into the runtime carries `--chown=nonroot:nonroot`; `USER
+   nonroot` is explicit. The runtime stage has NO shell (distroless ships none) — a compromised
+   process cannot spawn one. Consequently the container healthcheck is NOT a shell exec: it is the
+   orchestrator's HTTP probe against the `/health` route (below). `EXPOSE 3000` documents the
+   listener; nothing else listens.
+4. **Standalone output is the build contract.** `apps/web` builds with `output: "standalone"` —
+   the server.js bundle carries its traced runtime dependencies; `pg` stays external to the bundle
+   (serverExternalPackages) and rides the traced node_modules. The standalone trace is the ONLY
+   dependency story the runtime stage trusts; nothing is "copied just in case".
+5. **No secrets in any layer.** The build args carry nothing secret (there is nothing secret at
+   build time); runtime configuration (DATABASE_URL, the ledger key, the session wrap key) rides
+   environment at exec. A leaked-layer review is part of the image-gate proof's stance: no ENV in
+   the Dockerfile names a credential-shaped variable with a value.
+
+**The `/health` route — the probe target and the §6.2 L-07 stamp.** §6.2 names `/health` as the
+version-stamping surface (closes L-07's transport half) and the image needs a probe target; the
+same route serves both. It reports the app version (the web package's own), `ENGINE_VERSION` (read
+through the planning-engine module's public surface, ADR-0001) and `SCHEMA_VERSION` (read through
+the db package's public surface) — the exact stamps a production question resolves to (§6.2). The
+route is honest by construction: it renders what the running process imported, not what the build
+declared somewhere else.
+
+**The scan — M12's fifth leg lands.** Every built image is scanned by Trivy, pinned to an exact
+version (the gitleaks posture — the tool version is part of the gate's identity), fail-closed on
+HIGH and CRITICAL (`exit-code: 1`), matching §14.18's high+ threshold for dependencies. Unfixed
+vulnerabilities in the base image count: the image is the runtime's whole world. The scan rides
+the CI `build` job (§7.1 step 7) — merge-blocking like every gate before it.
+
+**The SBOM — two subjects, two artifacts.** §14.18's security job publishes the REPO SBOM (the
+dependency tree as the lockfile resolves it). This unit adds the IMAGE SBOM (SPDX-2.3, generated
+from the built image by the Syft family tooling) attached to the build run. They are different
+subjects: the repo SBOM answers "what do we develop with", the image SBOM answers "what ships".
+Both are attached; neither substitutes for the other.
+
+**Named proof `build/image-gate`** — the structural contract proven WITHOUT docker (the runtime
+environment carries no daemon; docker proves the reality in CI, the proof pins the shape): the
+Dockerfile's three stages; the FROM lines digest-pinned; the final stage distroless nonroot; every
+runtime COPY carrying --chown; USER nonroot explicit; EXPOSE 3000 the only listener; no
+credential-shaped ENV; the standalone output declared in next.config; the /health route present
+and reading its versions from the public surfaces; the CI build job present with Trivy pinned,
+HIGH+CRITICAL, exit-code 1, and the image SBOM artifact. A refactor that re-roots the image,
+floats a base tag, drops the scan or mutes the exit code fails the proof before CI ever spends a
+build minute.
+
+---
+
 # 15. Audit remediation — SENT-AUDIT-002 (deep technical audit, $50M bar)
 
 An independent deep technical audit re-verified this package and raised 40 findings. **Every empirical
