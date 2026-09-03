@@ -98,20 +98,82 @@ function makeAuthAdapter(client, config) {
   return {
     /* ---- credentials ------------------------------------------------- */
     /* Register or ROTATE the local credential. The pure policy floor runs
-     * first — a weak password sends zero statements. */
-    async registerCredential({ userId, password }) {
+     * first — a weak password sends zero statements.
+     *
+     * mustChange (§14.28, additive): the forced-change posture. The setup
+     * bootstrap and every setup-created account lands TRUE (a password the
+     * account has never chosen must not govern a setup or a tenant); the
+     * re-authenticated rotation route clears it with false. Omitted → false
+     * on INSERT (the DDL default) and an explicit false on UPDATE — the
+     * pre-existing callers' behavior is byte-compatible. */
+    async registerCredential({ userId, password, mustChange = false }) {
+      if (typeof mustChange !== 'boolean') refuse('AUTH_CREDENTIAL_MUST_CHANGE_INVALID', 'mustChange must be a boolean when provided');
       const policyRefusal = auth.password.check(password);
       if (policyRefusal) refuse(policyRefusal, 'the password policy floor refused before any statement');
       const salt = auth.password.randomSalt(rng);
       const hash = auth.password.hash(password, salt);
       const existing = await q(`SELECT user_id FROM user_credential WHERE user_id = $1`, [userId]);
       await q(
-        `INSERT INTO user_credential (user_id, password_hash, password_salt, algo, updated_at)
-         VALUES ($1, $2, $3, 'scrypt', $4)
+        `INSERT INTO user_credential (user_id, password_hash, password_salt, algo, must_change, updated_at)
+         VALUES ($1, $2, $3, 'scrypt', $5, $4)
          ON CONFLICT (user_id) DO UPDATE SET password_hash = EXCLUDED.password_hash,
-           password_salt = EXCLUDED.password_salt, algo = 'scrypt', updated_at = EXCLUDED.updated_at`,
-        [userId, hash, salt.toString('hex'), now()]);
+           password_salt = EXCLUDED.password_salt, algo = 'scrypt', must_change = EXCLUDED.must_change,
+           updated_at = EXCLUDED.updated_at`,
+        [userId, hash, salt.toString('hex'), now(), mustChange === true]);
       return { rotated: existing.rows.length > 0 };
+    },
+
+    /* The §14.28 rotation: re-authenticate → rotate → clear must_change →
+     * terminate every OTHER live session. ONE transaction the adapter owns
+     * (§16.3 rule 2 — the statements live or die together): a rotation is a
+     * re-authentication, never a bearer act, and a security event, not a
+     * preference. The caller's OWN session survives (it holds the fresh
+     * cookie contract); every other live session of the user takes the
+     * tombstone. */
+    async rotateCredential({ email, currentPassword, newPassword, token, ip = null }) {
+      if (typeof email !== 'string' || !email) refuse('AUTH_DECISION_INVALID', 'email is required');
+      if (typeof currentPassword !== 'string' || !currentPassword) refuse('AUTH_DECISION_INVALID', 'currentPassword is required');
+      if (typeof newPassword !== 'string' || !newPassword) refuse('AUTH_DECISION_INVALID', 'newPassword is required');
+      /* the pure policy floor runs FIRST — a weak replacement sends zero
+       * statements (the statement-first discipline, verbatim) */
+      const policyRefusal = auth.password.check(newPassword);
+      if (policyRefusal) return { outcome: 'REFUSED', reason: policyRefusal };
+      await q('BEGIN');
+      try {
+        const found = await this.findUserCredential(email);
+        const credentialOk = Boolean(
+          found && found.passwordHash && found.passwordSalt &&
+          auth.password.verify(currentPassword, Buffer.from(found.passwordSalt, 'hex'), found.passwordHash));
+        if (!found || !credentialOk) {
+          await this.recordLoginAttempt({ email, userId: found ? found.userId : null, outcome: 'FAILURE', ip });
+          await q('COMMIT');
+          return { outcome: 'REFUSED', reason: 'AUTH_PASSWORD_CURRENT_INVALID' };
+        }
+        await this.registerCredential({ userId: found.userId, password: newPassword, mustChange: false });
+        let others = { rowCount: 0 };
+        if (token) {
+          others = await q(
+            `UPDATE user_session SET terminated_at = $3
+              WHERE user_id = $1 AND terminated_at IS NULL AND token_hash <> $2`,
+            [found.userId, sha256hex(String(token)), now()]);
+        }
+        /* one Class-N block PER active tenant membership — a credential
+         * rotation affects every tenant the user serves, so every tenant's
+         * ledger carries it; a user with no membership is the pre-tenant
+         * shape (the tombstones + the credential UPDATE are the records). */
+        const memberships = await this.listUserTenants(found.userId);
+        for (const m of memberships) {
+          await emit(m.tenantId, {
+            entity: 'user_credential', entityId: found.userId, action: 'auth.credential.rotated',
+            outcome: 'success', reason: found.mustChange === true ? 'forced-change-cleared' : 'voluntary',
+          }, { actor: found.userId, role: m.role });
+        }
+        await q('COMMIT');
+        return { outcome: 'ROTATED', othersTerminated: others.rowCount || 0 };
+      } catch (e) {
+        await q('ROLLBACK').catch(() => {});
+        throw e;
+      }
     },
 
     /* Look up the user + credential by email. Returns the facts the pure
@@ -121,7 +183,8 @@ function makeAuthAdapter(client, config) {
     async findUserCredential(email) {
       const r = await q(
         `SELECT u.id AS "userId", u.email, u.is_origin AS "isOrigin", u.display_name AS "displayName",
-                c.password_hash AS "passwordHash", c.password_salt AS "passwordSalt"
+                c.password_hash AS "passwordHash", c.password_salt AS "passwordSalt",
+                c.must_change AS "mustChange"
            FROM app_user u LEFT JOIN user_credential c ON c.user_id = u.id
           WHERE u.email = $1`, [email]);
       return r.rows[0] || null;
@@ -238,9 +301,11 @@ function makeAuthAdapter(client, config) {
         `SELECT s.id, s.user_id AS "userId", s.tenant_id AS "tenantId", s.role, s.mfa_ok AS "mfaOk",
                 s.created_at AS "createdAt", s.last_seen_at AS "lastSeenAt",
                 s.absolute_expires_at AS "absoluteExpiresAt", s.terminated_at AS "terminatedAt",
-                u.is_origin AS "isOrigin", t.code AS "tenantCode"
+                u.is_origin AS "isOrigin", t.code AS "tenantCode",
+                c.must_change AS "mustChange"
            FROM user_session s JOIN app_user u ON u.id = s.user_id
            JOIN tenant t ON t.id = s.tenant_id
+           LEFT JOIN user_credential c ON c.user_id = u.id
           WHERE s.token_hash = $1`, [sha256hex(String(token || ''))]);
       const row = r.rows[0];
       if (!row) return { resolved: false, reason: 'AUTH_SESSION_UNKNOWN' };
@@ -248,6 +313,7 @@ function makeAuthAdapter(client, config) {
         sessionId: row.id, userId: row.userId, tenantId: row.tenantId, role: row.role,
         mfaOk: row.mfaOk === true,
         isOrigin: row.isOrigin === true,
+        mustChange: row.mustChange === true,
         tenantCode: row.tenantCode,
         createdAt: new Date(row.createdAt).getTime(),
         lastSeenAt: new Date(row.lastSeenAt).getTime(),
@@ -261,7 +327,7 @@ function makeAuthAdapter(client, config) {
       if (!o.noTouch) {
         await q(`UPDATE user_session SET last_seen_at = $2 WHERE id = $1 AND terminated_at IS NULL`, [session.sessionId, now()]);
       }
-      return { resolved: true, session, principal: { userId: session.userId, role: session.role, mfaOk: session.mfaOk, isOrigin: session.isOrigin, tenantCode: session.tenantCode } };
+      return { resolved: true, session, principal: { userId: session.userId, role: session.role, mfaOk: session.mfaOk, isOrigin: session.isOrigin, mustChange: session.mustChange, tenantCode: session.tenantCode } };
     },
 
     async terminateSession(token) {
@@ -395,7 +461,7 @@ function makeAuthAdapter(client, config) {
           outcome: 'ISSUE',
           token: issued.token,
           session: issued.session,
-          principal: { userId, tenantId: tenant.tenantId, tenantCode: tenant.tenantCode, role: tenant.role, mfaOk: issued.session.mfaOk },
+          principal: { userId, tenantId: tenant.tenantId, tenantCode: tenant.tenantCode, role: tenant.role, mfaOk: issued.session.mfaOk, mustChange: found.mustChange === true },
         };
       } catch (e) {
         await q('ROLLBACK').catch(() => {});

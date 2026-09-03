@@ -843,6 +843,7 @@ model UserCredential {
   passwordHash String   @map("password_hash")
   passwordSalt String   @map("password_salt")
   algo         String   @default("scrypt")
+  mustChange   Boolean  @default(false) @map("must_change")
   updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
   user AppUser @relation(fields: [userId], references: [id], onDelete: Cascade)

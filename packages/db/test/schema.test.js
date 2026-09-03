@@ -480,5 +480,35 @@ test('the correction door keeps its UPDATE grant — RLS and the tenant policy a
     'a DELETE grant leaked onto fx_rate_pin');
 });
 
+console.log('\nM-setup — the §14.28 setup doors (0010_setup, D-049)');
+const migration0010 = fs.readFileSync(path.join(DB, 'migrations', '0010_setup', 'migration.sql'), 'utf8');
+
+test('SCHEMA_VERSION stamps 0010', () => {
+  const sv = fs.readFileSync(path.join(DB, 'schema-version.js'), 'utf8');
+  assert.ok(sv.includes("SCHEMA_VERSION: '0010'"), 'SCHEMA_VERSION must be 0010 while 0010_setup is the highest migration');
+});
+test('the forced-change column lands additive with the DDL default', () => {
+  assert.ok(/ALTER TABLE "user_credential" ADD COLUMN "must_change" BOOLEAN NOT NULL DEFAULT false;/.test(migration0010),
+    'must_change must be BOOLEAN NOT NULL DEFAULT false (pre-existing rows and callers byte-compatible)');
+});
+test('the founder door is SECURITY DEFINER and fail-closed on is_origin', () => {
+  const fn = migration0010.match(/CREATE OR REPLACE FUNCTION "setup_create_tenant_with_founder"\([\s\S]*?\$\$ LANGUAGE plpgsql[^;]*;/);
+  assert.ok(fn, 'the founder door function missing');
+  const body = fn[0];
+  assert.ok(body.includes('SECURITY DEFINER'), 'the door must be SECURITY DEFINER (the migrator authority, scoped)');
+  assert.ok(body.includes('SET search_path = public'), 'the door must pin its search_path (the SECURITY DEFINER hygiene)');
+  assert.ok(body.includes('IS DISTINCT FROM TRUE'), 'the origin check must be IS DISTINCT FROM TRUE (NULL is never a pass)');
+  assert.ok(body.includes('SETUP_NOT_ORIGIN'), 'the non-origin refusal must be named');
+  assert.ok(body.includes('SETUP_SHAPE_INVALID'), 'the shape refusals must be named');
+  assert.ok(body.includes(`INSERT INTO "tenant_role"`), 'the founder grant rides inside the ONE atomic statement');
+  assert.ok(body.includes(`'O', v_actor`), 'the founder grant is O with granted_by = the actor');
+});
+test('the door is executable ONLY by the app role — never PUBLIC', () => {
+  assert.ok(/REVOKE ALL ON FUNCTION "setup_create_tenant_with_founder"\(TEXT, TEXT, TEXT, TEXT, TEXT\) FROM PUBLIC;/.test(migration0010),
+    'the REVOKE from PUBLIC missing');
+  assert.ok(/GRANT EXECUTE ON FUNCTION "setup_create_tenant_with_founder"\(TEXT, TEXT, TEXT, TEXT, TEXT\) TO "sentinel_app";/.test(migration0010),
+    'the GRANT EXECUTE to sentinel_app missing');
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

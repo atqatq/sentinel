@@ -1,6 +1,6 @@
 {
   "name": "@sentinel/db",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "private": true,
   "description": "Sentinel data foundation: Prisma schema (typed contract), SQL migrations with row-level security, seed. RLS model per ADR-0002. v0.9.0: the public surface gains makeIngestWorkerAdapter. v0.10.0: the worker adapter's task context carries an optional sheetName — the §14.26 fan-out names WHICH tab spoke (additive).",
   "scripts": {

@@ -254,7 +254,10 @@ const STRONG = 'Str0ngEnough!Pass';
     } });
     const ok = await make(live).resolveSession(token);
     assert.strictEqual(ok.resolved, true);
-    assert.deepStrictEqual(ok.principal, { userId: U1, role: 'O', mfaOk: true, isOrigin: false, tenantCode: undefined });
+    /* §14.28: the principal grows mustChange (additive) — the forced-change
+     * posture rides every resolution, so routes can refuse a must-change
+     * session by name (SESSION_MUST_CHANGE) before anything writes. */
+    assert.deepStrictEqual(ok.principal, { userId: U1, role: 'O', mfaOk: true, isOrigin: false, mustChange: false, tenantCode: undefined });
     const touch = live.calls.find((x) => /UPDATE user_session SET last_seen_at/.test(x.text));
     assert.ok(touch, 'touch-on-read slides the idle window');
 
@@ -391,6 +394,83 @@ const STRONG = 'Str0ngEnough!Pass';
     const r = await make(c).attemptLogin({ email: 'o@x', password: STRONG, code: '000000' });
     assert.strictEqual(r.outcome, 'REFUSED');
     assert.strictEqual(r.reason, 'AUTH_MFA_INVALID');
+  });
+
+  /* ---- M-setup — §14.28: must_change + the re-authenticated rotation ----- */
+  console.log('\n  M-setup — must_change and the rotation unit (D-049)');
+
+  await test('registerCredential writes must_change when told — the setup posture', async () => {
+    const c = stubClient({});
+    await make(c).registerCredential({ userId: U1, password: STRONG, mustChange: true });
+    const ins = c.calls.find((x) => /INSERT INTO user_credential/.test(x.text));
+    assert.ok(ins, 'the credential INSERT missing');
+    assert.ok(/must_change/.test(ins.text), 'the statement carries the must_change column');
+    assert.strictEqual(ins.values[4], true, 'must_change lands TRUE (a password never chosen must not govern)');
+  });
+
+  await test('registerCredential without the flag stays byte-compatible — false', async () => {
+    const c = stubClient({});
+    await make(c).registerCredential({ userId: U1, password: STRONG });
+    const ins = c.calls.find((x) => /INSERT INTO user_credential/.test(x.text));
+    assert.strictEqual(ins.values[4], false, 'omitted mustChange → false (the pre-existing callers\u2019 shape)');
+  });
+
+  await test('resolveSession exposes mustChange from the LEFT JOIN — additive on the principal', async () => {
+    const c = stubClient({ sessionRow: {
+      id: 'sess-1', userId: U1, tenantId: T1, role: 'O', mfaOk: true, mustChange: true,
+      createdAt: new Date(NOW.getTime() - 60000), lastSeenAt: new Date(NOW.getTime() - 60000),
+      absoluteExpiresAt: new Date(NOW.getTime() + 8 * 3600 * 1000), terminatedAt: null,
+    } });
+    const ok = await make(c).resolveSession('tok');
+    assert.strictEqual(ok.resolved, true);
+    assert.strictEqual(ok.principal.mustChange, true, 'the forced-change posture rides every resolution');
+    const sel = c.calls[0];
+    assert.ok(/LEFT JOIN user_credential c ON c\.user_id = u\.id/.test(sel.text), 'the resolution joins the credential table');
+    assert.ok(/c\.must_change AS "mustChange"/.test(sel.text), 'the SELECT names must_change');
+  });
+
+  await test('the ISSUE verdict carries mustChange from the credential row', async () => {
+    const c = stubClient({ findUser: Object.assign({}, USER, { mustChange: true }), tenantRow: TENANT, mfaRow: null });
+    const r = await make(c).attemptLogin({ email: 'o@x', password: STRONG });
+    assert.strictEqual(r.outcome, 'ISSUE');
+    assert.strictEqual(r.principal.mustChange, true, 'the login boundary hands the interstitial its fact');
+  });
+
+  await test('a wrong CURRENT password refuses the rotation by name — a rotation is a re-authentication', async () => {
+    const c = stubClient({ findUser: Object.assign({}, USER, { passwordHash: auth.password.hash(STRONG, Buffer.alloc(16, 7)), passwordSalt: Buffer.alloc(16, 7).toString('hex'), mustChange: true }) });
+    const r = await make(c).rotateCredential({ email: 'o@x', currentPassword: 'totally-wrong-Password-1!', newPassword: 'Another-Str0ng-Passphrase-9!', token: 'tok' });
+    assert.strictEqual(r.outcome, 'REFUSED');
+    assert.strictEqual(r.reason, 'AUTH_PASSWORD_CURRENT_INVALID');
+    assert.ok(!c.calls.some((x) => /INSERT INTO user_credential/.test(x.text)), 'zero credential writes on a failed re-auth');
+    const attempt = c.calls.find((x) => /INSERT INTO login_attempt/.test(x.text));
+    assert.ok(attempt && attempt.values[3] === 'FAILURE', 'the failed re-auth is an audit record');
+  });
+
+  await test('a weak NEW password is refused by the pure floor before any statement', async () => {
+    const c = stubClient({ findUser: Object.assign({}, USER, { passwordHash: auth.password.hash(STRONG, Buffer.alloc(16, 7)), passwordSalt: Buffer.alloc(16, 7).toString('hex') }) });
+    const r = await make(c).rotateCredential({ email: 'o@x', currentPassword: STRONG, newPassword: 'short', token: 'tok' });
+    assert.strictEqual(r.outcome, 'REFUSED');
+    assert.strictEqual(r.reason, 'AUTH_PASSWORD_TOO_SHORT', 'the policy floor’s own code rides the refusal');
+    assert.strictEqual(c.calls.length, 0, 'ZERO statements — the floor decided before the transaction even opened');
+  });
+
+  await test('the happy rotation clears must_change, keeps the caller\u2019s session, and terminates the others', async () => {
+    const c = stubClient({ findUser: Object.assign({}, USER, { passwordHash: auth.password.hash(STRONG, Buffer.alloc(16, 7)), passwordSalt: Buffer.alloc(16, 7).toString('hex'), mustChange: true }), tenantRow: TENANT });
+    const ledgerCalls = [];
+    const fakeLedger = { appendBlock: async (b) => { ledgerCalls.push(b); return { ok: true }; } };
+    const token = 'the-bearer-token';
+    const r = await make(c, { ledger: { forTenant: () => fakeLedger } }).rotateCredential({ email: 'o@x', currentPassword: STRONG, newPassword: 'Another-Str0ng-Passphrase-9!', token });
+    assert.strictEqual(r.outcome, 'ROTATED');
+    const upd = c.calls.find((x) => /INSERT INTO user_credential/.test(x.text));
+    assert.ok(upd && upd.values[4] === false, 'must_change cleared through the re-authenticated door');
+    const others = c.calls.find((x) => /UPDATE user_session SET terminated_at/.test(x.text) && /token_hash <> /.test(x.text));
+    assert.ok(others, 'the others-termination statement present');
+    assert.ok(!others.values[1].includes(token), 'the RAW token never lands — only its SHA-256 excludes the caller');
+    assert.strictEqual(ledgerCalls.length, 1, 'one Class-N block per active tenant membership');
+    assert.strictEqual(ledgerCalls[0].action, 'auth.credential.rotated');
+    assert.strictEqual(ledgerCalls[0].class, 'N');
+    assert.strictEqual(ledgerCalls[0].reason, 'forced-change-cleared');
+    assert.strictEqual(r.othersTerminated, 1, 'the stub counts the others-termination');
   });
 })().then(async () => {
   await Promise.all(pending);
