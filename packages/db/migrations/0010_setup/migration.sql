@@ -93,3 +93,53 @@ GRANT EXECUTE ON FUNCTION "setup_create_tenant_with_founder"(TEXT, TEXT, TEXT, T
 
 COMMENT ON FUNCTION "setup_create_tenant_with_founder"(TEXT, TEXT, TEXT, TEXT, TEXT) IS
   '§14.28/D-049: the founder door — the migrator''s authority scoped to one purpose (tenant + its first O grant, one atomic statement), fail-closed on is_origin. The repository''s first SECURITY DEFINER: there is no bypass, only the door.';
+
+-- ============================================================================
+-- 0010_setup (second leg) — the PRE-TENANT MEMBERSHIP DOOR (D-050).
+--
+-- The latent defect this door discharges was live-proven by implication and
+-- never walked by any allow-side proof: sod-live's fail-closed reads pin
+-- that a NOBYPASSRLS probe with NO app.tenant_id GUC sees ZERO rows on any
+-- tenant_isolation table — and tenant_role IS one. Yet the M11 login flow
+-- reads the user's memberships (resolveUserTenant) BEFORE any GUC exists —
+-- the 0005 header says it outright: "the session RESOLUTION runs BEFORE a
+-- tenant GUC exists". Under the deployment shape (sentinel_web,
+-- NOBYPASSRLS) that read returns nothing: every sign-in refuses
+-- AUTH_NO_TENANT, and the switcher's hasTenantRole (same pre-tenant window,
+-- the TARGET tenant's GUC cannot be set before the target is known) forbids
+-- every non-Origin move (AUTH_TENANT_FORBIDDEN). No allow-side proof ever
+-- walked sign-in over HTTP (the §14.24 smoke walks the fence states, not
+-- sign-in; the live auth proof sets the GUC before its reads), so the gap
+-- shipped silent.
+--
+-- The fix is the same architectural move as the founder door: the
+-- boundary's pre-tenant membership read becomes A DOOR — a SECURITY DEFINER
+-- function whose ONLY authority is scoping to the named user's active
+-- memberships. The alternatives were rejected: an N-probe loop (set the GUC
+-- per registry tenant and probe membership — O(N) round-trips and GUC churn
+-- on the hot login path), relaxing tenant_isolation (a security regression),
+-- and a membership mirror table (drift by construction). The caller resolved
+-- the session already; app_user itself carries no RLS; the function's scope
+-- is the argument, nothing more.
+-- ============================================================================
+
+CREATE OR REPLACE FUNCTION "auth_user_tenants"(p_user_id UUID)
+RETURNS TABLE (
+  "tenant_id" UUID,
+  "tenant_code" TEXT,
+  "role" "user_role",
+  "granted_at" TIMESTAMPTZ
+) AS $$
+  SELECT tr.tenant_id, t.code, tr.role, tr.granted_at
+    FROM tenant_role tr
+    JOIN tenant t ON t.id = tr.tenant_id
+   WHERE tr.user_id = p_user_id
+     AND tr.revoked_at IS NULL
+   ORDER BY tr.granted_at ASC;
+$$ LANGUAGE sql SECURITY DEFINER SET search_path = public;
+
+REVOKE ALL ON FUNCTION "auth_user_tenants"(UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION "auth_user_tenants"(UUID) TO "sentinel_app";
+
+COMMENT ON FUNCTION "auth_user_tenants"(UUID) IS
+  'D-050: the pre-tenant membership door — the boundary''s login/switcher reads ride this because the session RESOLUTION runs BEFORE a tenant GUC exists (0005''s honest boundary). Scoped to the named user''s active memberships; SECURITY DEFINER because tenant_role''s tenant_isolation is exactly what must NOT gate the pre-tenant window.';

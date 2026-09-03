@@ -350,31 +350,38 @@ function makeAuthAdapter(client, config) {
     /* The login boundary's tenant resolution: the user's FIRST active
      * tenant_role (granted_at order — deterministic), with the tenant CODE
      * the display layer reads. Origin-without-a-role refuses by name at
-     * the boundary (the §14.10 bootstrap is its own named work, D-031). */
+     * the boundary (the §14.10 bootstrap is its own named work, D-031).
+     *
+     * D-050: this read runs in the PRE-TENANT window (no GUC can exist —
+     * the resolution is what PRODUCES the GUC), so it rides the
+     * auth_user_tenants SECURITY DEFINER door; a bare read of tenant_role
+     * under the deployment shape (NOBYPASSRLS + tenant_isolation) sees
+     * zero rows with no GUC — sod-live's fail-closed pin, pointed the
+     * other way. */
     async resolveUserTenant(userId) {
       const r = await q(
-        `SELECT tr.tenant_id AS "tenantId", t.code AS "tenantCode", tr.role
-           FROM tenant_role tr JOIN tenant t ON t.id = tr.tenant_id
-          WHERE tr.user_id = $1 AND tr.revoked_at IS NULL
-          ORDER BY tr.granted_at ASC LIMIT 1`, [userId]);
+        `SELECT out_tenant_id AS "tenantId", out_tenant_code AS "tenantCode", out_role AS "role"
+           FROM auth_user_tenants($1)
+          LIMIT 1`, [userId]);
       return r.rows[0] || null;
     },
 
-    /* The active tenant_roles of a user — the switcher's lawful menu. */
+    /* The active tenant_roles of a user — the switcher's lawful menu.
+     * D-050: the pre-tenant window's door (see resolveUserTenant). */
     async listUserTenants(userId) {
       const r = await q(
-        `SELECT tr.tenant_id AS "tenantId", t.code AS "tenantCode", tr.role
-           FROM tenant_role tr JOIN tenant t ON t.id = tr.tenant_id
-          WHERE tr.user_id = $1 AND tr.revoked_at IS NULL
-          ORDER BY tr.granted_at ASC`, [userId]);
+        `SELECT out_tenant_id AS "tenantId", out_tenant_code AS "tenantCode", out_role AS "role"
+           FROM auth_user_tenants($1)`, [userId]);
       return r.rows;
     },
 
-    /* Membership check for the switcher: an active role in THAT tenant. */
+    /* Membership check for the switcher: an active role in THAT tenant.
+     * D-050: the TARGET tenant's GUC cannot be set before the target is
+     * known — the check IS the pre-tenant window — so this rides the door
+     * and filters by the named tenant. */
     async hasTenantRole(userId, tenantId) {
       const r = await q(
-        `SELECT 1 AS ok FROM tenant_role
-          WHERE user_id = $1 AND tenant_id = $2 AND revoked_at IS NULL LIMIT 1`, [userId, tenantId]);
+        `SELECT 1 AS ok FROM auth_user_tenants($1) WHERE out_tenant_id = $2 LIMIT 1`, [userId, tenantId]);
       return r.rows.length > 0;
     },
 

@@ -509,6 +509,18 @@ test('the door is executable ONLY by the app role — never PUBLIC', () => {
   assert.ok(/GRANT EXECUTE ON FUNCTION "setup_create_tenant_with_founder"\(TEXT, TEXT, TEXT, TEXT, TEXT\) TO "sentinel_app";/.test(migration0010),
     'the GRANT EXECUTE to sentinel_app missing');
 });
+test('the pre-tenant membership door is scoped, fail-closed, and app-role-only (D-050)', () => {
+  const fn = migration0010.match(/CREATE OR REPLACE FUNCTION "auth_user_tenants"\(p_user_id UUID\)[\s\S]*?\$\$ LANGUAGE sql SECURITY DEFINER[^;]*;/);
+  assert.ok(fn, 'the membership door function missing');
+  const body = fn[0];
+  assert.ok(body.includes('SECURITY DEFINER'), 'the door must be SECURITY DEFINER (the pre-tenant window cannot carry the GUC)');
+  assert.ok(body.includes('SET search_path = public'), 'the door must pin its search_path');
+  assert.ok(/tr\.user_id = p_user_id/.test(body), 'the scope is the argument — nothing more');
+  assert.ok(/tr\.revoked_at IS NULL/.test(body), 'only ACTIVE memberships leave the door');
+  assert.ok(body.includes('ORDER BY tr.granted_at ASC'), 'granted_at order is the login resolution\u2019s determinism');
+  assert.ok(/REVOKE ALL ON FUNCTION "auth_user_tenants"\(UUID\) FROM PUBLIC;/.test(migration0010), 'the REVOKE from PUBLIC missing');
+  assert.ok(/GRANT EXECUTE ON FUNCTION "auth_user_tenants"\(UUID\) TO "sentinel_app";/.test(migration0010), 'the GRANT EXECUTE to sentinel_app missing');
+});
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

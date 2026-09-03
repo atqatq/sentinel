@@ -46,6 +46,9 @@ function stubClient({ findUser = null, sessionRow = null, mfaRow = null, streak 
       const norm = text.replace(/\s+/g, ' ').trim();
       calls.push({ text: norm, values });
       if (/FROM app_user u LEFT JOIN user_credential/.test(norm)) return { rows: findUser ? [findUser] : [], rowCount: findUser ? 1 : 0 };
+      /* D-050: the pre-tenant membership door — the membership reads ride
+       * auth_user_tenants now; the stub routes it like the old JOIN did. */
+      if (/FROM auth_user_tenants/.test(norm)) return { rows: tenantRow ? [tenantRow] : [], rowCount: tenantRow ? 1 : 0 };
       if (/FROM tenant_role tr JOIN tenant t/.test(norm)) return { rows: tenantRow ? [tenantRow] : [], rowCount: tenantRow ? 1 : 0 };
       if (/SELECT at FROM login_attempt/.test(norm)) return { rows: streak.map((t) => ({ at: new Date(t) })), rowCount: streak.length };
       if (/SELECT user_id FROM user_credential/.test(norm)) return { rows: [], rowCount: 0 };
@@ -434,6 +437,20 @@ const STRONG = 'Str0ngEnough!Pass';
     const r = await make(c).attemptLogin({ email: 'o@x', password: STRONG });
     assert.strictEqual(r.outcome, 'ISSUE');
     assert.strictEqual(r.principal.mustChange, true, 'the login boundary hands the interstitial its fact');
+  });
+
+  await test('the pre-tenant membership reads ride the D-050 door — never a bare tenant_role read', async () => {
+    const c = stubClient({ tenantRow: TENANT });
+    await make(c).resolveUserTenant(U1);
+    await make(c).listUserTenants(U1);
+    await make(c).hasTenantRole(U1, T1);
+    const membershipReads = c.calls.filter((x) => /auth_user_tenants/.test(x.text));
+    assert.strictEqual(membershipReads.length, 3, 'all three membership reads ride the door');
+    assert.ok(!c.calls.some((x) => /FROM tenant_role tr JOIN tenant t/.test(x.text)), 'the bare pre-GUC read is gone — it saw zero rows under RLS (the sod-live pin, pointed the other way)');
+    const resolve = membershipReads.find((x) => /LIMIT 1$/.test(x.text) && !/out_tenant_id = /.test(x.text));
+    assert.ok(resolve, 'the login resolution keeps granted_at order (the door sorts) and LIMIT 1');
+    const check = membershipReads.find((x) => /out_tenant_id = /.test(x.text));
+    assert.ok(check, 'the switcher membership check filters by the named tenant');
   });
 
   await test('a wrong CURRENT password refuses the rotation by name — a rotation is a re-authentication', async () => {
