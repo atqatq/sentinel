@@ -8,6 +8,8 @@ build/
 .next/
 out/
 *.tsbuildinfo
+# …except the §14.23 image-gate proof, which is source, not output
+!scripts/build/
 
 # Test & coverage
 coverage/
