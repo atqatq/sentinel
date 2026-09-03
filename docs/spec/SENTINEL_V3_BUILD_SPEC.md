@@ -1074,6 +1074,58 @@ with named errors: a non-object row, a version row that is not an object, a seal
 `PRINCIPAL_UNRESOLVED`, `NOT_ELIGIBLE_VERIFIER`, `SOD_DECIDER_IS_REQUESTER`, `MISSING_REASON` (reject),
 `CF_INVALID`. Named proof: `governance/cf-change`.
 
+### 14.13c The CF decide/apply API — the decision gate's transport (D-036 follow-on; named proof `governance/cf-api`)
+
+*(D-036 built the gate and the door — the pure decision layer and the SQL executor behind the freeze —
+and named the remainder: the decide/apply API, with the approvals tray as UI work riding it. This section
+is that API's contract: the transport semantics that make the governance of §14.13b REACHABLE — a gate
+nobody can call is a gate nobody uses, and an ungoverned factor edit finds its way in through SQL anyway.
+The API is the SPOKE BETWEEN THE GATE AND THE DOOR — it owns no governance arithmetic of its own.)*
+
+**The boundary is HTTP-agnostic and the identity is the session's.** `handleCfDecision(request, deps)`
+carries the API semantics (testable without a server, the `handlePlanRun` pattern); the Next.js route is
+thin transport only — session resolution (M11: the httpOnly cookie → user_session envelope), the GUC
+fence trio (`app.tenant_id` / `app.actor_id` / `app.mfa_ok`), one transaction. The request body carries
+`{ versionId, decision, reason? }` and NOTHING about identity: a body-carried tenant or actor is the
+plan route's retired interim — the boundary decides whose hand is on the decision, and it is never the
+caller's claim. The actor envelope (`{userId, role}`) resolved from the session is what the pure gate
+judges — the SoD spine (eligible decider, never the requester) is only as honest as the identity being
+judged, so identity NEVER rides the request.
+
+**The flow is gate → record → door, in the caller's transaction.** (1) The pending version is loaded BY
+ID (the state re-proved, not assumed — the loaded row is what the gate judges; a missing or non-PENDING
+version is the gate's `VERSION_NOT_PENDING`, never a fabricated object). The latest seal payload rides
+in for the APPLY leg (the re-derivation walk is the §14.13b third audit leg — explicit tasks, never a
+silent rebase). (2) The gate runs — `cf.decideCfVersion` UNCHANGED: eligible decider, never the
+requester, PENDING only, reason on reject, `CF_INVALID` refused at the core. A refusal yields the
+Class-D denial record, which travels UNCHANGED through the ledger's append door (`appendDenialRecord`,
+the D-029 consumption posture) — §16.1 Class D: every refused action is logged, and a probing hand
+mapping the approval path is exactly the reader the record exists for. The ledger door is armed only by
+the deployment's HMAC key + the SESSION's envelope (an anonymous denial record cannot exist); UNARMED
+the API refuses loudly (wiring TypeError → 500) — either armed or refused, never a denial that leaves no
+trace. (3) On `ok`, the door executes — `procure-adapter.resolveCfVersion` UNCHANGED: lock FOR UPDATE,
+the GUC fence, the freeze trigger re-proving the move, the version landing EFFECTIVE (or REJECTED with
+its reason), the re-derivation tasks inserted in the same transaction. The API composes; it never
+re-implements a denominator, a gate, or a trigger.
+
+**Statuses and refusals — the plan-handler mapping, adversarially honest.** `200` the decision receipt
+(`{verdict: 'APPLIED'|'REJECTED', …door receipt}`); `400` request-shape (`INVALID_REQUEST` — a malformed
+versionId, a decision outside APPLY|REJECT before the gate runs); `403` a gate denial
+(`{verdict: 'REFUSED', reason: <denial code>, denial}` — the record the ledger now carries, returned so
+the tray can render the why); `404` the version id names nothing in this tenant (`CF_VERSION_NOT_FOUND`
+— RLS makes another tenant's version indistinguishable from no version, which is the point); `500`
+wiring (TypeError — an unarmed ledger, a missing port: a bug, not a refusal, and the transaction rolls
+back with it). A REJECT without its reason is the gate's `MISSING_REASON`, a 403 with its Class-D record
+— the why is part of the record, not a formality.
+
+**Determinism and named proof.** The handler owns no arithmetic: identical inputs through the same deps
+produce deep-equal receipts; every refusal code is the pure gate's own code, unmangled. Named proof
+`governance/cf-api` — the boundary surface (the request shape, the retired identity fields, the
+gate-before-door order), the denial-record leg through the armed ledger (the record's fields verbatim,
+the D-029 shape), the door receipts (APPLY with the re-derivation counts, REJECT with its reason), the
+status mapping, the unarmed-loud refusal, and determinism; the live tier re-proves the freeze's posture
+the sod-live suite already walks.
+
 ## 14.14 On "EOQ" — naming, and why it matters
 The workbook's `T = max(MOQ, orderFreq × dailyConsumption)` is an **order-cycle quantity** (how much a
 review-period covers), not the textbook Wilson EOQ `√(2DS/H)`, which balances ordering cost against holding
