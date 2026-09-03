@@ -35,6 +35,18 @@ declare module "@sentinel/db" {
     tenantId: string
   ): {
     loadCfVersionById(versionId: string): Promise<Record<string, unknown> | null>
+    /* The §14.13c tray read: every PENDING version, oldest request first. */
+    listPendingCfVersions(): Promise<
+      Array<{
+        id: string
+        sku: string
+        version: number
+        fromValue: number | null
+        toValue: number
+        requestedReason: string | null
+        createdAt: string | Date
+      }>
+    >
     loadLatestSealPayload(): Promise<Record<string, unknown> | null>
     resolveCfVersion(input: Record<string, unknown>): Promise<Record<string, unknown>>
   }

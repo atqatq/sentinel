@@ -44,7 +44,10 @@ export const MENUBAR_GROUPS: readonly MenubarGroup[] = [
   {
     label: "Buying",
     entries: [
-      e("Order Proposals"), e("Purchase Orders"), e("Purchase Requests"), e("Approvals"),
+      e("Order Proposals"), e("Purchase Orders"), e("Purchase Requests"),
+      // §14.13c: the approvals tray is the gate's route in apps/web — the
+      // second implemented screen after Data Health.
+      { label: "Approvals", route: "/approvals" },
       e("Imports & Landed Cost"), e("Pricing"), e("Savings"),
     ],
   },

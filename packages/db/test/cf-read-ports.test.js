@@ -71,6 +71,28 @@ const TESTS = [];
     assert.strictEqual(none, null, 'no seal is an honest null — never a fabricated payload');
   });
 
+  test('listPendingCfVersions (the §14.13c tray read): PENDING only, oldest request first, NUMERIC crossed, null FROM stays null', async () => {
+    const c = stubClient({ cfRows: [
+      { id: VID, sku: 'SKU-A', version: 2, from_value: '12', to_value: '15', requested_reason: 'repack', created_at: '2026-08-30T08:00:00Z' },
+      { id: '44444444-4444-4444-8444-444444444444', sku: 'SKU-B', version: 1, from_value: null, to_value: '4', requested_reason: null, created_at: '2026-08-29T08:00:00Z' },
+    ] });
+    const rows = await DB.makeProcureAdapter(c, T1).listPendingCfVersions();
+    assert.strictEqual(rows.length, 2);
+    assert.strictEqual(rows[0].toValue, 15, 'a finite JS number — the tray never renders a DECIMAL string');
+    assert.strictEqual(rows[1].fromValue, null, 'a FIRST-EVER factor has no FROM — never Number(null) = 0');
+    const sql = c.calls[0].text;
+    assert.ok(sql.includes("state = 'PENDING'"), 'the queue is PENDING only');
+    assert.ok(/ORDER BY created_at/.test(sql), 'oldest request first — the order the tray works down');
+    assert.ok(/WHERE tenant_id = \$1/.test(sql), 'the tenant predicate is explicit in the statement (RLS is the fence, this is the shape)');
+    assert.ok(!/LIMIT/.test(sql), 'no cap on the queue — a hidden cap would hide a pending decision');
+  });
+
+  test('listPendingCfVersions: an empty queue reads as an empty array, not null', async () => {
+    const c = stubClient();
+    const rows = await DB.makeProcureAdapter(c, T1).listPendingCfVersions();
+    assert.deepStrictEqual(rows, [], 'an empty tray is an honest zero the screen can render');
+  });
+
   await Promise.all(TESTS);
   console.log(`\ncf read ports (stub): ${passed} passed, ${failed} failed`);
   process.exit(failed > 0 ? 1 : 0);

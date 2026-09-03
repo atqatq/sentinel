@@ -293,6 +293,30 @@ function makeProcureAdapter(client, tenantId) {
       return { ...row, fromValue: from, toValue: to, from: from === null ? null : String(from), to: String(to) };
     },
 
+    /* ---- §14.13c: the approvals tray's read ------------------------------
+     * Every PENDING version for the tenant, oldest request first — the tray
+     * is the queue the gate's deciders work down. RLS scopes it (another
+     * tenant's queue is indistinguishable from an empty one); NUMERIC
+     * crosses the asNum boundary as always (a null FROM stays null — a
+     * FIRST-EVER factor has no previous value and the tray renders that
+     * honestly, never as a 0 → X jump). */
+    listPendingCfVersions: async () => {
+      const r = await q(
+        `SELECT id, sku, version, from_value, to_value, requested_reason AS "requestedReason", created_at AS "createdAt"
+           FROM item_cf_version
+          WHERE tenant_id = $1 AND state = 'PENDING'
+          ORDER BY created_at, sku`, [tenantId]);
+      return r.rows.map((row) => {
+        const from = row.from_value === null ? null : Number(row.from_value);
+        const to = Number(row.to_value);
+        return {
+          id: row.id, sku: row.sku, version: row.version,
+          fromValue: from, toValue: to,
+          requestedReason: row.requestedReason, createdAt: row.createdAt,
+        };
+      });
+    },
+
     loadLatestSealPayload: async () => {
       const r = await q(
         `SELECT payload FROM plan_seal
