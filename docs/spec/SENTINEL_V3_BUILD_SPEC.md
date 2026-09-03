@@ -1898,6 +1898,125 @@ network story is the compose-internal bridge plus the runner's loopback.
 
 ---
 
+## 14.25 The worker runtime — the watched-folder poll loop, the fence per file, and the sentinel-worker image (§7.4's worker gets its consumer; named proof `worker/runtime`)
+
+§14.23 named the worker image as joining "the worker-runtime unit (the queue-grouped poll
+loop of §7.4's topology)" — named, not descoped, exactly as the container scan once joined
+the image unit. This section IS that unit: the daemon arrives, and the image lands with it.
+An image with nothing to exec was a lie in a tag; a daemon with no honest source would be a
+lie in a process — so the source is settled first, honestly.
+
+**The transport honesty — the poll loop polls the source that EXISTS.** The reference
+topology (§7.4) draws the worker queue-grouped (Redis + BullMQ, §8's stack), but the tree
+has NO producer: the web app ships no upload surface — no dropzone, no import route (the
+closed-ecosystem inventory is itself the proof) — and §14.24's rule binds in BOTH
+directions: a service with no consumer is set dressing, and a consumer with no producer is
+theater polling an empty queue. So the runtime's poll loop polls the watched folder: M3's
+worker header names `watched-folder` as a production source of `runFileToRows` (recorded
+but never consulted — the H10 choke point does not care where bytes come from), and the
+ingestion spec's §5 minimum viable daily drop IS a folder of files an operator drops daily.
+The queue-grouped BullMQ transport arrives WITH its producer (the dropzone upload API, the
+email-in gateway) — a named follow-on riding the producer's unit, the same naming
+discipline that brought the scan here. D-046 records the decision.
+
+**The contract (normative):**
+
+1. **The daemon `apps/worker` — one poll loop, nothing listens.** Configuration rides
+   environment at exec: `SENTINEL_WORKER_INBOX` (default `/data/inbox`), `DATABASE_URL`,
+   `SENTINEL_WORKER_POLL_MS` (default 15000), `SENTINEL_WORKER_BATCH_MAX` (default 25). A
+   missing `DATABASE_URL` refuses at BOOT with a named reason — a daemon that cannot reach
+   the database is dead on arrival, and dead on arrival must say so, not idle. There is no
+   port, no EXPOSE, no HTTP healthcheck: the poll loop's liveness IS the process, and the
+   orchestrator's restart policy is the watchdog (the queue-era refinement comes with the
+   queue). SIGTERM/SIGINT drain: the in-flight file finishes, the next cycle never starts —
+   a stopped daemon never leaves a half-processed file outside `.claiming/`.
+2. **The inbox layout is the identity model.** `inbox/<TENANT_CODE>/<file>` — the FOLDER
+   NAME is the tenant code, resolved ABOVE the fence via `resolveTenantByCode` (the plan
+   route's session posture: identity resolves first, then produces the fence's value). The
+   file's own name is metadata (`declaredName` — recorded, never consulted, D-018's posture
+   at the runtime layer): a file whose NAME carries another tenant's code is processed
+   under the FOLDER's tenant, because the name does not speak for identity. An unknown
+   tenant code refuses the file to `failed/` with a named log line — no register row can
+   exist for a tenant that does not exist, and a fence needs a tenant; the limit is named,
+   not hidden. A file at the inbox ROOT (no tenant folder) is unattributed and lands in
+   `failed/_unattributed/` — the layout violation is a named outcome, never a silent skip.
+3. **The claim: atomic rename, before any byte is read.** A claimed file is renamed into
+   `<inbox>/<TENANT_CODE>/.claiming/` first — POSIX rename is atomic, so two pollers cannot
+   both claim one file, and no file is ever processed in place where a second scan could
+   double-claim it. Dotfiles and dot-directories are invisible to the scan (editor residue
+   and the claim directory itself must never be mistaken for work). Orphaned claims — crash
+   residue left in `.claiming/` — are processed DIRECTLY by the boot cycle as its first
+   batch: H6's idempotency makes the reprocessing a no-op (REPLAY_NOOP), so recovery is
+   safe by construction, not by bookkeeping.
+4. **The fence per file (ADR-0002).** One pg client per file: connect → resolve the tenant
+   (above the fence) → BEGIN → `set_config('app.tenant_id', …, true)` → the adapters bound
+   to (client, tenantId) — `makeIngestWorkerAdapter` (the H10-pipeline ports) and
+   `makeIngestAdapter` (the H6 executor), both through the db package's public surface
+   (ADR-0001; the worker runtime is the consumer `makeIngestWorkerAdapter` was waiting for,
+   and this unit adds it to that surface) → `runFileToRows` with source `watched-folder`
+   and `asOfMs = Date.now()` (the daemon is the clock's injection point; the library stays
+   clock-free) → COMMIT → the client closes. The GUC dies with the transaction; the fence
+   is per file by construction.
+5. **Outcomes → folders, the COMPLETE mapping.** `APPLIED` → `done/<TENANT_CODE>/`;
+   `REPLAY_NOOP` → `done/<TENANT_CODE>/` (it changed nothing — §4's posture at the runtime
+   layer); `QUARANTINED` → `quarantine/<TENANT_CODE>/` (the register row, the quarantine
+   ledger and the tasks exist INSIDE the committed fence; the file waits for the operator);
+   anything THROWN (an executor fault, the port seam breaking) → ROLLBACK → a FRESH
+   transaction → `markFileFailed` (the worker.js contract: the honest post-rollback state)
+   → `failed/<TENANT_CODE>/`; an UNRECOGNIZED verdict → `failed/<TENANT_CODE>/` (a receipt
+   the runtime cannot name is a bug, and bugs go to failed/, never to done/). The mapping
+   is exhaustive: every claimed file settles into exactly one folder — the inbox never
+   keeps work, and no file is ever lost silently. The outcome folders preserve the tenant
+   segment (`done/<T>/<f>`, `quarantine/<T>/<f>`, `failed/<T>/<f>`): the file register is
+   in the database, but the folder an operator walks still says whose file it was.
+6. **Poison isolation.** One file's failure never stops the cycle: the per-file catch
+   isolates it, the loop continues, and the next file is not punished for its neighbor (the
+   rev-1.2 module-isolation posture at file granularity). The daemon's log names the file,
+   the stage and the reason — a 3 a.m. operator reads the failed/ folder and the log, not
+   the source.
+7. **The image `sentinel-worker` (§6.2's naming) — the §14.23 contract verbatim, one
+   runtime story different.** Three stages, every base digest-pinned, distroless nonroot
+   (UID 65532), no shell, no package manager, no secret in any layer. The difference is the
+   dependency story: the web image trusts Next's standalone trace; the worker image trusts
+   `pnpm deploy`'s pruned production tree — the daemon plus `@sentinel/ingest-service`
+   (exceljs 4.4.0 exact-pinned, §4.1) plus `@sentinel/db` (pg) plus the core modules the
+   ingestion boundary owns, and NOTHING else. `CMD` is the daemon; `EXPOSE` is absent
+   because nothing listens.
+8. **The scan and the SBOM: two images, one gate.** The `image-build` job builds and scans
+   BOTH images — Trivy pinned, HIGH+CRITICAL fail-closed, `ignore-unfixed: false` — under
+   the SAME pinned waiver set: the `.trivyignore` entries name base-image CVEs pending the
+   distroless rebuild, that class covers every image the tree ships, and the digest bump
+   that retires the waivers retires them for BOTH images in one diff. One image SBOM per
+   image: what ships is what is attached, per subject.
+9. **CI placement.** The `ingestion-tests` job (which already installs the workspace and
+   already carries exceljs for the §4.1 suites) runs the worker runtime's named proof; the
+   `image-build` job runs the image-gate proof extended to BOTH Dockerfiles before any
+   docker minute is spent — the §14.23 ordering, repeated.
+
+**Named proof `worker/runtime`** — pins the runtime's semantics WITHOUT a live database
+(the fence's live posture is already walked by the db suites; the compose walk is the
+e2e unit's named follow-on below): the claim's rename semantics (a claimed file is out of
+the scan's reach before a byte is read; dotfiles invisible; root-level files unattributed);
+the fence ORDER (resolve above BEGIN; the GUC set before any adapter statement — a stubbed
+client records the statement sequence); the outcome→folder mapping EXHAUSTIVE (each verdict
+lands in its named folder; a thrown executor fault rolls back, writes FAILED in a fresh
+transaction, and lands failed/; an unrecognized verdict lands failed/); poison isolation
+(file 2 processes after file 1 threw); the boot cycle re-claiming orphans FIRST; the batch
+cap bounding a cycle; the unknown-tenant refusal to failed/ with no register attempt; the
+identity rule (the folder speaks, the file's name never does); the drain (a stop signal
+finishes the in-flight file and starts no new cycle); and the exceljs exact pin (4.4.0)
+asserted in the worker's dependency story.
+
+**Scope honesty.** This unit does NOT claim: the compose walk of a real file through the
+real stack — the worker joins the smoke stack by AMENDING §14.24's two-service contract in
+the e2e unit's own amendment, when the smoke walks a file (a third service pinned in from
+this unit would be a service the smoke does not exercise); the BullMQ transport (arrives
+with its producer); §7.4's redis/minio/keycloak/otel services (still without consumers —
+still absent); the Mode-B per-kind fan-out (§4's named follow-on). Each is named where it
+lives.
+
+---
+
 # 15. Audit remediation — SENT-AUDIT-002 (deep technical audit, $50M bar)
 
 An independent deep technical audit re-verified this package and raised 40 findings. **Every empirical
