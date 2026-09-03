@@ -25,13 +25,12 @@
 
 # ---- deps: the pnpm workspace from the frozen lockfile ---------------------
 FROM node:22.22-bookworm-slim@sha256:e21fc383b50d5347dc7a9f1cae45b8f4e2f0d39f7ade28e4eef7d2934522b752 AS deps
-ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
+    CI=1
 RUN corepack enable
 WORKDIR /app
-COPY pnpm-lock.yaml ./
-RUN pnpm fetch
 COPY . .
-RUN pnpm install --frozen-lockfile --offline
+RUN pnpm install --frozen-lockfile
 
 # ---- build: the standalone bundle ------------------------------------------
 FROM deps AS build
