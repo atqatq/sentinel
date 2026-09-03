@@ -190,6 +190,10 @@ function matchPoLines(input) {
        * measures WHO DELIVERED (the export's Supplier column), never who was
        * intended (the leaf's SUPPLIER_CHANGED flag discloses that deviation). */
       supplier: line.supplierName != null ? line.supplierName : null,
+      /* §14.6f — the promised date is a line fact this layer already consumes;
+       * carried (null when absent), never guessed, so the scorecard rebuild
+       * can judge past-promise due-ness without re-deriving the facts view. */
+      expectedDelivery: line.expectedDelivery != null ? line.expectedDelivery : null,
       orderedAmended, receivedQty, returnedQty, netReceived, openQty,
       fillRate: orderedAmended > 0 ? netReceived / orderedAmended : null,
       flags: lflags, refIds: linked.map((p) => p.refId),

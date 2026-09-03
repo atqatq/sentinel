@@ -80,6 +80,8 @@ jobs:
         run: node packages/core/modules/execution-feedback/test/matching.test.js
       - name: M4 the loop's second turn — scorecards fed by matching, named proof feedback/scorecard-matching-fed (16)
         run: node packages/core/modules/execution-feedback/test/scorecards.test.js
+      - name: §14.6f the scorecard rebuild + the H2 second arm — named proof feedback/scorecard-rebuild (15)
+        run: node packages/core/modules/execution-feedback/test/rebuild.test.js
       - name: M3 the loop's learning turn — efficacy fed by matching, named proof feedback/efficacy-matching-fed (18)
         run: node packages/core/modules/execution-feedback/test/efficacy.test.js
       - name: KPI catalog — dataState envelope, A1/A2 named proofs (24)
@@ -168,6 +170,8 @@ jobs:
         run: node packages/db/test/restatement-adapter.test.js
       - name: M10 FX pin door — idempotent pin, conflict, correction diff, Class-S blocks via stub client (14)
         run: node packages/db/test/fx-adapter.test.js
+      - name: §14.6f scorecard rollup door — statement-first refusals, Class-S SCORECARD_REBUILT via stub client (5)
+        run: node packages/db/test/scorecard-adapter.test.js
       - name: Install pg client for the matrix
         run: npm install --prefix packages/db pg@8 --no-save --no-audit --no-fund
       - name: RLS deny matrix (live)
@@ -195,6 +199,10 @@ jobs:
         env:
           DATABASE_URL_ADMIN: postgres://postgres:postgres@127.0.0.1:5432/postgres
           SESSION_WRAP_KEY: ci-auth-live-wrap-key-0123456789abcdef-0123456789abcdef
+      - name: SCORECARD live — the H2 second arm through the §14.6f door, Class-S SCORECARD_REBUILT, chain verify, RLS
+        run: node packages/db/test/scorecard-live.js
+        env:
+          DATABASE_URL_ADMIN: postgres://postgres:postgres@127.0.0.1:5432/postgres
       - name: DR restore-leg rehearsal — dump, checksum, DESTROY, restore, verify (H11, §14.21)
         run: |
           command -v pg_dump >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client; }

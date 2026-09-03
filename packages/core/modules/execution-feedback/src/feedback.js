@@ -273,6 +273,119 @@ function supplierScorecards(matched) {
   };
 }
 
+/* ---- 5b. PLAN ← the H2 second arm: the scorecard rebuild (§14.6f) --------
+ * The §14.6d scheduled follow-on, delivered: the rebuild carries an explicit
+ * asOf and, with it, the SECOND ARM of the H2 due-line rule — an unreceived
+ * line PAST its promised date counts as DUE.
+ *
+ * The blind spot: the H2 filter (fill AND lateness both known) never sees a
+ * zero-receipt line — realized lead needs a receipt to measure against, so
+ * `lateByDays` is null and a supplier who NEVER delivers is invisible in the
+ * instrument that steers preferred-supplier selection. The first arm judges
+ * what arrived; this arm judges what was PROMISED and never arrived.
+ *
+ * The arm's rule (additive to the H2 canon, never replacing it) — a line is
+ * past-promise due iff ALL hold:
+ *   live (OPEN or absent — a cancelled promise is not a late one, §14.6b),
+ *   net receipts ZERO (a partial's lateness is OBSERVED; the arm exists for
+ *     the truck that never came at all),
+ *   expectedDelivery != null (an unpromised line can never be late against
+ *     no promise, §14.6c verbatim — it stays open and rides the
+ *     UNPROMISED_WAITING data-health disclosure, not the scorecard),
+ *   expectedDelivery < asOf (canonical day-string comparison, H4).
+ * The arm's evidence: fillRate 0 (already the fact) and lateByDays =
+ * asOf − expectedDelivery in canonical day units — days past due, a DERIVED
+ * lateness, never an observed one, and the derivation is DISCLOSED by the
+ * additive flag PAST_PROMISE_UNRECEIVED on the reconciliation.
+ *
+ * One canon: the arm only fixes the INPUT — `supplierScorecards` (the §14.6d
+ * wiring) and the M2 H2 engine beneath it compose UNCHANGED; no denominator
+ * is re-implemented here. The rebuild also yields the §16.1 Class-S rollup
+ * receipt — the ONE SCORECARD_REBUILT block payload (entity
+ * supplier_scorecard, entityId the asOf, before null, after {asOf, suppliers,
+ * dueLines, pastPromiseDue}, actor system, trigger + job id in the reason,
+ * engine/schema stamps carried from opts, L-07) — for the ledger's append
+ * door to land in the SAME transaction as the business write it serves
+ * (§16.3 rule 2). This function stays PURE: the door does the writing. */
+const TRIGGERS = ['schedule', 'manual', 'upload'];
+const SCORECARD_EVENT = { entity: 'supplier_scorecard', action: 'SCORECARD_REBUILT', klass: 'S' };
+
+function rebuildScorecard(matched, opts) {
+  const o = opts || {};
+  const refuse = (code, detail) => {
+    throw new TypeError(`rebuildScorecard: ${code} — ${detail}`);
+  };
+  const m = matched || {};
+  if (!Array.isArray(m.lines)) refuse('WIRING_MALFORMED', 'the matchPoLines result carries a lines array — feed the rebuild the matching layer, not raw evidence');
+  if (o.asOf == null || o.asOf === '') refuse('ASOF_REQUIRED', 'the rebuild carries an explicit asOf — a scorecard without an as-of date is not a scorecard');
+  if (typeof o.asOf !== 'string' || canonDay(o.asOf) === null || !DATE_RE.test(o.asOf)) {
+    refuse('ASOF_INVALID', `asOf must be a canonical YYYY-MM-DD day string (H4), got ${JSON.stringify(o.asOf)}`);
+  }
+  const trigger = o.trigger == null ? 'schedule' : o.trigger;
+  if (!TRIGGERS.includes(trigger)) {
+    refuse('TRIGGER_INVALID', `trigger must be one of ${TRIGGERS.join(' | ')} (§16.1 Class S), got ${JSON.stringify(trigger)}`);
+  }
+
+  /* The second-arm derivation over the live lines — sorted, deterministic;
+   * every line it arms is NAMED in secondArm.lines, never a silent rewrite. */
+  const armed = [];
+  const secondArmLines = [];
+  for (const line of m.lines) {
+    if (!line || !Array.isArray(line.reconciliations)) {
+      refuse('WIRING_MALFORMED', 'every line result carries its reconciliations array — feed the rebuild the matching layer, not raw evidence');
+    }
+    const live = line.status === undefined || line.status === null || line.status === 'OPEN';
+    const unreceived = line.netReceived === 0;
+    const promised = line.expectedDelivery != null && line.expectedDelivery !== '';
+    const past = promised && String(line.expectedDelivery) < o.asOf;
+    const canonOk = promised && canonDay(line.expectedDelivery) !== null;
+    if (promised && !canonOk) {
+      refuse('ASOF_INVALID', `line ${line.poNumber}/${line.sku} expectedDelivery ${JSON.stringify(line.expectedDelivery)} is not a canonical day (H4) — the boundary converts, the canon never guesses`);
+    }
+    if (!(live && unreceived && promised && past)) { armed.push(line); continue; }
+    const lateByDays = canonDay(o.asOf) - canonDay(line.expectedDelivery);
+    const reconciliations = line.reconciliations.map((rec) => {
+      const r = { ...rec, lateByDays };
+      r.flags = Array.from(new Set([...(r.flags || []), 'PAST_PROMISE_UNRECEIVED'])).sort();
+      return r;
+    });
+    armed.push({ ...line, reconciliations });
+    secondArmLines.push({
+      poNumber: line.poNumber, sku: line.sku, supplier: line.supplier,
+      expectedDelivery: line.expectedDelivery, daysPastDue: lateByDays,
+    });
+  }
+  secondArmLines.sort((a, b) =>
+    String(a.poNumber).localeCompare(String(b.poNumber)) !== 0
+      ? String(a.poNumber).localeCompare(String(b.poNumber))
+      : String(a.sku).localeCompare(String(b.sku)));
+
+  /* One canon: the armed result feeds the §14.6d wiring unchanged. */
+  const scorecard = supplierScorecards({ ...m, lines: armed });
+  const pastPromiseDue = secondArmLines.length;
+  const dueLines = scorecard.suppliers.reduce((s, x) => s + x.dueLines, 0);
+
+  const event = {
+    class: SCORECARD_EVENT.klass,
+    entity: SCORECARD_EVENT.entity,
+    entityId: o.asOf,
+    action: SCORECARD_EVENT.action,
+    outcome: 'success',
+    before: null,   // a rollup writes no business value
+    after: {
+      asOf: o.asOf,
+      suppliers: scorecard.suppliers.map((s) => s.supplier),
+      dueLines,
+      pastPromiseDue,
+    },
+    reason: `trigger=${trigger}${o.jobId ? ` job=${o.jobId}` : ''}${o.note ? ` note=${o.note}` : ''}`,
+    engineVersion: o.engineVersion == null ? null : o.engineVersion,
+    schemaVersion: o.schemaVersion == null ? null : o.schemaVersion,
+  };
+
+  return { scorecard, secondArm: { asOf: o.asOf, lines: secondArmLines, pastPromiseDue }, event };
+}
+
 /* ---- 5c. PLAN ← the loop's learning turn: efficacy fed by matching (§14.6e)
  * The wiring the audit's M3 efficacy item names: `parameterEfficacy()`,
  * `proposalQuality()` and `leadTimeEstimate()` (the M3/M2/lead-time canons,
@@ -384,5 +497,6 @@ function inTransitPosition(commitments, receiptsByPo) {
 module.exports = {
   REASON_CODES, reconcileProposal, leadTimeEstimate, parameterEfficacy,
   proposalQuality, supplierScorecard, supplierScorecards, efficacySignals,
+  rebuildScorecard,
   realizedSaving, inTransitPosition,
 };
