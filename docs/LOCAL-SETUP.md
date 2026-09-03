@@ -65,42 +65,36 @@ This seeds two synthetic tenants, the unit catalog + aliases, FX rate pins, the 
 synthetic principals (`origin@` / `manager@` / `senior@` / `buyer@sentinel.synthetic`)
 and the approval configuration (dual-control thresholds, per-role limits).
 
-## 5. Create a local sign-in password
+## 5. Bootstrap the Origin (the setup account)
 
-The seed creates users but **no passwords** (credentials are a scrypt store). Register a
-local credential by saving this as `set-local-password.mjs` in the repo root, then run it:
-
-```js
-// set-local-password.mjs — run: node set-local-password.mjs <email> '<password>'
-// Password policy: 12+ chars across 3+ character classes (lower/upper/digit/other).
-import { createRequire } from 'node:module';
-import { scryptSync, randomBytes } from 'node:crypto';
-const require_ = createRequire(new URL('./packages/db/package.json', import.meta.url));
-const { Client } = require_('pg');
-
-const [email, password] = process.argv.slice(2);
-if (!email || !password) { console.error('usage: node set-local-password.mjs <email> <password>'); process.exit(1); }
-
-const N = 2 ** 15, r = 8, p = 1, keylen = 64;                 // the repo's scrypt parameters
-const salt = randomBytes(16);
-const hash = scryptSync(password, salt, keylen, { N, r, p, maxmem: 64 * 1024 * 1024 }).toString('hex');
-
-const db = new Client({ connectionString: process.env.DATABASE_URL_ADMIN || 'postgres://postgres:postgres@127.0.0.1:5433/sentinel' });
-await db.connect();
-const u = await db.query(`SELECT id FROM app_user WHERE email = $1`, [email]);
-if (!u.rows[0]) { console.error('no such user — did you apply seed.sql?'); process.exit(1); }
-await db.query(
-  `INSERT INTO user_credential (user_id, password_hash, password_salt, algo, updated_at)
-   VALUES ($1, $2, $3, 'scrypt', now())
-   ON CONFLICT (user_id) DO UPDATE SET password_hash = $2, password_salt = $3, algo = 'scrypt', updated_at = now()`,
-  [u.rows[0].id, hash, salt.toString('hex')]);
-console.log('credential registered for', email);
-await db.end();
-```
+The §14.28 setup doors (D-049): the Origin is the setup account — it creates every other
+account, tenant, role and permission, and the first ingestion rides the worker's own pipeline.
+The bootstrap script is the migrator path, scripted as ONE transaction:
 
 ```bash
-node set-local-password.mjs manager@sentinel.synthetic 'Local-Dev-Pass-2026!'
+export SESSION_WRAP_KEY="$(openssl rand -hex 32)"   # the auth adapter's injected wrap key
+
+node scripts/setup/bootstrap-origin.mjs \
+  --email origin@example.com --name 'Operations Origin' \
+  --tenant-code BahrainMP --tenant-name 'Bahrain MP' \
+  --currency BHD --timezone Asia/Bahrain
 ```
+
+The **generated password prints ONCE** (never stored in plaintext). The account lands with
+`must_change` — sign in and rotate it before anything else. A re-run REFUSES by design
+(`SETUP_ORIGIN_EXISTS`) — a second run that "succeeds" would be a silent no-op hiding a
+forgotten credential.
+
+Optionally seed the CI fixture data (synthetic tenants, unit catalog, FX pins — useful for
+playing with the golden fixtures):
+
+```bash
+docker exec -i sentinel-db psql -U postgres -d sentinel < packages/db/seed.sql
+```
+
+Then open **http://localhost:3000/setup** — the wizard carries the rest: tenants (the founder
+door), users & roles (every account lands `must_change`), approval limits (the §16 amendment),
+and the first ingestion (Mode A raw exports or the Mode B template, receipt verbatim).
 
 ## 6. Run the web app
 
@@ -113,9 +107,9 @@ pnpm --filter @sentinel/web dev
 ```
 
 - Open **http://localhost:3000**
-- Sign in with `manager@sentinel.synthetic` + your password. (No MFA is enrolled for lab
-  users, so the login returns `ISSUE` directly — `CHALLENGE_MFA` only fires for users with
-  a verified TOTP enrolment.)
+- Sign in with the bootstrapped Origin email + the printed password. The first visit forces
+  the password rotation (the interstitial), then the /setup wizard takes over. (No MFA is
+  enrolled for local users, so the login returns `ISSUE` directly.)
 - `SESSION_WRAP_KEY` must be **≥ 32 chars** or the auth boundary refuses to boot (by design).
 
 ## 7. Run the ingestion worker

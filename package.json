@@ -13,7 +13,7 @@
     "guard:tokens": "node scripts/guards/sds-token-parity.mjs",
     "guard:ui-scope": "bash scripts/guards/ui-primitives-scope.sh",
     "guard:status": "bash scripts/guards/status-vocabulary-binding.sh",
-    "test": "npm run test:engine && npm run test:supply && npm run test:ladder && npm run test:feedback && npm run test:matching && npm run test:scorecards && npm run test:rebuild && npm run test:efficacy && npm run test:kpi && npm run test:calendar && npm run test:plan && npm run test:perf && npm run test:status && npm run test:ops && npm run test:approval && npm run test:ledger && npm run test:auth && npm run test:setup && npm run test:intelligence && npm run test:dr && npm run test:ingest && npm run test:db && npm run test:ingestsvc && npm run test:worker && npm run test:cfapi && npm run test:approvals && npm run test:timemachine && npm run test:datahealth && npm run test:security && npm run test:image && npm run test:e2e",
+    "test": "npm run test:engine && npm run test:supply && npm run test:ladder && npm run test:feedback && npm run test:matching && npm run test:scorecards && npm run test:rebuild && npm run test:efficacy && npm run test:kpi && npm run test:calendar && npm run test:plan && npm run test:perf && npm run test:status && npm run test:ops && npm run test:approval && npm run test:ledger && npm run test:auth && npm run test:setup && npm run test:setupcli && npm run test:intelligence && npm run test:dr && npm run test:ingest && npm run test:db && npm run test:ingestsvc && npm run test:worker && npm run test:cfapi && npm run test:approvals && npm run test:timemachine && npm run test:datahealth && npm run test:security && npm run test:image && npm run test:e2e",
     "test:engine": "node packages/core/modules/planning-engine/test/engine.test.js",
     "test:supply": "node packages/core/modules/planning-engine/test/supply.test.js",
     "test:ladder": "node packages/core/modules/planning-engine/test/ladder-edges.test.js",
@@ -48,7 +48,8 @@
     "test:sod": "node packages/db/test/sod-live.js",
     "test:ledgerlive": "node packages/db/test/ledger-live.js",
     "test:authlive": "node packages/db/test/auth-live.js",
-    "test:setup": "node packages/core/modules/setup/test/setup.test.js"
+    "test:setup": "node packages/core/modules/setup/test/setup.test.js",
+    "test:setupcli": "node scripts/setup/test/bootstrap.test.mjs"
   },
   "pnpm": {
     "overrides": {
