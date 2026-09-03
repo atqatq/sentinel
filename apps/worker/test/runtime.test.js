@@ -408,6 +408,11 @@ test('the runner carries the deployment\u2019s AV posture into the pipeline inpu
   } finally { fs.rmSync(inbox, { recursive: true, force: true }); }
 });
 
+test('the daemon entry wires config.databaseUrl into the loop\u2019s deps EXPLICITLY \u2014 an unwired dep would send pg to its silent default (localhost:5432), the run-79 lesson (the smoke\u2019s own diagnosis caught it)', () => {
+  const entry = fs.readFileSync(path.join(__dirname, '..', 'index.js'), 'utf8');
+  assert.match(entry, /databaseUrl: config\.databaseUrl/, 'the runner reads deps.databaseUrl \u2014 the entry must wire it from the config, never rely on a default');
+});
+
 /* ---- the verdict ---------------------------------------------------------- */
 
 (async () => {

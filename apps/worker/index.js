@@ -14,7 +14,10 @@ const { makeLoop } = require('./src/main');
 
 const config = loadConfig(process.env); // a refusal here is the boot contract working
 const log = (line) => console.log(`[worker] ${line}`);
-const loop = makeLoop({ config, log, avRequired: config.avRequired });
+/* databaseUrl is wired EXPLICITLY from the config — the runner reads
+ * deps.databaseUrl, and an unwired dep would send pg to its silent default
+ * (localhost:5432): the run-79 lesson, pinned by the runtime proof. */
+const loop = makeLoop({ config, log, avRequired: config.avRequired, databaseUrl: config.databaseUrl });
 
 let exitCode = 0;
 process.on('SIGTERM', () => { void loop.drain(); });
