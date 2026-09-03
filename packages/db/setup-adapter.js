@@ -28,6 +28,12 @@
  *           floor live in exactly ONE place.
  *   tzList  REQUIRED — the IANA zone allowlist for the pure tenant
  *           validator (the boundary passes Intl.supportedValuesOf).
+ *   ledger  optional { forTenant(tenantId) → ledgerAdapter | null } — the
+ *           Class-N emitter (§16.1), the auth adapter's disclosed posture:
+ *           a setup event appends through the ledger adapter when the
+ *           deployment wires one; unwired, the boundary's gate and the
+ *           database's own policies remain the records (the same disclosed
+ *           posture the login boundary carries).
  *   now     optional () => Date (tests pin the clock).
  *
  * Statement-first discipline: the pure validators run BEFORE any statement
@@ -76,7 +82,17 @@ function makeSetupAdapter(client, config) {
   }
   const q = (text, values) => client.query(text, values);
   const now = config.now || (() => new Date());
-  void now;
+  const ledgerFor = (config.ledger && config.ledger.forTenant) || (() => null);
+
+  /* The Class-N emission (the auth adapter's shape): the event block, with
+   * the §16.2 gate's explicit nulls, through the injected ledger. */
+  function emit(tenantId, block) {
+    const ledger = ledgerFor(tenantId);
+    if (!ledger) return null;
+    return ledger.appendBlock(Object.assign(
+      { class: 'N', outcome: 'success', before: null, after: null, reason: null },
+      block));
+  }
 
   return {
     /* ---- the bootstrap (§14.28 clause 1) ------------------------------ */
@@ -120,12 +136,17 @@ function makeSetupAdapter(client, config) {
      * Class-N emission around it is the route's fence's business. */
     async createTenant({ code, name, currencyCode, timezone, actorId }) {
       const t = await validateOrThrow(SETUP.validateTenantCommand, { code, name, currencyCode, timezone }, { tzList: config.tzList });
+      await q('BEGIN');
       try {
         const r = await q(
           `SELECT setup_create_tenant_with_founder($1, $2, $3, $4, $5) AS "tenantId"`,
           [t.code, t.name, t.currencyCode, t.timezone, actorId]);
-        return { tenantId: r.rows[0].tenantId, tenantCode: t.code };
+        const tenantId = r.rows[0].tenantId;
+        await emit(tenantId, { entity: 'tenant', entityId: tenantId, action: 'setup.tenant.created', actor: actorId });
+        await q('COMMIT');
+        return { tenantId, tenantCode: t.code };
       } catch (e) {
+        await q('ROLLBACK').catch(() => {});
         throw translateSetupError(e);
       }
     },
@@ -164,6 +185,7 @@ function makeSetupAdapter(client, config) {
           if (e && e.code === '42501') throw translateSetupError(e);
           throw e;
         }
+        await emit(tenant.id, { entity: 'app_user', entityId: userId, action: 'setup.user.created', actor: actorId });
         await q('COMMIT');
         return { userId, tenantId: tenant.id, tenantCode: tenant.code, role: user.role };
       } catch (e) {
