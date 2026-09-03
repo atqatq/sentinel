@@ -18,7 +18,7 @@
 // surfaces (ADR-0001); the CI image-build job — proof before build, Trivy
 // pinned and fail-closed on HIGH+CRITICAL, the image SBOM (SPDX-2.3)
 // attached. Pinned, per §14.25: the worker image's three stages (deps →
-// deploy → runtime), the pnpm deploy pruned tree plus the SIX core modules
+// deploy → runtime), the pnpm deploy pruned tree plus the SEVEN core modules
 // the require topology escapes into, the same digest pins and the same
 // nonroot posture, NO EXPOSE and NO HEALTHCHECK (nothing listens — the
 // liveness IS the process), the CI job building and scanning BOTH images
@@ -245,7 +245,7 @@ test('the CMD is exec-form node index.js — the daemon; no credential-shaped EN
   assert.deepStrictEqual(creds, [], 'DATABASE_URL rides environment at exec — it is never baked into a layer');
 });
 
-test('the deploy stage carries the require topology\'s SIX core modules — the pruned tree is complete, never "copied just in case"', () => {
+test('the deploy stage carries the require topology\'s SEVEN core modules — the pruned tree is complete, never "copied just in case"', () => {
   const deploy = WSTAGES[1];
   assert.match(deploy.lines.join('\n'), /pnpm --filter @sentinel\/worker deploy --prod --config\.node-linker=hoisted \/out/, 'pnpm deploy is the pruner, HOISTED so the workspace packages are real directories — the default isolated layout hides them behind .pnpm symlinks and a require from the symlink\u0027s REALPATH would resolve the modules\u0027 relative ../core escapes against the store, where the placed modules cannot reach them (the first CI run\u0027s lesson, pinned)');
   for (const mod of ['setup', 'ingestion', 'calendar', 'planning-engine', 'approval', 'ledger', 'auth']) {
