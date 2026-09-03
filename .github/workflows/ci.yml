@@ -100,6 +100,8 @@ jobs:
         run: node packages/core/modules/ledger/test/ledger.test.js
       - name: M11 auth module — RFC 6238 TOTP, session floor, lockout, mfa-approvals gate (27)
         run: node packages/core/modules/auth/test/auth.test.js
+      - name: M13 Intelligence egress door — named proof intelligence/egress-allowlist (16)
+        run: node packages/core/modules/intelligence/test/policy.test.js
 
   ingestion-tests:
     name: Ingestion boundary suites (strict parse + file binding)

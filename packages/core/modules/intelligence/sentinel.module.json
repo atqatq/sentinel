@@ -1,0 +1,12 @@
+{
+  "id": "intelligence",
+  "version": "0.1.0",
+  "description": "Intelligence egress allow-list door and prompt-injection stance (build spec §14.20; audit M13; named proof intelligence/egress-allowlist). The closed ecosystem's one governed exception: classifyEgress is the pure, fail-closed verdict layer every outbound Intelligence request passes before any transport can exist — the allow-list is policy data (exact hostname, credential slot name never value, a field allow-list encoding the audit's data classification: aggregates and item/ref names only, no prices-per-supplier beyond the analysis, no personnel data ever), refusals are loud and named (EGRESS_PROMPT_MALFORMED, EGRESS_HOST_NOT_ALLOW_LISTED, EGRESS_ORIGIN_ONLY, EGRESS_CROSS_TENANT_REFUSED, EGRESS_FIELD_NOT_ALLOW_LISTED), and an allowed request yields the §16.4 log envelope — prompt hash + field allow-list, never the content. The transport is unwired in this unit; the runtime client that lands later goes through this door or does not go out.",
+  "purity": "no-db, no-react, no-framework, no-io",
+  "dependencies": ["ledger"],
+  "permissionScopes": ["intelligence:read"],
+  "ingestionKinds": [],
+  "uiSurfacePoints": ["screen:27 Intelligence"],
+  "ledgerEventTypes": ["INTELLIGENCE_EGRESS", "INTELLIGENCE_EGRESS_REFUSED"],
+  "goldenTests": { "suite": "test/policy.test.js", "count": 16 }
+}

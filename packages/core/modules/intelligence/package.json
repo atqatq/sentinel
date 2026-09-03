@@ -1,0 +1,10 @@
+{
+  "name": "@sentinel/module-intelligence",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Sentinel module: Intelligence egress allow-list door and prompt-injection stance (pure policy, fail-closed)",
+  "main": "index.js",
+  "scripts": {
+    "test": "node test/policy.test.js"
+  }
+}
