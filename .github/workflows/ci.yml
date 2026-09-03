@@ -141,6 +141,8 @@ jobs:
         run: node packages/ingest-service/test/worker.test.js
       - name: Ingest worker adapter — ports + register lifecycle + task writers (26)
         run: node packages/db/test/ingest-worker-adapter.test.js
+      - name: §14.25 the worker runtime — named proof worker/runtime (19)
+        run: node apps/worker/test/runtime.test.js
       - name: Procure adapter — C3 workflow executor via stub client (22)
         run: node packages/db/test/procure-adapter.test.js
 

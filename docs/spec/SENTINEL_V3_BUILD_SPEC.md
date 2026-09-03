@@ -1961,9 +1961,15 @@ discipline that brought the scan here. D-046 records the decision.
    `REPLAY_NOOP` → `done/<TENANT_CODE>/` (it changed nothing — §4's posture at the runtime
    layer); `QUARANTINED` → `quarantine/<TENANT_CODE>/` (the register row, the quarantine
    ledger and the tasks exist INSIDE the committed fence; the file waits for the operator);
-   anything THROWN (an executor fault, the port seam breaking) → ROLLBACK → a FRESH
-   transaction → `markFileFailed` (the worker.js contract: the honest post-rollback state)
-   → `failed/<TENANT_CODE>/`; an UNRECOGNIZED verdict → `failed/<TENANT_CODE>/` (a receipt
+   anything THROWN (an executor fault, the port seam breaking) → ROLLBACK → the FAILED
+   register write through `markFileFailed` in a FRESH transaction WHEN the fault carries
+   the file's BOUND identity (kind included — the worker.js contract's caller knew the
+   kind; the queue/dropzone transports will) → `failed/<TENANT_CODE>/`; a fault WITHOUT
+   the bound identity — the watched folder's honest case, since the daemon cannot name a
+   kind for a file whose pipeline faulted before binding — writes NO register row
+   (markFileFailed's own refusal family forbids a kind-less row: "a pre-binding refusal
+   is never registered"), and the folder plus the log are the residue, the register
+   carrying no guess; an UNRECOGNIZED verdict → `failed/<TENANT_CODE>/` (a receipt
    the runtime cannot name is a bug, and bugs go to failed/, never to done/). The mapping
    is exhaustive: every claimed file settles into exactly one folder — the inbox never
    keeps work, and no file is ever lost silently. The outcome folders preserve the tenant
@@ -1999,8 +2005,12 @@ e2e unit's named follow-on below): the claim's rename semantics (a claimed file 
 the scan's reach before a byte is read; dotfiles invisible; root-level files unattributed);
 the fence ORDER (resolve above BEGIN; the GUC set before any adapter statement — a stubbed
 client records the statement sequence); the outcome→folder mapping EXHAUSTIVE (each verdict
-lands in its named folder; a thrown executor fault rolls back, writes FAILED in a fresh
-transaction, and lands failed/; an unrecognized verdict lands failed/); poison isolation
+lands in its named folder; a thrown executor fault rolls back and lands failed/ — the
+FAILED register write rides a FRESH transaction and happens ONLY when the fault carries
+the bound file identity (the watched folder cannot name a kind: markFileFailed's own
+refusal family forbids a kind-less row, "a pre-binding refusal is never registered" —
+the proof pins BOTH branches, and the queue/dropzone transports inject the identity
+hook); an unrecognized verdict lands failed/); poison isolation
 (file 2 processes after file 1 threw); the boot cycle re-claiming orphans FIRST; the batch
 cap bounding a cycle; the unknown-tenant refusal to failed/ with no register attempt; the
 identity rule (the folder speaks, the file's name never does); the drain (a stop signal

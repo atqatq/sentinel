@@ -1,0 +1,11 @@
+{
+  "name": "@sentinel/worker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The worker runtime (§14.25): the watched-folder poll loop — the production caller runFileToRows waited for. Claims each inbound file by atomic rename, opens the ADR-0002 fence per file (resolve above BEGIN → GUC → adapters → runFileToRows → COMMIT), settles every claimed file into exactly one outcome folder, and never lets one poisoned file stop the cycle. Nothing listens: the liveness IS the process.",
+  "main": "index.js",
+  "dependencies": {
+    "@sentinel/db": "workspace:*",
+    "@sentinel/ingest-service": "workspace:*"
+  }
+}

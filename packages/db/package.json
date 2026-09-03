@@ -1,8 +1,8 @@
 {
   "name": "@sentinel/db",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "private": true,
-  "description": "Sentinel data foundation: Prisma schema (typed contract), SQL migrations with row-level security, seed. RLS model per ADR-0002.",
+  "description": "Sentinel data foundation: Prisma schema (typed contract), SQL migrations with row-level security, seed. RLS model per ADR-0002. v0.9.0: the public surface gains makeIngestWorkerAdapter — the H10-pipeline ports the §14.25 worker runtime is the production consumer of (additive).",
   "scripts": {
     "test:schema": "node test/schema.test.js",
     "test:rls": "node test/rls-deny-matrix.js"

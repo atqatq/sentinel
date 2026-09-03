@@ -71,6 +71,15 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
 
+  apps/worker:
+    dependencies:
+      '@sentinel/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@sentinel/ingest-service':
+        specifier: workspace:*
+        version: link:../../packages/ingest-service
+
   packages/core: {}
 
   packages/core/modules/dr: {}

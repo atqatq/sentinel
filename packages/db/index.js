@@ -20,6 +20,7 @@ module.exports = {
   makeDataHealthAdapter: require('./data-health-adapter').makeDataHealthAdapter,
   resolveTenantByCode: require('./data-health-adapter').resolveTenantByCode,
   makeIngestAdapter: require('./ingest-adapter').makeIngestAdapter,
+  makeIngestWorkerAdapter: require('./ingest-worker-adapter').makeIngestWorkerAdapter,
   INGEST_WIRED_KINDS: require('./ingest-adapter').WIRED_KINDS,
   makeProcureAdapter: require('./procure-adapter').makeProcureAdapter,
   makeFxAdapter: require('./fx-adapter').makeFxAdapter,
