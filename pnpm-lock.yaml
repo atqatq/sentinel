@@ -21,6 +21,9 @@ importers:
       '@sentinel/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@sentinel/ingest-service':
+        specifier: workspace:*
+        version: link:../../packages/ingest-service
       '@sentinel/module-kpi-catalog':
         specifier: workspace:^
         version: link:../../packages/core/modules/kpi-catalog
