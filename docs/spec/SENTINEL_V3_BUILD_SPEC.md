@@ -890,6 +890,60 @@ never late, §14.6c verbatim), the never-delivered supplier finally scored (fill
 determinism, and the composition pin (the H2 engine's output for a due line is byte-identical whether
 the evidence arrived observed or armed).
 
+### 14.6g The data-health sweep — the unpromised-waiting disclosure becomes the register (D-033 follow-on; named proof `ops/unpromised-waiting-sweep`)
+
+*(D-033 delivered the disclosure — the plan receipt's per-ref supply facts carry `unpromisedLines` /
+`unpromisedWaiting` — and NAMED the follow-on: "the sweep that lifts them into `data_health_task` rows
+(the §9 register)". This section is that sweep's contract. The finding it serves is §14.6c's own
+sentence: follow-up without a promise date is blind, and data health should say so. Until the sweep, the
+receipt said so once, into the void — the buyer who never opens the plan run never hears it; the
+register is where DTA actually lives.)*
+
+**The derivation is pure and lives with the data-health vocabulary** (`packages/core/modules/ops` —
+the M9 freshness machinery's module, the DTA-owned task conventions home): `unpromisedWaitingTasks(refs)`
+walks a plan receipt's refs and yields ONE DATA_HEALTH task per ref with `unpromisedLines > 0` — in the
+guards' verbatim task-object shape (`{ type: 'DATA_HEALTH', field, detail, severity }`, the shape
+`insertDataHealthTasks` already consumes), field `unpromised-waiting.<refId>`, severity WARN (a missing
+promise is a data gap, not an outage — the honest floor; the detail NAMES the counts: lines and waiting
+units, C1-converted planning units). Sorted by refId, deterministic, deep-equal on identical inputs;
+the refusal family is the §14.6c posture (`REFS_MALFORMED` for a non-array; `REF_MALFORMED` for a ref
+without its id or its supply facts — a ref that never computed supply is not silently healthy). A ref
+with `unpromisedLines === 0` yields nothing: the register carries GAPS, never confirmations — data
+health does not applaud clean refs (the freshness posture: alarms, not numbers).
+
+**The register is a MIRROR, not an append-only flood.** The plan run is nightly; a naive INSERT per run
+would fork one task per ref per day — a register that drowns the gaps it exists to surface. The sweep's
+writer (`saver.syncUnpromisedWaitingTasks`, the plan-adapter port, riding the run's transaction) RECONCILES
+the register to the receipt's disclosure in one direction, idempotently: (1) a desired ref with no OPEN
+row INSERTS (severity WARN, task_type `DATA_HEALTH`, payload carrying the field, the counts and the asOf
+of the run that raised it); (2) a desired ref whose OPEN row already exists is a NO-OP — the same gap is
+not re-raised, not re-dated, not duplicated; (3) an OPEN `unpromised-waiting.*` row whose ref is NO
+LONGER disclosed RESOLVES (status `RESOLVED`, `resolved_at` stamped) — the gap was fixed upstream (a
+promise date landed, the line closed), the register reflects it, and the history stays: rows are never
+deleted, the audit trail is the resolution. The sync receipt `{ inserted, resolved, open }` rides the
+plan receipt ADDITIVELY (`unpromisedSweep`) — the run discloses what it lifted, resolved and left open;
+the numbers are the register's, never recomputed by the reader.
+
+**The sweep rides the run's own transaction and its own semantics.** The sync lands ONLY on the
+fresh-apply path (and on an explicit §14.16 restatement, whose refs are the day's current truth); a
+REPLAYED run writes NOTHING — the H6 posture verbatim: re-importing a day changes nothing, the register
+included (the day's register state was set by the run that sealed it). A failed sync rolls the run back
+with it (§16.3 rule 2's posture in its data-health dress: a register that silently missed a disclosed
+gap is a false register). The saver without the sync port refuses loudly (the wiring posture — the
+sweep is either wired or the deployment refuses, never silently skipped).
+
+**Determinism and refusal.** Identical receipts produce identical task sets; the sync is idempotent
+(two runs, one register); the writer validates shape BEFORE any statement (statement-first) and only
+ever owns the `unpromised-waiting.*` field family — a foreign field refuses (the sweep does not
+gentrify other guards' tasks).
+
+**Named proof:** `ops/unpromised-waiting-sweep` — the pure derivation (one task per gapped ref in the
+guards' shape, clean refs silent, sorted, the refusal family, determinism, JSON round-trip), the
+register mirror through the stub executor (insert / no-op / resolve in one transaction; the idempotent
+re-run; the foreign-field refusal; the unarmed port refusing loudly), the plan wiring (the receipt
+carries `unpromisedSweep`; the replay writes nothing; the sync rides the seal's transaction), and the
+live tier (the mirror against real PostgreSQL: raise → re-run no-op → resolve on clear, tenant-fenced).
+
 ## 14.7 Inter-tenant / inter-warehouse transfers — plan + reconcile (rev 1.3 boundary)
 **Execution boundary (owner directive): Precoro executes; Sentinel plans, approves and verifies.** Inventory
 staff never execute a transfer in Sentinel — every physical movement happens in Precoro and reaches Sentinel
