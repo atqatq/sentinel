@@ -825,6 +825,71 @@ shape (a `proposals` field that is not an array, an aggregate without its `refId
 outcome, refuses `OBSERVATION_MALFORMED`; two observations naming one `refId` refuse
 `OBSERVATION_DUPLICATE` — one ref, one post-decision outcome; the ambiguity is not averaged away.
 
+### 14.6f The scorecard rebuild — the H2 second arm, past-promise due-ness (D-034 follow-on; named proof `feedback/scorecard-rebuild`)
+
+*(§14.6d scheduled it, this section delivers it: the scorecard REBUILD — `SCORECARD_REBUILT`, the §16.1
+Class-S "scorecard rollup" event — carrying an explicit `asOf`, and with it the H2 SECOND ARM: an
+unreceived line **past its promised date** counts as due. §14.6d named the obligation so it could not
+silently descope; this is the contract the obligation belongs to.)*
+
+**The blind spot the arm closes.** The H2 due-line filter (fill AND lateness both known) never sees a
+line with **zero receipts**: realized lead needs a receipt to measure against, so `lateByDays` is null
+and the line stays "open" — no matter how far past its promised date it sits. A supplier who NEVER
+delivers — the worst case the scorecard exists to catch — is therefore invisible in the instrument that
+steers preferred-supplier selection: an actively harmful blind spot, the same class the H2 first arm
+was written for (averaging nulls as zero made a perfect-delivery supplier look 50%; ignoring
+never-delivered suppliers makes an empty one look unjudged). The first arm judges what arrived; the
+second arm judges what was PROMISED and never arrived.
+
+**The arm's rule — additive to the H2 canon, never replacing it.** A line is **past-promise due** iff
+ALL hold: it is live (`OPEN` or status absent — a cancelled promise is not a late one, §14.6b verbatim);
+its net receipts are ZERO (a partial has receipts — its lateness is OBSERVED and the first arm already
+judges it; the arm exists for the truck that never came at all); a promised date exists
+(`expectedDelivery != null` — an unpromised line can never be late against no promise, §14.6c verbatim,
+it stays open and rides the UNPROMISED_WAITING disclosure that data health sweeps, not the scorecard);
+and `expectedDelivery < asOf` on the canonical day-string comparison (H4 — no timezone arithmetic).
+The arm's evidence: `fillRate` 0 (already the fact — nothing came) and `lateByDays` =
+`asOf − expectedDelivery` in canonical day units — **days past due, a DERIVED lateness, never an
+observed one**, and the derivation is DISCLOSED: the reconciliation carries the additive flag
+`PAST_PROMISE_UNRECEIVED`, so `avgLateDays` can never disguise a days-past-due figure as a measured
+delivery lateness. A line not past its promise (promise ≥ asOf) stays open — a promise not yet broken
+is not evidence. The arm rides the REBUILD (which owns the asOf), never the bare matching layer —
+`matchPoLines`' only change is ADDITIVE: each line result now CARRIES its `expectedDelivery` (a line
+fact the layer already consumes; carried, not guessed, null when absent) so the rebuild can judge
+without re-deriving the facts view.
+
+**The rebuild is the scheduled work, with the asOf stamped.** `rebuildScorecard(matched, opts)` — the
+pure composition that (1) refuses malformed inputs by name (`WIRING_MALFORMED` for a matching result
+without its lines array; `ASOF_REQUIRED` when the rebuild is called without its as-of — a scorecard
+without an as-of date is not a scorecard; `ASOF_INVALID` for a non-canonical day string — the H4 canon
+refuses naive datetimes, the §14.6c posture; `TRIGGER_INVALID` for a trigger outside the §16.1 Class-S
+vocabulary `schedule | manual | upload`); (2) derives the second-arm evidence over the live lines
+(sorted, deterministic — the derivation names every line it arms, `secondArm.lines`, never a silent
+rewrite); (3) composes `supplierScorecards` (the §14.6d wiring, the M2 H2 engine UNCHANGED beneath it —
+one canon, no re-implemented denominator: the arm only fixes the INPUT, the engine's denominators stay
+the engine's); and (4) yields the rollup receipt the §16.1 Class-S class names as its own: the ONE
+`SCORECARD_REBUILT` block payload — entity `supplier_scorecard`, entityId the asOf day, action
+`SCORECARD_REBUILT`, `before` null (a rollup writes no business value), `after` = { asOf, suppliers
+(sorted names), dueLines, pastPromiseDue }, actor `system` with the trigger and job id in the reason,
+ENGINE_VERSION + SCHEMA_VERSION stamped (L-07: "why did this supplier's score change?" resolves to an
+exact code state). The block lands through the ledger's append door in the SAME transaction as whatever
+business write the rebuild serves (§16.3 rule 2) — the third Class-S production writer posture (the FX
+pin led, the DR closure followed). A rebuilt scorecard that is not answerable by the chain is a score
+someone made up; the chain is what makes it a record.
+
+**Determinism and refusal.** Identical inputs produce deep-equal output; the result survives a JSON
+round-trip; suppliers sorted by name; the armed reconciliations keep the §14.6b flag discipline (sorted
+arrays). The engine's null honesty is untouched — a supplier with zero due lines still reads `otif:
+null`, never a fabricated zero (the rebuild only ever ADDS due evidence that is genuinely due).
+
+**Named proof:** `feedback/scorecard-rebuild` — the arm's four boundaries (unreceived + past promise →
+due with derived lateness and the disclosure flag; unreceived + promise not yet broken → open; partial
+→ observed lateness, the arm never touches it; cancelled → never due, §14.6b verbatim; unpromised →
+never late, §14.6c verbatim), the never-delivered supplier finally scored (fill 0, days-past-due in
+`avgLateDays`), the refusal family, the Class-S event shape (§16.2 fields, actor system, stamps),
+determinism, and the composition pin (the H2 engine's output for a due line is byte-identical whether
+the evidence arrived observed or armed).
+
 ## 14.7 Inter-tenant / inter-warehouse transfers — plan + reconcile (rev 1.3 boundary)
 **Execution boundary (owner directive): Precoro executes; Sentinel plans, approves and verifies.** Inventory
 staff never execute a transfer in Sentinel — every physical movement happens in Precoro and reaches Sentinel
