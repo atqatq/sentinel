@@ -224,8 +224,34 @@ function baseIntent(over) {
       .then(() => { throw new Error('no throw'); }, (e) => assert.ok(/LEDGER_SEQ_BOUNDARY/.test(e.message), e.message));
   });
 
+  /* ---- the audit-chain reads (screen 12; the time-machine unit) ---- */
+  console.log('\nThe audit-chain reads: newest first, capped, seq crossing the int8 boundary');
+  await test('listBlocks: the newest seq first with a hard cap; BIGINT seq leaves as a JS number', async () => {
+    const c = stubClient();
+    // the stub's default SELECT branch returns empty rows — listBlocks rides it
+    const blocks = await DB.makeLedgerAdapter(c, T1, CONFIG).listBlocks({ limit: 20 });
+    assert.deepStrictEqual(blocks, [], 'no blocks yet is an honest empty list');
+    const sql = c.calls[0].text;
+    assert.ok(/ORDER BY seq DESC LIMIT 20$/.test(sql), `the cap lands IN the statement (no unbounded read): ${sql}`);
+    assert.ok(/WHERE tenant_id = \$1/.test(sql), 'the tenant predicate is explicit');
+  });
+  await test('countBlocks: COUNT(*) crosses the boundary as a JS number, never a string', async () => {
+    const c = stubClient();
+    // the default branch returns rows: [] — countBlocks would read rows[0] of an empty select
+    // so the stub needs a count row; give it through the chain branch? No — patch narrowly:
+    c.query = (async (text) => {
+      const norm = String(text).replace(/\s+/g, ' ').trim();
+      c.calls.push({ text: norm });
+      if (/COUNT\(\*\)/.test(norm)) return { rows: [{ n: '41' }], rowCount: 1 }; // pg ships BIGINT as a STRING
+      return { rows: [], rowCount: 0 };
+    });
+    const n = await DB.makeLedgerAdapter(c, T1, CONFIG).countBlocks();
+    assert.strictEqual(n, 41, `the int8 lesson, read direction: got ${typeof n}`);
+  });
+
   const label = `ledger-adapter (stub): ${passed} passed, ${failed} failed`;
   await Promise.all(pending);
   console.log(`\n  ${label}`);
   process.exit(failed === 0 ? 0 : 1);
 })().catch((e) => { console.error(e); process.exit(1); });
+

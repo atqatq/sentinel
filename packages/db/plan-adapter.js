@@ -275,6 +275,28 @@ function makePlanAdapter(client, tenantId, opts) {
         return { sealDate, versions, current: versions[versions.length - 1] };
       },
 
+      /* The time-machine SPAN read (screen 12): the sealed days in a window,
+       * newest first, payload included (the snapshot stats re-derive from the
+       * SEALED payload — the board you see is the board that was, §11). Capped
+       * at the slider's span (90 by design; a hard cap, not a silent guess —
+       * the window is the slider's own contract). RLS + the explicit
+       * predicates scope it to the tenant. */
+      listSealedDays: async ({ fromDay, toDay, limit = 90 } = {}) => {
+        const cap = Number.isSafeInteger(limit) && limit > 0 && limit <= 90 ? limit : 90;
+        if (fromDay !== undefined) assertSealDate(fromDay, 'RESTATE_SEAL_DATE_INVALID');
+        if (toDay !== undefined) assertSealDate(toDay, 'RESTATE_SEAL_DATE_INVALID');
+        const conds = ['tenant_id = $1'];
+        const vals = [tenantId];
+        if (fromDay !== undefined) { vals.push(fromDay); conds.push(`seal_date >= $${vals.length}`); }
+        if (toDay !== undefined) { vals.push(toDay); conds.push(`seal_date <= $${vals.length}`); }
+        const r = await client.query(
+          `SELECT seal_date::text AS "sealDate", payload_hash AS "payloadHash",
+                  engine_version AS "engineVersion", payload
+             FROM plan_seal WHERE ${conds.join(' AND ')}
+            ORDER BY seal_date DESC LIMIT ${cap}`, vals);
+        return r.rows;
+      },
+
       /* §14.6g — the unpromised-waiting sweep: the register MIRRORS the
        * receipt's disclosure, idempotently, in the run's transaction:
        *   insert   — a desired field with no OPEN row lands (WARN,

@@ -262,6 +262,43 @@ let passed = 0, failed = 0;
     assert.strictEqual(c.calls.length, 0);
   });
 
+  await test('listSealedDays (screen 12): the window lands in the statement, the cap is hard, rows return newest first', async () => {
+    const c = {
+      calls: [],
+      async query(text, values) {
+        const norm = text.replace(/\s+/g, ' ').trim();
+        this.calls.push(norm);
+        if (/FROM plan_seal WHERE/.test(norm) && /ORDER BY seal_date DESC/.test(norm)) {
+          return { rows: [
+            { sealDate: '2026-08-31', payloadHash: 'a'.repeat(64), engineVersion: '1.0.0', payload: { counts: { refs: 3 } } },
+            { sealDate: '2026-08-30', payloadHash: 'b'.repeat(64), engineVersion: '1.0.0', payload: { counts: { refs: 2 } } },
+          ], rowCount: 2 };
+        }
+        return { rows: [], rowCount: 0 };
+      },
+    };
+    const a = DB.makePlanAdapter(c, T1);
+    const days = await a.saver.listSealedDays({ fromDay: '2026-08-01', toDay: '2026-08-31' });
+    assert.strictEqual(days.length, 2);
+    assert.strictEqual(days[0].sealDate, '2026-08-31', 'newest first — the slider starts at the latest');
+    assert.ok(days[0].payload, 'the payload rides the read — the snapshot re-derives from the sealed truth');
+    const sql = c.calls[0];
+    assert.ok(/seal_date >= \$2/.test(sql) && /seal_date <= \$3/.test(sql), 'the window predicates are explicit');
+    assert.ok(/LIMIT 90$/.test(sql), 'the default cap is the slider span (90), IN the statement');
+    assert.ok(/tenant_id = \$1/.test(sql), 'the tenant predicate is explicit');
+  });
+
+  await test('listSealedDays refuses malformed window dates with zero statements (statement-first)', async () => {
+    const c = stubClient();
+    const a = DB.makePlanAdapter(c, T1);
+    await assert.rejects(() => a.saver.listSealedDays({ fromDay: '2026-8-1' }), /RESTATE_SEAL_DATE_INVALID/);
+    await assert.rejects(() => a.saver.listSealedDays({ toDay: 'nope' }), /RESTATE_SEAL_DATE_INVALID/);
+    assert.strictEqual(c.calls.length, 0, 'zero statements on malformed input');
+    /* and an uncapped/overcapped limit clamps to the slider span, never a silent unbounded read */
+    await a.saver.listSealedDays({ limit: 500 });
+    assert.ok(/LIMIT 90$/.test(c.calls[0].text), 'an over-large limit clamps to 90 IN the statement');
+  });
+
   console.log('\nVersion-aware replay');
 
   await test('saveSeal replay resolves the CURRENT version: a restated day replays against its head', async () => {

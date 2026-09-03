@@ -62,7 +62,31 @@ declare module "@sentinel/db" {
       sourceIp?: string | null
       onBehalfOf?: string | null
     }
-  ): Record<string, unknown>
+  ): {
+    appendBlock(input: Record<string, unknown>): Promise<{ seq: number; prevHash: string; hash: string; at: unknown }>
+    appendDenialRecord(denial: Record<string, unknown>, over?: Record<string, unknown>): Promise<{ seq: number; hash: string }>
+    recordRefusedMutation(input: Record<string, unknown>): Promise<{ seq: number; hash: string }>
+    loadChain(): Promise<Array<Record<string, unknown>>>
+    /* Screen 12's audit-chain reads: newest first, capped in-statement. */
+    listBlocks(input?: { limit?: number }): Promise<
+      Array<{
+        seq: number
+        class: string
+        actor: string
+        entity: string
+        entityId: string | null
+        action: string
+        outcome: string
+        before: unknown
+        after: unknown
+        reason: string | null
+        atMs: number
+        hash: string
+      }>
+    >
+    countBlocks(): Promise<number>
+    verifyChain(): Promise<{ ok: boolean; verified: number | boolean }>
+  }
   export function makePlanAdapter(
     client: import("pg").PoolClient,
     tenantId: string,
@@ -91,6 +115,20 @@ declare module "@sentinel/db" {
         input: Record<string, unknown>
       ): Promise<Record<string, unknown>>
       loadDayVersions(sealDate: string): Promise<Record<string, unknown> | null>
+      /* Screen 12's span read: the sealed days of a window, newest first,
+       * payload included — the time machine re-derives from the sealed truth. */
+      listSealedDays(input: {
+        fromDay?: string
+        toDay?: string
+        limit?: number
+      }): Promise<
+        Array<{
+          sealDate: string
+          payloadHash: string
+          engineVersion: string
+          payload: unknown
+        }>
+      >
     }
   }
   export function connectPlanClient(connectionString: string): Promise<import("pg").PoolClient>

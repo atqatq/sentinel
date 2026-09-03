@@ -74,7 +74,8 @@ export const MENUBAR_GROUPS: readonly MenubarGroup[] = [
       e("Data Upload"),
       { label: "Data Health", route: "/data-health" },
       e("Deliveries Entry"),
-      e("Audit & Time Machine"),
+      // Screen 12: the audit chain table + the sealed-day time machine.
+      { label: "Audit & Time Machine", route: "/audit" },
       e("Intelligence"),
     ],
   },

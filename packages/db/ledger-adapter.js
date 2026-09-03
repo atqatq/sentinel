@@ -182,6 +182,30 @@ function makeLedgerAdapter(client, tenantId, config) {
     /* The chain in seq order, shaped for the pure verifier. */
     loadChain: loadChainRows,
 
+    /* ---- The audit chain table's reads (screen 12; the time-machine unit) --
+     * Reads are RLS-scoped like every other SELECT, need NO key material
+     * (the chain's integrity is proven by verifyChain, never by the reader),
+     * and every seq crosses the asSeq boundary (the int8 lesson, read
+     * direction). listBlocks returns the NEWEST first (the table the screen
+     * renders) with a hard cap — a chain is append-only and unbounded; a
+     * screen that loads it unbounded is a DoS against itself. */
+    listBlocks: async ({ limit = 50 } = {}) => {
+      const cap = Number.isSafeInteger(limit) && limit > 0 && limit <= 500 ? limit : 50;
+      const r = await q(
+        `SELECT seq, class::text AS class, actor, role, entity, entity_id AS "entityId",
+                action, outcome::text AS outcome, "before", "after", reason,
+                (extract(epoch from "at") * 1000)::bigint AS "atMs", hash
+           FROM ledger_block
+          WHERE tenant_id = $1
+          ORDER BY seq DESC LIMIT ${cap}`, [tenantId]);
+      return r.rows.map((row) => ({ ...row, seq: asSeq(row.seq), atMs: Number(row.atMs) }));
+    },
+
+    countBlocks: async () => {
+      const r = await q(`SELECT COUNT(*)::bigint AS n FROM ledger_block WHERE tenant_id = $1`, [tenantId]);
+      return Number(r.rows[0].n);
+    },
+
     /* Re-walk the chain under THIS caller's key (§11: the verification job;
      * H5: under the read-only sentinel_verifier role the migration ships). */
     verifyChain: async () => ledger.verify.verifyChain(await loadChainRows(), config.hmacKey),
