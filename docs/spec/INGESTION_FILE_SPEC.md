@@ -119,6 +119,33 @@ Upload is **per tenant** — one workbook per tenant, or add a `Tenant` column a
 `detect kind → strip instruction rows → whitelist columns → normalize units → validate → idempotent upsert →
 recompute engine → seal day snapshot → fire auto-tasks → write import log`
 
+### 4.1 Workbook payloads — the XLSX extraction boundary (normative)
+
+The H10 gate already proves a ZIP **is** an XLSX workbook (central directory, `[Content_Types].xml`,
+`xl/*` markers, no nested archives). What the gate deliberately does NOT own is turning workbook bytes
+into grids — that is the **worker layer's** job, and the boundary rules are:
+
+- **No hand-rolled XML anywhere.** Extraction uses a real, exact-pinned reading library in
+  `packages/ingest-service` (the worker is the impure layer; the pure ingestion module never grows an
+  XML dependency — the refusal text `XLSX_EXTRACTION_NOT_WIRED` named this line before the unit
+  landed).
+- **Extraction yields string grids, nothing more.** A cell becomes its display-honest text: numbers
+  via shortest round-trip, `TRUE`/`FALSE`, date-only styled cells as `YYYY-MM-DD`, datetime cells as
+  the naive wall time `YYYY-MM-DD HH:mm:ss` (Excel datetimes carry no zone — H4 reads them with the
+  tenant's explicit setting downstream), formula cells as their cached result. Every grid then rides
+  the IDENTICAL downstream pipeline as a text file — strip tips → bind → allow-list → strict parse —
+  the workbook never gets a second, softer parser.
+- **Memory is bounded by caps, not by the byte cap.** The 64 MB H10 byte cap inflates to far more
+  grid than 64 MB, so extraction carries its own caps: per-sheet rows, sheet count, total cells —
+  a breach refuses `GRID_CAPS_EXCEEDED` (the CSV path's `ROWS_EXCEEDED` posture, D-028).
+- **One workbook, one bound sheet, today.** Each sheet is bound against the kind signatures
+  independently. A workbook with exactly one signature-matching sheet processes through the normal
+  pipeline (the single-tab drop the `XLSX_EXTRACTION_NOT_WIRED` message told operators to make). A
+  workbook where several sheets match signatures refuses `MULTI_KIND_WORKBOOK_NOT_WIRED` with the
+  sheet names disclosed — the Mode-B per-kind fan-out (eight tabs, eight H6 register rows under one
+  checksum) is a named follow-on unit, not a silent guess. A workbook where NOTHING matches binds no
+  kind and quarantines whole (`NO_HEADER_ROW_FOUND`, the register never carries a guess).
+
 **Validation gates (a failing file is quarantined whole, never half-applied):**
 - required columns present; row count within ±40% of the previous run for that kind
 - every SKU resolves to a Recipe Ref → otherwise an **unmapped-SKU report** (does not block, but surfaces)
