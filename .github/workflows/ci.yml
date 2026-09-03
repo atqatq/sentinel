@@ -102,6 +102,8 @@ jobs:
         run: node packages/core/modules/auth/test/auth.test.js
       - name: M13 Intelligence egress door — named proof intelligence/egress-allowlist (16)
         run: node packages/core/modules/intelligence/test/policy.test.js
+      - name: H11 DR restore-rehearsal gate — named proof dr/restore-rehearsal-gate (25)
+        run: node packages/core/modules/dr/test/rehearsal.test.js
 
   ingestion-tests:
     name: Ingestion boundary suites (strict parse + file binding)
@@ -193,6 +195,12 @@ jobs:
         env:
           DATABASE_URL_ADMIN: postgres://postgres:postgres@127.0.0.1:5432/postgres
           SESSION_WRAP_KEY: ci-auth-live-wrap-key-0123456789abcdef-0123456789abcdef
+      - name: DR restore-leg rehearsal — dump, checksum, DESTROY, restore, verify (H11, §14.21)
+        run: |
+          command -v pg_dump >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client; }
+          node scripts/dr/rehearsal.js
+        env:
+          DATABASE_URL_ADMIN: postgres://postgres:postgres@127.0.0.1:5432/postgres
 
   ui-checks:
     name: UI package (typecheck + theme compile)

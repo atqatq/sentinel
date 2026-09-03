@@ -1,0 +1,10 @@
+{
+  "name": "@sentinel/module-dr",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Sentinel module: the disaster-recovery restore-rehearsal gate (pure verdict layer over injected evidence; audit H11)",
+  "main": "index.js",
+  "scripts": {
+    "test": "node test/rehearsal.test.js"
+  }
+}

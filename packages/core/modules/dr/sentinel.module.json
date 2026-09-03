@@ -1,0 +1,12 @@
+{
+  "id": "dr",
+  "version": "0.1.0",
+  "description": "Disaster-recovery restore-rehearsal gate (build spec §14.21; audit H11; named proof dr/restore-rehearsal-gate). The verdict layer over injected rehearsal evidence: the targets are frozen policy data (RPO_TARGET_MINUTES 15 — continuous WAL archiving's archive lag IS the worst-case loss; RTO_TARGET_MINUTES 240 — four hours, restore included; REHEARSAL_CADENCE_DAYS 90 — quarterly, plus the one staging rehearsal before cutover that gate 14 requires), the verdict ACCUMULATES every defect in a normative order (rehearsal metadata → backup → wal → restore — a rehearsal report names every defect, the 3 a.m. fix-it list), the two legs are separable (evaluateRestore — what any rehearsal including CI can prove; evaluateArchiving — what the deployment's staging rehearsal proves, because RPO belongs to the deployment's archiving cadence), and closeGate turns ONLY a full-scope PASS record signed by Origin (role code 'O', a principal uuid, a canonical UTC instant) into the ONE Class-W RESTORE_REHEARSAL_RECORDED event the ledger's append door re-proves — the rehearsal answerable by the same tamper-evident chain it just proved it can restore. config.expectedSchemaVersion is REQUIRED (the unarmed-door posture); the day canon is the calendar module's (H4). Pure and deterministic: the evidence is injected, no IO/env/clock/database.",
+  "purity": "no-db, no-react, no-framework, no-io",
+  "dependencies": ["calendar"],
+  "permissionScopes": [],
+  "ingestionKinds": [],
+  "uiSurfacePoints": [],
+  "ledgerEventTypes": ["RESTORE_REHEARSAL_RECORDED"],
+  "goldenTests": { "suite": "test/rehearsal.test.js", "count": 25 }
+}
