@@ -11,6 +11,14 @@
 #             SIX core modules the require topology escapes into (ingestion,
 #             calendar, planning-engine, approval, ledger, auth) where the
 #             modules' relative requires resolve. Nothing else rides along.
+#             The deploy runs with node-linker=hoisted: pnpm's default
+#             isolated layout hides the workspace packages behind symlinks
+#             into .pnpm, and a require from a symlink's REALPATH resolves
+#             relative escapes against the .pnpm store — a topology the
+#             placed modules cannot reach. Hoisted makes every deployed
+#             package a REAL directory, so '../core' resolves exactly where
+#             this stage places it (the first CI run failed precisely here;
+#             the fix-forward is a one-flag diff, the proof pins it).
 #   runtime — distroless nonroot; carries ONLY the pruned tree.
 #
 # Every base image is pinned BY DIGEST (the pinning gate's exactness extends
@@ -36,7 +44,7 @@ RUN pnpm install --frozen-lockfile
 
 # ---- deploy: the pruned production tree, the require topology placed --------
 FROM deps AS deploy
-RUN pnpm --filter @sentinel/worker deploy --prod /out \
+RUN pnpm --filter @sentinel/worker deploy --prod --config.node-linker=hoisted /out \
  && mkdir -p /out/node_modules/@sentinel/core/modules \
  && cp -r packages/core/modules/ingestion /out/node_modules/@sentinel/core/modules/ \
  && cp -r packages/core/modules/calendar /out/node_modules/@sentinel/core/modules/ \

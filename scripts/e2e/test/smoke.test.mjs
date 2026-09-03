@@ -242,10 +242,12 @@ test('clause 13 — the inbox is the TENANT CODE (the §14.25 identity model), w
   assert.match(SMOKE, /world-writable ON PURPOSE/);
 });
 
-test('clause 13 — the settle is a POLL with a timeout, never a single-shot race (the readiness-poll posture, at the file)', () => {
+test('clause 13 — the settle is a POLL with a timeout, never a single-shot race (the readiness-poll posture, at the file), and a timeout says WHY: the daemon\u0027s own logs + the inbox tree, never a bare timeout', () => {
   assert.match(SMOKE, /function waitForSettled/);
   assert.match(SMOKE, /the file never settled into/);
   assert.match(SMOKE, /'done', WALK_TENANT_CODE, walkName/);
+  assert.match(SMOKE, /docker', \['compose', 'logs', '--tail', '60', 'worker'\]/, 'the red walk prints the daemon\u0027s own words');
+  assert.match(SMOKE, /function inboxTree/, 'the red walk prints where the file actually went');
 });
 
 test('clause 13 — the register read is FENCED and rides sentinel_worker, never the admin shortcut', () => {

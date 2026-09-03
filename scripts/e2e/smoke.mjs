@@ -89,14 +89,32 @@ async function waitForServer(timeoutMs = 60_000) {
 }
 
 /* A generalized settle poll — the file lands when the container's fence
- * commits and the daemon settles it; a slow poll cycle is a wait, not a red. */
+ * commits and the daemon settles it; a slow poll cycle is a wait, not a red.
+ * On a timeout the callback dumps the DAEMON'S OWN WORDS and the inbox tree,
+ * so a red walk says WHERE the file went and WHY — never a bare timeout. */
+import { execFileSync } from 'node:child_process';
+import { readdirSync } from 'node:fs';
+function inboxTree(dir, depth = 3) {
+  const lines = [];
+  const walk = (d, pad) => {
+    for (const e of readdirSync(d, { withFileTypes: true })) {
+      lines.push(`${pad}${e.name}${e.isDirectory() ? '/' : ''}`);
+      if (e.isDirectory() && pad.length < depth * 2) walk(join(d, e.name), pad + '  ');
+    }
+  };
+  try { walk(dir, ''); } catch (e) { lines.push(`(unreadable: ${e.message})`); }
+  return lines.join('\n');
+}
 async function waitForSettled(path, timeoutMs = 60_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (existsSync(path)) return true;
     await new Promise((r) => setTimeout(r, 500));
   }
-  return `the file never settled into ${path} within ${timeoutMs}ms`;
+  let workerLog = '';
+  try { workerLog = execFileSync('docker', ['compose', 'logs', '--tail', '60', 'worker'], { cwd: REPO_ROOT, encoding: 'utf8' }); }
+  catch (e) { workerLog = `(docker compose logs failed: ${e.message})`; }
+  return `the file never settled into ${path} within ${timeoutMs}ms\n--- the inbox tree (where DID the file go?) ---\n${inboxTree(WALK_INBOX)}\n--- the worker's own words (docker compose logs worker) ---\n${workerLog}`;
 }
 
 /* The FENCED register read — AS sentinel_worker, the same role the write

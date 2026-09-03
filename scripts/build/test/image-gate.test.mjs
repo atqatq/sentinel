@@ -247,7 +247,7 @@ test('the CMD is exec-form node index.js — the daemon; no credential-shaped EN
 
 test('the deploy stage carries the require topology\'s SIX core modules — the pruned tree is complete, never "copied just in case"', () => {
   const deploy = WSTAGES[1];
-  assert.match(deploy.lines.join('\n'), /pnpm --filter @sentinel\/worker deploy --prod \/out/, 'pnpm deploy is the pruner');
+  assert.match(deploy.lines.join('\n'), /pnpm --filter @sentinel\/worker deploy --prod --config\.node-linker=hoisted \/out/, 'pnpm deploy is the pruner, HOISTED so the workspace packages are real directories — the default isolated layout hides them behind .pnpm symlinks and a require from the symlink\u0027s REALPATH would resolve the modules\u0027 relative ../core escapes against the store, where the placed modules cannot reach them (the first CI run\u0027s lesson, pinned)');
   for (const mod of ['ingestion', 'calendar', 'planning-engine', 'approval', 'ledger', 'auth']) {
     assert.match(deploy.lines.join('\n'), new RegExp(`cp -r packages/core/modules/${mod} /out/node_modules/@sentinel/core/modules/`), `the ${mod} module rides the escapee topology (db and ingest-service reach ../core)`);
   }
