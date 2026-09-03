@@ -53,13 +53,17 @@ const MIGRATIONS = fs.readdirSync(path.join(REPO, 'packages', 'db', 'migrations'
   .map((d) => fs.readFileSync(path.join(REPO, 'packages', 'db', 'migrations', d, 'migration.sql'), 'utf8'))
   .join('\n');
 
-/* The migration-floor sentinels: the highest table present names the schema
+/* The migration-floor sentinels: the highest OBJECT present names the schema
  * version the restored copy actually carries (the honest probe — there is
- * no version table; the migration contract IS the object set). */
+ * no version table; the migration contract IS the object set). Kinds:
+ * 'table' probes information_schema.tables, 'function' probes pg_proc —
+ * 0010_setup's identity object is the founder door FUNCTION (D-049), so
+ * the sentinel floor follows the migration contract's own shape. */
 const SCHEMA_SENTINELS = [
-  ['0004', 'ledger_block'],
-  ['0008', 'plan_seal_restatement'],
-  ['0009', 'fx_rate_pin'],
+  ['0004', 'ledger_block', 'table'],
+  ['0008', 'plan_seal_restatement', 'table'],
+  ['0009', 'fx_rate_pin', 'table'],
+  ['0010', 'setup_create_tenant_with_founder', 'function'],
 ];
 
 function urlFor(db) {
@@ -165,9 +169,11 @@ async function main() {
   await restored.connect();
 
   let restoredSchemaVersion = null;
-  for (const [version, table] of SCHEMA_SENTINELS) {
-    const r = await restored.query(
-      `SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1`, [table]);
+  for (const [version, name, kind] of SCHEMA_SENTINELS) {
+    const q = kind === 'function'
+      ? `SELECT 1 FROM pg_proc WHERE proname = $1 AND pronamespace = 'public'::regnamespace`
+      : `SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1`;
+    const r = await restored.query(q, [name]);
     if (r.rows.length === 1) restoredSchemaVersion = version;
   }
   if (!restoredSchemaVersion) die('none of the schema sentinels exist on the restored copy — the restore is empty');
@@ -219,7 +225,7 @@ async function main() {
     rehearsal: {
       day,
       environment: 'staging',
-      runbookVersion: '1.0.0',
+      runbookVersion: '1.1.0',
       executedBy: 'scripts/dr/rehearsal.js (CI db-rls)',
     },
     backup: {

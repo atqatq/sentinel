@@ -1,6 +1,6 @@
 # RUNBOOK
 
-`RUNBOOK_VERSION: 1.0.0` — stamped; every rehearsal evidence set names the version it followed
+`RUNBOOK_VERSION: 1.1.0` — stamped; every rehearsal evidence set names the version it followed
 (`rehearsal.runbookVersion`), and the gate refuses an unversioned procedure
 (`REHEARSAL_RUNBOOK_UNVERSIONED`). Bump this version whenever the procedure changes, and record the
 change in `DECISIONS.md` if it moves a contract surface.
@@ -75,7 +75,9 @@ rehearsal is FULL scope only: both legs, staging or production, from the version
 **Post-restore verification (every probe is evidence):**
 
 7. Schema sentinels — confirm the migration floor survived: `ledger_block` (0004),
-   `plan_seal_restatement` (0008), `fx_rate_pin` (0009). The highest sentinel present is the
+   `plan_seal_restatement` (0008), `fx_rate_pin` (0009), and the founder door
+   `setup_create_tenant_with_founder` (0010 — the first FUNCTION sentinel, probed in `pg_proc`:
+   0010's identity object is the §14.28 setup door, D-049). The highest sentinel present is the
    restored schema version → `restore.restoredSchemaVersion`; the gate compares it against the
    expected `SCHEMA_VERSION` (`REHEARSAL_SCHEMA_MISMATCH` otherwise).
 8. RLS probes — `plan_seal` and `ledger_block` must carry `ENABLE + FORCE ROW LEVEL SECURITY`; as
