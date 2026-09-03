@@ -48,6 +48,15 @@ async function get(pathname) {
   return { status: res.status, text, headers: res.headers };
 }
 
+/* React's SSR interleaves <!-- --> separators between adjacent text
+ * segments — the page renders "(TENANT)" to the EYE, but the HTML carries
+ * "(<!-- -->TENANT<!-- -->)". The verbatim-state matches run against the
+ * comment-normalized markup, because the assertion's subject is what the
+ * page SAYS, not how React serialized it. */
+function html(t) {
+  return t.replace(/<!--.*?-->/g, '');
+}
+
 /* The readiness poll — the container has NO compose-side healthcheck (the
  * distroless runtime ships no shell, so a container healthcheck cannot be a
  * shell exec; the orchestrator's probe is this loop). The smoke waits for
@@ -115,14 +124,14 @@ async function main() {
   const t = await get(`/suppliers?tenant=${UNKNOWN_TENANT}`);
   if (t.status === 200) ok('unknown tenant renders 200 (a named state, not a 500)');
   else bad('unknown tenant renders 200', `got ${t.status}`);
-  if (t.text.includes('(TENANT)')) ok('the fence\'s TENANT state rendered verbatim');
+  if (html(t.text).includes('(TENANT)')) ok('the fence\'s TENANT state rendered verbatim');
   else bad('the fence\'s TENANT state rendered verbatim', `page for tenant=${UNKNOWN_TENANT} lacks "(TENANT)"`);
 
   /* ---- (d) the seeded, never-sealed tenant → FRESHNESS, verbatim ---- */
   const f = await get('/suppliers');
   if (f.status === 200) ok('default tenant renders 200 (the screens\' default code, seeded by prepare)');
   else bad('default tenant renders 200', `got ${f.status}`);
-  if (f.text.includes('(FRESHNESS)')) ok('the fence\'s FRESHNESS state rendered verbatim (no seal → no stamp → honest refusal)');
+  if (html(f.text).includes('(FRESHNESS)')) ok('the fence\'s FRESHNESS state rendered verbatim (no seal → no stamp → honest refusal)');
   else bad('the fence\'s FRESHNESS state rendered verbatim', 'the never-sealed tenant\'s page lacks "(FRESHNESS)"');
 
   console.log(`\nsmoke: ${passed} passed, ${failed} failed`);

@@ -178,13 +178,13 @@ test('the shell stands: / renders 200 with the wordmark (clause 10b)', () => {
 test('an unknown tenant renders 200 with the fence’s TENANT state verbatim (clause 10c — a named state, never a 500)', () => {
   assert.match(SMOKE, /UNKNOWN_TENANT/);
   assert.match(SMOKE, /t\.status === 200/);
-  assert.match(SMOKE, /t\.text\.includes\('\(TENANT\)'\)/);
+  assert.match(SMOKE, /html\(t\.text\)\.includes\('\(TENANT\)'\)/);
 });
 
 test('the seeded, never-sealed tenant renders the fence’s FRESHNESS state verbatim (clause 10d — no seal, no stamp, honest refusal)', () => {
   assert.match(SMOKE, /get\('\/suppliers'\)/);
   assert.match(SMOKE, /f\.status === 200/);
-  assert.match(SMOKE, /f\.text\.includes\('\(FRESHNESS\)'\)/);
+  assert.match(SMOKE, /html\(f\.text\)\.includes\('\(FRESHNESS\)'\)/);
 });
 
 test('the smoke fails loud — any red assertion (or a crash) exits nonzero', () => {
@@ -196,6 +196,11 @@ test('the smoke waits for the container to boot — a readiness poll against /he
   assert.match(SMOKE, /waitForServer/);
   assert.match(SMOKE, /AbortSignal\.timeout\(2_000\)/);
   assert.match(SMOKE, /server not ready within/);
+});
+
+test('the state matches run against comment-normalized markup — React SSR interleaves <!-- --> between text segments', () => {
+  assert.match(SMOKE, /function html\(t\) \{/);
+  assert.ok(new RegExp("replace\\(/<!--\\.\\*\\?-->/g, ''\\)").test(SMOKE), 'the comment-stripping normalizer must exist');
 });
 
 test('the smoke’s network story is the loopback — SMOKE_BASE_URL defaults to 127.0.0.1, no egress', () => {
