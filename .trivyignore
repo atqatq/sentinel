@@ -1,0 +1,30 @@
+# §14.23 waiver discipline — every entry names its CVE, cites the fix status,
+# and carries the retirement condition. The image-gate proof pins this EXACT
+# entry set: a waiver can never grow, shrink or drift silently.
+#
+# Class: libssl3 in gcr.io/distroless/nodejs22-debian12:nonroot (pinned
+# digest carries 3.0.18-1~deb12u2); Debian has published 3.0.19 / 3.0.20
+# fixes; the distroless rebuild shipping libssl3 >= 3.0.20-1~deb12u2 is the
+# retirement event — the digest bump that retires this waiver is the SAME
+# diff that deletes every entry below. ignore-unfixed stays FALSE: anything
+# not named here still fails the build.
+#
+# CVE-2026-31789 — CRITICAL — FIXED in 3.0.19-1~deb12u2, base pending rebuild.
+# (Title scope: heap overflow on 32-bit systems from large X.509 certificates;
+# the runtime target is linux/amd64 — recorded for the review, not to mute.)
+CVE-2026-31789
+# CVE-2026-28387 — HIGH — no fixed package published for bookworm yet; DANE
+# TLSA use-after-free; base pending rebuild.
+CVE-2026-28387
+# CVE-2026-28388 — HIGH — no fixed package published for bookworm yet; delta
+# list NULL deref DoS; base pending rebuild.
+CVE-2026-28388
+# CVE-2026-28389 — HIGH — no fixed package published for bookworm yet; CMS
+# processing DoS; base pending rebuild.
+CVE-2026-28389
+# CVE-2026-28390 — HIGH — no fixed package published for bookworm yet; CMS
+# NULL deref DoS; base pending rebuild.
+CVE-2026-28390
+# CVE-2026-45447 — HIGH — FIXED in 3.0.20-1~deb12u2, base pending rebuild.
+# (PKCS7_verify heap use-after-free.)
+CVE-2026-45447

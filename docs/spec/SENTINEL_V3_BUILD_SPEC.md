@@ -1773,6 +1773,22 @@ HIGH and CRITICAL (`exit-code: 1`), matching §14.18's high+ threshold for depen
 vulnerabilities in the base image count: the image is the runtime's whole world. The scan rides
 the CI `build` job (§7.1 step 7) — merge-blocking like every gate before it.
 
+**The waiver discipline — named, reasoned, retiring; never a mute button.** The gate's first real
+run proved the contract works by firing on it: the distroless base it pinned carries `libssl3`
+3.0.18-1~deb12u2 while Debian has published 3.0.19/3.0.20 fixes — six named CVEs (one CRITICAL,
+five HIGH), all in ONE base-image library, all pending the distroless rebuild that ships the fix
+(upstream's schedule, not ours). A gate that cannot be red is not a gate; a gate that stays red
+on upstream's rebuild lag teaches the team to ignore it. The resolution is a WAIVER, with the
+discipline that makes a waiver different from a mute: (a) waivers live in `.trivyignore` at the
+repo root — the file Trivy reads natively — while `ignore-unfixed` stays FALSE, so an UNNAMED
+future vulnerability still fails the build; (b) every entry names its CVE and carries a reason
+that states the fix status and the retirement condition (for this class: "pending the distroless
+rebuild shipping libssl3 ≥ 3.0.20-1~deb12u2 — the digest bump that retires this waiver is the
+same diff that deletes the entry"); (c) the image-gate proof pins the file's EXACT entry set —
+a waiver can never grow, shrink or drift silently; any change is a reviewed diff beside the
+spec text that justified it. A waiver without a fix status and a retirement condition is
+forbidden — it would be a mute button wearing a waiver's clothes.
+
 **The SBOM — two subjects, two artifacts.** §14.18's security job publishes the REPO SBOM (the
 dependency tree as the lockfile resolves it). This unit adds the IMAGE SBOM (SPDX-2.3, generated
 from the built image by the Syft family tooling) attached to the build run. They are different

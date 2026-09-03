@@ -19,6 +19,12 @@
 // pinned and fail-closed on HIGH+CRITICAL, the image SBOM (SPDX-2.3)
 // attached; and the two subjects the spec names absent, absent: no worker
 // image and no compose file may exist until their own units land them.
+//
+// The WAIVER DISCIPLINE (§14.23): the gate's first real run fired on six
+// libssl3 CVEs in the distroless base pending upstream's rebuild — the
+// waivers live in .trivyignore, each naming its CVE with a fix status and a
+// retirement condition, and THIS proof pins the file's exact entry set: a
+// waiver can never grow, shrink or drift silently.
 // ==========================================================================*/
 import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -41,6 +47,9 @@ const NEXT_CONFIG = readFileSync(join(REPO_ROOT, 'apps', 'web', 'next.config.ts'
 const HEALTH_ROUTE = readFileSync(join(REPO_ROOT, 'apps', 'web', 'src', 'app', 'health', 'route.ts'), 'utf8');
 const DOCKERIGNORE = existsSync(join(REPO_ROOT, '.dockerignore'))
   ? readFileSync(join(REPO_ROOT, '.dockerignore'), 'utf8')
+  : '';
+const TRIVYIGNORE = existsSync(join(REPO_ROOT, '.trivyignore'))
+  ? readFileSync(join(REPO_ROOT, '.trivyignore'), 'utf8')
   : '';
 
 /* A stage block: from its FROM line to the next FROM line. */
@@ -205,6 +214,41 @@ test('the IMAGE SBOM (SPDX-2.3) is generated from the built image and attached t
 test('the two named absences HOLD: no worker image and no compose file until their units land them', () => {
   assert.ok(!existsSync(join(REPO_ROOT, 'Dockerfile.worker')), 'a worker image with no daemon to exec is a lie in a tag (§14.23)');
   assert.ok(!existsSync(join(REPO_ROOT, 'docker', 'compose.yaml')), 'the compose file lands with the e2e-smoke unit that exercises it (§14.23)');
+});
+
+console.log('The waiver discipline — named, reasoned, retiring; never a mute button:');
+
+const WAIVED = ['CVE-2026-31789', 'CVE-2026-28387', 'CVE-2026-28388', 'CVE-2026-28389', 'CVE-2026-28390', 'CVE-2026-45447'];
+
+function waiverBlocks() {
+  const blocks = [];
+  let comments = [];
+  for (const line of TRIVYIGNORE.split('\n')) {
+    if (/^#/.test(line)) { comments.push(line); continue; }
+    const id = line.trim();
+    if (id) { blocks.push({ id, comments }); comments = []; }
+  }
+  return blocks;
+}
+
+test('the .trivyignore entry set is EXACTLY the pinned six — a waiver can never grow, shrink or drift silently', () => {
+  assert.ok(TRIVYIGNORE.length > 0, 'the waiver file exists (the first scan fired on the libssl3 class, §14.23)');
+  const ids = waiverBlocks().map((b) => b.id).sort();
+  assert.deepStrictEqual(ids, [...WAIVED].sort(), 'any change to the entry set is a reviewed diff beside the spec text that justified it');
+});
+
+test('every waiver names its CVE, cites the fix status, and states the retirement condition', () => {
+  for (const b of waiverBlocks()) {
+    const text = b.comments.join(' ');
+    assert.ok(text.includes(b.id), `${b.id}: the reason comment must name the CVE`);
+    assert.match(text, /(FIXED|no fixed package)/i, `${b.id}: the fix status must be on the record`);
+    assert.match(text, /pending rebuild/i, `${b.id}: the retirement condition (the distroless rebuild) must be stated`);
+  }
+});
+
+test('ignore-unfixed stays FALSE — the waiver file names six CVEs, an UNNAMED future one still fails the build', () => {
+  assert.match(BUILD_JOB, /ignore-unfixed: false/, 'muting all unfixed findings would be a mute button wearing a waiver clothes');
+  assert.match(BUILD_JOB, /exit-code: 1/, 'the gate stays fail-closed for everything the waiver file does not name');
 });
 
 console.log('\n' + (failed === 0
