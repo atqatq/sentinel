@@ -63,7 +63,7 @@ async function closeClient(client) {
  * Process one claimed file through the fence.
  *
  * @param {object} deps — injectable: databaseUrl, connect?, resolveTenantByCode?,
- *   makeWorkerPorts?, makeExecutor?, runFileToRows?, faultIdentity?, now?.
+ *   makeWorkerPorts?, makeExecutor?, runFileToRows?, faultIdentity?, now?, avRequired?.
  * @param {object} claim — { tenantCode, originalName, claimedPath }.
  * @returns {Promise<{outcome: 'done'|'quarantine'|'failed', reason?: string, receipt?: object}>}
  */
@@ -98,7 +98,7 @@ async function processClaim(deps, claim) {
     const executor = makeExecutor(client, tenantId);
     const receipt = await run(
       { ports, executor },
-      { tenantId, bytes, declaredName: claim.originalName, source: SOURCE, mode: MODE, asOfMs: now() }
+      { tenantId, bytes, declaredName: claim.originalName, source: SOURCE, mode: MODE, asOfMs: now(), avRequired: deps.avRequired === undefined ? true : deps.avRequired }
     );
 
     await client.query('COMMIT');

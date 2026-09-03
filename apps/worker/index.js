@@ -14,7 +14,7 @@ const { makeLoop } = require('./src/main');
 
 const config = loadConfig(process.env); // a refusal here is the boot contract working
 const log = (line) => console.log(`[worker] ${line}`);
-const loop = makeLoop({ config, log });
+const loop = makeLoop({ config, log, avRequired: config.avRequired });
 
 let exitCode = 0;
 process.on('SIGTERM', () => { void loop.drain(); });

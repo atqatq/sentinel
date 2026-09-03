@@ -81,7 +81,9 @@ function baseCounters() {
  * @param {object} input
  *   tenantId, bytes (Uint8Array), declaredName, source ('dropzone' |
  *   'watched-folder' | 'email-in'), mode ('A'|'B', default 'A'),
- *   delimiter (',' default), asOfMs (epoch, injected clock), avScan?, caps?
+ *   delimiter (',' default), asOfMs (epoch, injected clock), avScan?, caps?,
+ *   avRequired? (the deployment's declared AV posture — absent means the
+ *   fail-closed default true; §14.25 clause 4)
  */
 async function runFileToRows(deps, input) {
   if (!deps || typeof deps !== 'object') throw new TypeError('runFileToRows: deps are required');
@@ -158,7 +160,7 @@ async function runFileToRows(deps, input) {
   };
 
   /* ---- 1. the H10 gate: the single choke point ------------------------------- */
-  const gateInput = { bytes, declaredName, source, ...(input.caps ? { caps: input.caps } : {}), ...(input.avScan ? { avScan: input.avScan } : {}) };
+  const gateInput = { bytes, declaredName, source, ...(input.caps ? { caps: input.caps } : {}), ...(input.avScan ? { avScan: input.avScan } : {}), ...(input.avRequired === undefined ? {} : { avRequired: input.avRequired }) };
   const gate = await stage.hardening.gateInboundFile(gateInput);
   if (gate.verdict === 'REFUSE') {
     // Pre-binding refusal: NO register row (kind unknown) — CRITICAL task only.

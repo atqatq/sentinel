@@ -6,9 +6,11 @@
  *   1. applies ALL of packages/db/migrations in sorted order — the SAME
  *      files the live proofs apply (one schema truth; no compose-side
  *      parallel migration path exists to drift from it);
- *   2. creates the web role with the DEPLOYMENT shape — sentinel_web:
+ *   2. creates the SERVICE roles with the DEPLOYMENT shape — sentinel_web
+ *      and sentinel_worker: each
  *      LOGIN, NOBYPASSRLS, non-superuser, member of the migrations'
- *      NOLOGIN sentinel_app (which carries the table grants) — because an
+ *      NOLOGIN sentinel_app (which carries the table grants) — one role per
+ *      long-running service, the way a deployment names them — because an
  *      admin-connection smoke would skip the very thing the RLS discipline
  *      exists to prove;
  *   3. seeds the smoke tenant into the registry, synthetically (D-003),
@@ -61,14 +63,16 @@ async function main() {
     await db.query(MIGRATIONS);
     ok(`all migrations applied (sorted, ${MIGRATIONS.length} chars of SQL — packages/db's own files)`);
 
-    /* ---- 2. the web role: the deployment shape, not the admin shortcut ---- */
-    await db.query(
-      `DO $$ BEGIN
-         IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'sentinel_web') THEN
-           CREATE ROLE "sentinel_web" LOGIN PASSWORD 'smoke-only' NOBYPASSRLS NOSUPERUSER;
-         END IF;
-       END $$;`);
-    await db.query(`GRANT "sentinel_app" TO "sentinel_web";`);
+    /* ---- 2. the service roles: the deployment shape, not the admin shortcut ---- */
+    for (const role of ['sentinel_web', 'sentinel_worker']) {
+      await db.query(
+        `DO $$ BEGIN
+           IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '${role}') THEN
+             CREATE ROLE "${role}" LOGIN PASSWORD 'smoke-only' NOBYPASSRLS NOSUPERUSER;
+           END IF;
+         END $$;`);
+      await db.query(`GRANT "sentinel_app" TO "${role}";`);
+    }
 
     /* ---- 3. the tenant registry seed, synthetic and idempotent ---- */
     await db.query(
@@ -79,22 +83,24 @@ async function main() {
     );
 
     /* ---- 4. verify its own work — the shape is asserted, not assumed ---- */
-    const role = await db.query(
-      `SELECT rolcanlogin, rolbypassrls, rolsuper FROM pg_roles WHERE rolname = 'sentinel_web'`);
-    const r = role.rows[0];
-    if (!r) fail('sentinel_web does not exist after prepare');
-    if (!r.rolcanlogin || r.rolbypassrls || r.rolsuper) {
-      fail(`sentinel_web has the wrong shape: login=${r.rolcanlogin} bypassrls=${r.rolbypassrls} super=${r.rolsuper}`);
-    }
-    ok('sentinel_web: LOGIN, NOBYPASSRLS, non-superuser');
+    for (const roleName of ['sentinel_web', 'sentinel_worker']) {
+      const role = await db.query(
+        `SELECT rolcanlogin, rolbypassrls, rolsuper FROM pg_roles WHERE rolname = $1`, [roleName]);
+      const r = role.rows[0];
+      if (!r) fail(`${roleName} does not exist after prepare`);
+      if (!r.rolcanlogin || r.rolbypassrls || r.rolsuper) {
+        fail(`${roleName} has the wrong shape: login=${r.rolcanlogin} bypassrls=${r.rolbypassrls} super=${r.rolsuper}`);
+      }
+      ok(`${roleName}: LOGIN, NOBYPASSRLS, non-superuser`);
 
-    const member = await db.query(
-      `SELECT 1 FROM pg_auth_members m
-       JOIN pg_roles app ON app.oid = m.roleid
-       JOIN pg_roles web ON web.oid = m.member
-       WHERE app.rolname = 'sentinel_app' AND web.rolname = 'sentinel_web'`);
-    if (member.rowCount !== 1) fail('sentinel_web is not a member of sentinel_app — the table grants would not reach it');
-    ok('sentinel_web is a member of sentinel_app (the migrations\' grantee)');
+      const member = await db.query(
+        `SELECT 1 FROM pg_auth_members m
+         JOIN pg_roles app ON app.oid = m.roleid
+         JOIN pg_roles svc ON svc.oid = m.member
+         WHERE app.rolname = 'sentinel_app' AND svc.rolname = $1`, [roleName]);
+      if (member.rowCount !== 1) fail(`${roleName} is not a member of sentinel_app — the table grants would not reach it`);
+      ok(`${roleName} is a member of sentinel_app (the migrations' grantee)`);
+    }
 
     const t = await db.query(`SELECT id, code, name FROM tenant WHERE code = $1`, [SMOKE_TENANT.code]);
     if (t.rowCount !== 1) fail(`tenant '${SMOKE_TENANT.code}' missing from the registry after seed`);

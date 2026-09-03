@@ -65,9 +65,9 @@ test('the stack is named sentinel-smoke and lives at the repo root', () => {
   assert.match(COMPOSE, /^name: sentinel-smoke$/m);
 });
 
-test('the service set is EXACTLY db + web — §7.4’s unconsumed topology is set dressing, not shipped', () => {
+test('the service set is EXACTLY db + web + worker — §7.4’s unconsumed topology is still set dressing, not shipped (clause 1, as amended: the worker joined because §14.25’s daemon IS a consumer)', () => {
   const names = [...COMPOSE.matchAll(/^  ([a-z][a-z0-9-]*):\n/gm)].map((m) => m[1]);
-  assert.deepStrictEqual(names, ['db', 'web'], 'a service with no runtime consumer must not exist yet — each joins when its consumer lands');
+  assert.deepStrictEqual(names, ['db', 'web', 'worker'], 'a service with no runtime consumer must not exist — the walk’s third service is the consumed one');
 });
 
 test('the db base is pinned BY DIGEST — postgres:16 floats for no one (§14.23 clause 2 extended)', () => {
@@ -93,6 +93,26 @@ test('web declares NO build key — one image, one definition: compose consumes 
   const web = composeServiceBlock('web');
   assert.ok(!/^    build:/m.test(web), 'a second build story is a second artifact that can drift — the job builds THE Dockerfile, compose consumes it');
   assert.match(web, /image: sentinel-web:ci\n/);
+});
+
+test('the worker service: sentinel-worker:ci, NO build key, the inbox bind mount, NO published port (nothing listens — §14.25 clause 1)', () => {
+  const worker = composeServiceBlock('worker');
+  assert.match(worker, /image: sentinel-worker:ci\n/);
+  assert.ok(!/^    build:/m.test(worker), 'the worker image is built by the job from ITS Dockerfile — compose consumes the tag');
+  assert.match(worker, /- \.\/e2e-inbox:\/data\/inbox\n/);
+  assert.ok(!/ports:/.test(worker), 'the poll loop’s liveness IS the process — a published port would be a lie about a listener');
+  assert.match(worker, /depends_on:\n      db:\n        condition: service_healthy\n/);
+});
+
+test('the worker connects as sentinel_worker — one role per long-running service (clause 7, as amended)', () => {
+  const worker = composeServiceBlock('worker');
+  assert.match(worker, /DATABASE_URL: postgres:\/\/sentinel_worker:smoke-only@db:5432\/sentinel\n/);
+  assert.ok(!/postgres:postgres@db/.test(worker), 'connecting as the admin role would skip the very thing the RLS discipline exists to prove');
+});
+
+test('the worker’s AV posture is a NAMED declaration, never a silent bypass (§14.25 clause 4 / clause 13)', () => {
+  const worker = composeServiceBlock('worker');
+  assert.match(worker, /SENTINEL_WORKER_AV_REQUIRED: "false"\n/, 'this stack runs no scanner and SAYS SO — the fail-closed default stands everywhere else');
 });
 
 test('DATABASE_URL connects as sentinel_web — the deployment shape, never the admin shortcut', () => {
@@ -128,12 +148,13 @@ test('prepare applies the REAL migrations — packages/db/migrations, sorted, th
   assert.match(PREPARE, /await db\.query\(MIGRATIONS\)/);
 });
 
-test('the web role is created LOGIN, NOBYPASSRLS, NOSUPERUSER — the deployment shape', () => {
-  assert.match(PREPARE, /CREATE ROLE "sentinel_web" LOGIN PASSWORD 'smoke-only' NOBYPASSRLS NOSUPERUSER/);
+test('the service roles are created LOGIN, NOBYPASSRLS, NOSUPERUSER — the deployment shape, one per long-running service (clause 7)', () => {
+  assert.match(PREPARE, /for \(const role of \['sentinel_web', 'sentinel_worker'\]\)/);
+  assert.match(PREPARE, /CREATE ROLE "\$\{role\}" LOGIN PASSWORD 'smoke-only' NOBYPASSRLS NOSUPERUSER/);
 });
 
-test('sentinel_web joins sentinel_app — the migrations’ grantee is how the table grants reach the web role', () => {
-  assert.match(PREPARE, /GRANT "sentinel_app" TO "sentinel_web";/);
+test('both service roles join sentinel_app — the migrations’ grantee is how the table grants reach them', () => {
+  assert.match(PREPARE, /GRANT "sentinel_app" TO "\$\{role\}";/);
 });
 
 test('the tenant seed is idempotent and uses the screens’ default code (D-003 synthetic)', () => {
@@ -141,10 +162,10 @@ test('the tenant seed is idempotent and uses the screens’ default code (D-003 
   assert.match(PREPARE, /code: 'BahrainMP'/);
 });
 
-test('prepare verifies its own work — role shape and membership asserted, not assumed', () => {
+test('prepare verifies its own work — role shape and membership asserted, not assumed, for BOTH roles', () => {
   assert.match(PREPARE, /SELECT rolcanlogin, rolbypassrls, rolsuper FROM pg_roles/);
   assert.match(PREPARE, /pg_auth_members/);
-  assert.match(PREPARE, /fail\(`sentinel_web has the wrong shape/);
+  assert.match(PREPARE, /fail\(`\$\{roleName\} has the wrong shape/);
 });
 
 test('prepare fails loud — any red verification exits nonzero', () => {
@@ -207,6 +228,40 @@ test('the smoke’s network story is the loopback — SMOKE_BASE_URL defaults to
   assert.match(SMOKE, /process\.env\.SMOKE_BASE_URL \|\| 'http:\/\/127\.0\.0\.1:3000'/);
 });
 
+/* ----------------------------------------------------------------- walk --- */
+
+test('clause 13 — the walk drops the CHECKSUM-PINNED golden suppliers fixture under a smoke name (H12 bytes, not a crafted file)', () => {
+  assert.match(SMOKE, /fixtures', 'golden', 'suppliers_modeA_with_bank_columns\.csv/);
+  assert.match(SMOKE, /suppliers_walk\.csv/);
+  assert.match(SMOKE, /createHash\('sha256'\)/, 'the register’s checksum is judged against the fixture’s computed sha256');
+});
+
+test('clause 13 — the inbox is the TENANT CODE (the §14.25 identity model), world-writable ON PURPOSE and DISCLOSED', () => {
+  assert.match(SMOKE, /WALK_TENANT_CODE = 'BahrainMP'/);
+  assert.match(SMOKE, /chmodSync\(WALK_INBOX, 0o777\)/);
+  assert.match(SMOKE, /world-writable ON PURPOSE/);
+});
+
+test('clause 13 — the settle is a POLL with a timeout, never a single-shot race (the readiness-poll posture, at the file)', () => {
+  assert.match(SMOKE, /function waitForSettled/);
+  assert.match(SMOKE, /the file never settled into/);
+  assert.match(SMOKE, /'done', WALK_TENANT_CODE, walkName/);
+});
+
+test('clause 13 — the register read is FENCED and rides sentinel_worker, never the admin shortcut', () => {
+  assert.match(SMOKE, /SMOKE_DATABASE_URL_WORKER/);
+  assert.match(SMOKE, /sentinel_worker:smoke-only@127\.0\.0\.1:5433\/sentinel/);
+  assert.match(SMOKE, /SELECT set_config\('app\.tenant_id', \$1, true\)/);
+  assert.match(SMOKE, /FROM ingest_file WHERE kind = 'suppliers'/);
+  assert.ok(!/postgres:postgres@/.test(SMOKE), 'the admin role must not appear anywhere in the smoke’s connections');
+});
+
+test('clause 13 — the REPLAY idempotency is asserted live: same bytes, ONE register row, applied_at UNCHANGED', () => {
+  assert.match(SMOKE, /suppliers_replay\.csv/);
+  assert.match(SMOKE, /replayRows\.length === 1/);
+  assert.match(SMOKE, /applied_at UNCHANGED by the replay/);
+});
+
 /* ------------------------------------------------------------------- ci --- */
 
 test('the e2e-smoke job exists, is merge-blocking (no continue-on-error) and needs guard + web-shell', () => {
@@ -224,24 +279,37 @@ test('the proof runs FIRST — no docker minute before the contract is checked (
   assert.ok(proof < build, 'proof before build');
 });
 
-test('the job builds the EXACT tag compose consumes — sentinel-web:ci, one definition', () => {
+test('the job builds the EXACT tags compose consumes — sentinel-web:ci AND sentinel-worker:ci, one definition each', () => {
   const job = ciJob('e2e-smoke');
   assert.match(job, /docker build --tag sentinel-web:ci \./);
+  assert.match(job, /docker build --tag sentinel-worker:ci --file Dockerfile\.worker \./);
 });
 
-test('the up/prepare/up sequence stands the stack in contract order', () => {
+test('clause 13 — the inbox exists and is writable BEFORE the worker boots (docker would create the bind root-owned; the disclosed exception needs the runner to own the chmod)', () => {
+  const job = ciJob('e2e-smoke');
+  const inbox = job.indexOf('mkdir -p e2e-inbox/BahrainMP && chmod 777 e2e-inbox e2e-inbox/BahrainMP');
+  const upWorker = job.indexOf('docker compose up -d worker');
+  assert.ok(inbox !== -1, 'the inbox step must exist');
+  assert.ok(upWorker !== -1, 'the worker must be brought up');
+  assert.ok(inbox < upWorker, 'the inbox is prepared before the worker mounts it');
+});
+
+test('the up/prepare/up sequence stands the stack in contract order — including the worker', () => {
   const job = ciJob('e2e-smoke');
   const upDb = job.indexOf('docker compose up -d --wait db');
   const install = job.indexOf('npm install --prefix packages/db pg@8 --no-save');
   const prepare = job.indexOf('node scripts/e2e/prepare-db.mjs');
+  const inbox = job.indexOf('mkdir -p e2e-inbox/BahrainMP');
   const upWeb = job.indexOf('docker compose up -d web');
+  const upWorker = job.indexOf('docker compose up -d worker');
   const smoke = job.indexOf('node scripts/e2e/smoke.mjs');
-  for (const [name, idx] of [['up db', upDb], ['pg install', install], ['prepare', prepare], ['up web', upWeb], ['smoke', smoke]]) {
+  for (const [name, idx] of [['up db', upDb], ['pg install', install], ['prepare', prepare], ['inbox', inbox], ['up web', upWeb], ['up worker', upWorker], ['smoke', smoke]]) {
     assert.ok(idx !== -1, `the job must carry the ${name} step`);
   }
-  assert.ok(upDb < install && install < prepare && prepare < upWeb && upWeb < smoke, 'the sequence is up db → pg install → prepare → up web → smoke');
+  assert.ok(upDb < install && install < prepare && prepare < inbox && inbox < upWeb && upWeb < upWorker && upWorker < smoke, 'the sequence is up db → pg install → prepare → inbox → up web → up worker → smoke');
   assert.match(job, /DATABASE_URL_ADMIN: postgres:\/\/postgres:postgres@127\.0\.0\.1:5433\/sentinel/);
   assert.match(job, /SMOKE_BASE_URL: http:\/\/127\.0\.0\.1:3000/);
+  assert.match(job, /SMOKE_DATABASE_URL_WORKER: postgres:\/\/sentinel_worker:smoke-only@127\.0\.0\.1:5433\/sentinel/);
 });
 
 test('the teardown is part of the contract — down -v under if: always()', () => {

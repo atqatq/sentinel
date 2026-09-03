@@ -32,9 +32,21 @@ function positiveInt(env, name, fallback) {
   return n;
 }
 
+/* The deployment's declared AV posture — M3's fail-closed default stands;
+ * a watched-folder deployment that runs no scanner declares it EXPLICITLY
+ * (§14.25 clause 4), and anything that is not a clean true/false refuses at
+ * boot: a typo'd posture must not quietly become a bypass. */
+function declaredBool(env, name, fallback) {
+  const raw = env[name];
+  if (raw === undefined || raw === '') return fallback;
+  if (raw === 'true') return true;
+  if (raw === 'false') return false;
+  bootRefused(`${name} '${raw}' is not a declared posture — 'true' or 'false', because a typo must never quietly become a bypass`);
+}
+
 /**
  * @param {object} env — the process environment (injectable for the proof).
- * @returns {{ inbox: string, databaseUrl: string, pollMs: number, batchMax: number }}
+ * @returns {{ inbox: string, databaseUrl: string, pollMs: number, batchMax: number, avRequired: boolean }}
  */
 function loadConfig(env) {
   const databaseUrl = env.DATABASE_URL;
@@ -46,6 +58,7 @@ function loadConfig(env) {
     databaseUrl,
     pollMs: positiveInt(env, 'SENTINEL_WORKER_POLL_MS', DEFAULTS.pollMs),
     batchMax: positiveInt(env, 'SENTINEL_WORKER_BATCH_MAX', DEFAULTS.batchMax),
+    avRequired: declaredBool(env, 'SENTINEL_WORKER_AV_REQUIRED', true),
   };
 }
 

@@ -1,25 +1,41 @@
 # ============================================================================
-# The §14.24 e2e-smoke stack — ephemeral, two services, one image.
+# The §14.24 e2e-smoke stack — ephemeral, three services, two images.
 #
-#   db   — PostgreSQL 16 pinned BY DIGEST (the §14.23 clause-2 exactness
-#          extends to every base this stack pulls); published to the RUNNER'S
-#          loopback only, for the migration/seed script (scripts/e2e/prepare-db.mjs).
-#   web  — sentinel-web:ci, the §14.23 Dockerfile's output, built by the CI
-#          job BEFORE compose runs. Compose declares NO build context on
-#          purpose: one image, one definition — the smoke-tested tag is that
-#          definition's output, never a second variant that can drift.
+#   db     — PostgreSQL 16 pinned BY DIGEST (the §14.23 clause-2 exactness
+#            extends to every base this stack pulls); published to the
+#            RUNNER'S loopback only, for the migration/seed script
+#            (scripts/e2e/prepare-db.mjs).
+#   web    — sentinel-web:ci, the §14.23 Dockerfile's output.
+#   worker — sentinel-worker:ci, the §14.25 Dockerfile's output: the
+#            watched-folder poll loop, exercised where a customer would run
+#            it (clause 13's walk — the file's path through the real fence).
+#
+# Both image services declare NO build context on purpose: one image, one
+# definition — the CI job builds each from ITS Dockerfile before compose
+# runs, and the smoke-tested tags are those definitions' outputs, never a
+# second variant that can drift.
 #
 # The credentials below are NOT a secret: an ephemeral throwaway database
 # that exists for one CI job, published to loopback, destroyed by the
-# teardown (`down -v`, under if: always()). The role the WEB service
-# connects as is created by scripts/e2e/prepare-db.mjs with the deployment
-# shape — LOGIN, NOBYPASSRLS, non-superuser, member of the migrations'
-# NOLOGIN sentinel_app — because an admin-connection smoke would skip the
-# very thing the RLS discipline exists to prove.
+# teardown (`down -v`, under if: always()). The roles the services connect
+# as are created by scripts/e2e/prepare-db.mjs with the deployment shape —
+# LOGIN, NOBYPASSRLS, non-superuser, members of the migrations' NOLOGIN
+# sentinel_app (which carries the table grants) — because an
+# admin-connection smoke would skip the very thing the RLS discipline
+# exists to prove.
+#
+# The worker's declarations are NAMED, never silent:
+#   - the inbox bind mount is world-writable on purpose (the job chmods it
+#     before `up`): a CI-ephemeral directory, destroyed by the teardown, so
+#     the nonroot worker (UID 65532) can claim and settle inside it — a
+#     deployment's own inbox would be owned by its service user;
+#   - SENTINEL_WORKER_AV_REQUIRED=false — this stack runs no scanner and
+#     SAYS SO (§14.25 clause 4: the fail-closed default stands; a declared
+#     posture is a declaration, a silent bypass is a defect).
 #
 # §7.4's reference topology (redis, minio, keycloak, otel-collector) is
-# deliberately absent: no runtime consumer exists in the tree yet. A service
-# with no consumer is set dressing; each joins when its consumer lands.
+# deliberately absent: still no runtime consumer. A service with no
+# consumer is set dressing; each joins when its consumer lands.
 # ============================================================================
 name: sentinel-smoke
 
@@ -47,3 +63,16 @@ services:
         condition: service_healthy
     ports:
       - "127.0.0.1:3000:3000"
+
+  worker:
+    image: sentinel-worker:ci
+    environment:
+      DATABASE_URL: postgres://sentinel_worker:smoke-only@db:5432/sentinel
+      SENTINEL_WORKER_INBOX: /data/inbox
+      SENTINEL_WORKER_POLL_MS: "2000"
+      SENTINEL_WORKER_AV_REQUIRED: "false"
+    volumes:
+      - ./e2e-inbox:/data/inbox
+    depends_on:
+      db:
+        condition: service_healthy

@@ -41,3 +41,6 @@ dev.log
 
 # Local scratch
 tmp/
+
+# The e2e-smoke walk's bind-mounted inbox (§14.24 clause 13) — CI-ephemeral, never committed
+e2e-inbox/

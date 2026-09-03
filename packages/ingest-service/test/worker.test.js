@@ -634,6 +634,23 @@ test('a second drop with overlapping keys upserts in place with honest DAT-04 ac
   assert.ok(r.disclosures.some((d) => d.includes('1 of 2 keys are already in this tenant\'s register')));
 });
 
+test('the deployment\u2019s declared AV posture rides the caller into the gate \u2014 absent means the fail-closed default; declared false passes through unchanged (\u00a714.25 clause 4)', async () => {
+  let captured = null;
+  const recordingHardening = {
+    gateInboundFile: async (g) => { captured = g; return { verdict: 'REFUSE', reason: 'PROBE_STOP', detail: 'the recording gate stops the run after capturing its input', task: { type: 'DATA_HEALTH', field: 'probe', detail: 'captured' }, banner: 'probe' }; },
+  };
+  await runFileToRows(
+    { ports: stubPorts(), executor: stubExecutor(), hardening: recordingHardening },
+    { tenantId: TENANT, bytes: new Uint8Array([1]), asOfMs: ASOF, source: 'watched-folder' },
+  );
+  assert.ok(!('avRequired' in captured), 'absent posture adds NOTHING \u2014 the hardening\u2019s own fail-closed default (true) applies');
+  await runFileToRows(
+    { ports: stubPorts(), executor: stubExecutor(), hardening: recordingHardening },
+    { tenantId: TENANT, bytes: new Uint8Array([1]), asOfMs: ASOF, source: 'watched-folder', avRequired: false },
+  );
+  assert.strictEqual(captured.avRequired, false, 'a declared posture rides UNCHANGED \u2014 a deployment that runs no scanner says so, it is never silently forgiven');
+});
+
 (async () => {
   await Promise.all(pending);
   console.log(`\n  file-to-rows worker: ${passed} passed, ${failed} failed`);

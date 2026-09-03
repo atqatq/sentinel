@@ -380,6 +380,34 @@ test('the db public surface: makeIngestWorkerAdapter is exported — the worker 
   assert.strictEqual(typeof surface.connectPlanClient, 'function');
 });
 
+test('the AV posture: the config parses only a declared true/false (a typo refuses at boot, never a quiet bypass), the default is M3\u2019s fail-closed true', () => {
+  assert.strictEqual(loadConfig({ DATABASE_URL: 'x' }).avRequired, true, 'no declaration \u2014 the fail-closed default');
+  assert.strictEqual(loadConfig({ DATABASE_URL: 'x', SENTINEL_WORKER_AV_REQUIRED: 'false' }).avRequired, false, 'a declared posture is honored');
+  assert.strictEqual(loadConfig({ DATABASE_URL: 'x', SENTINEL_WORKER_AV_REQUIRED: 'true' }).avRequired, true);
+  for (const junk of ['FALSE', 'off', '1', '']) {
+    if (junk === '') { assert.strictEqual(loadConfig({ DATABASE_URL: 'x', SENTINEL_WORKER_AV_REQUIRED: '' }).avRequired, true, 'empty means undeclared'); continue; }
+    try { loadConfig({ DATABASE_URL: 'x', SENTINEL_WORKER_AV_REQUIRED: junk }); assert.fail('junk posture must refuse: ' + junk); }
+    catch (e) { assert.ok(/WORKER_BOOT_REFUSED.*SENTINEL_WORKER_AV_REQUIRED/.test(e.message), e.message); }
+  }
+});
+
+test('the runner carries the deployment\u2019s AV posture into the pipeline input \u2014 declared false reaches runFileToRows, the undeclared default is true', async () => {
+  const inputs = [];
+  const deps = stubDeps({ runFileToRows: async (d, input) => { inputs.push(input); return { verdict: 'APPLIED' }; }, avRequired: false });
+  const inbox = tmpInbox();
+  deps.config.inbox = inbox;
+  try {
+    const claim = claimLayer.claimFile({ tenantCode: 'BHMP', originalName: 'f.csv', inboxPath: mkFile(inbox, 'BHMP/f.csv', 'x') });
+    await processClaim(deps, claim);
+    assert.strictEqual(inputs[0].avRequired, false, 'the declared posture rides the input into the gate');
+    const deps2 = stubDeps({ runFileToRows: async (d, input) => { inputs.push(input); return { verdict: 'APPLIED' }; } });
+    deps2.config.inbox = inbox;
+    const claim2 = claimLayer.claimFile({ tenantCode: 'BHMP', originalName: 'g.csv', inboxPath: mkFile(inbox, 'BHMP/g.csv', 'x') });
+    await processClaim(deps2, claim2);
+    assert.strictEqual(inputs[1].avRequired, true, 'undeclared \u2014 the fail-closed default');
+  } finally { fs.rmSync(inbox, { recursive: true, force: true }); }
+});
+
 /* ---- the verdict ---------------------------------------------------------- */
 
 (async () => {

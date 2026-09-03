@@ -328,20 +328,27 @@ jobs:
         run: node scripts/e2e/test/smoke.test.mjs
       - name: Build the smoke image — the §14.23 Dockerfile, compose consumes what this builds
         run: docker build --tag sentinel-web:ci .
+      - name: Build the worker image — the §14.25 Dockerfile, clause 13's walk consumes it
+        run: docker build --tag sentinel-worker:ci --file Dockerfile.worker .
       - name: Bring up the database (digest-pinned postgres 16, loopback only)
         run: docker compose up -d --wait db
       - name: Install pg for the runner-side database preparation
         run: npm install --prefix packages/db pg@8 --no-save --no-audit --no-fund
-      - name: Prepare the database — the migrations + the smoke tenant + the web role
+      - name: Prepare the database — the migrations + the smoke tenant + BOTH service roles
         run: node scripts/e2e/prepare-db.mjs
         env:
           DATABASE_URL_ADMIN: postgres://postgres:postgres@127.0.0.1:5433/sentinel
+      - name: Prepare the walk's inbox — CI-ephemeral, world-writable ON PURPOSE (clause 13's disclosed exception, so the nonroot worker can claim and settle)
+        run: mkdir -p e2e-inbox/BahrainMP && chmod 777 e2e-inbox e2e-inbox/BahrainMP
       - name: Bring up the web image
         run: docker compose up -d web
-      - name: The smoke — the §16 stamps and the fence's honest states, over HTTP
+      - name: Bring up the worker image — the watched-folder poll loop beside the database
+        run: docker compose up -d worker
+      - name: "The smoke — the §16 stamps, the fence's honest states, AND THE WALK (clause 13 — settle · fenced register read · replay idempotency)"
         run: node scripts/e2e/smoke.mjs
         env:
           SMOKE_BASE_URL: http://127.0.0.1:3000
+          SMOKE_DATABASE_URL_WORKER: postgres://sentinel_worker:smoke-only@127.0.0.1:5433/sentinel
       - name: Teardown — the stack is ephemeral, always
         if: always()
         run: docker compose down -v --remove-orphans
