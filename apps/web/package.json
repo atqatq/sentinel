@@ -1,9 +1,9 @@
 {
   "name": "@sentinel/web",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
-  "description": "Sentinel web app — Next.js 15 App Router shell (SDS top-bar menubar), the two-axis status language, the HTTP transport for the plan-service, and the /data-health facts surface (delivery spec §6.3 M2).",
+  "description": "Sentinel web app \u2014 Next.js 15 App Router shell (SDS top-bar menubar), the two-axis status language, the HTTP transport for the plan-service, and the /data-health facts surface (delivery spec \u00a76.3 M2).",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -20,7 +20,8 @@
     "@sentinel/ui": "workspace:*",
     "next": "15.5.24",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "@sentinel/module-setup": "workspace:*"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.1.18",

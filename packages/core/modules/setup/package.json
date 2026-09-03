@@ -1,0 +1,13 @@
+{
+  "name": "@sentinel/module-setup",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Sentinel module: the §14.28 setup layer's pure decision surface (D-049) — the command validators (tenant, user, limits; the SETUP_* refusal family), the role ladder as data, and the wizard's remainingSteps derivation (§14.10's first-run states are DATA, never decoration). Pure and deterministic: the timezone allowlist is injected, the unique-key collisions are the database's to surface by name, the credential's policy floor is the auth module's.",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "scripts": {
+    "test": "node test/setup.test.js"
+  }
+}

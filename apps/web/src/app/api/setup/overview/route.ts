@@ -1,6 +1,7 @@
 import { getSentinelPool } from "../../../../lib/pg"
 import { resolveRequestSession, unauthorized } from "../../../../lib/auth-server"
 import { makeSetupBoundary, setupGuards, invalidRequest } from "../../../../lib/setup-server"
+import { remainingSteps } from "@sentinel/module-setup"
 
 /*
  * GET /api/setup/overview — the wizard's state machine input (§14.28
@@ -32,7 +33,10 @@ export async function GET(request: Request) {
   try {
     const setup = makeSetupBoundary(pool)
     const overview = await setup.setupOverview({ actorId: resolved.session.userId })
-    return Response.json({ verdict: "OK", overview })
+    /* the wizard's steps are DERIVED, never guessed client-side — the pure
+     * module owns the §14.10 order and the gap rule; the screen renders it */
+    const steps = remainingSteps(overview)
+    return Response.json({ verdict: "OK", overview, remainingSteps: steps })
   } catch (e) {
     return Response.json({ verdict: "ERROR", phase: "SETUP", message: (e as Error).message }, { status: 500 })
   }

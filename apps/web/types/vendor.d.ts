@@ -195,9 +195,11 @@ declare module "@sentinel/db" {
             role: string
             mfaOk: boolean
             isOrigin: boolean
+            mustChange: boolean
+            email: string
             tenantCode: string
           }
-          principal: { userId: string; role: string; mfaOk: boolean; isOrigin: boolean; tenantCode: string }
+          principal: { userId: string; role: string; mfaOk: boolean; isOrigin: boolean; mustChange: boolean; tenantCode: string }
         }
     >
     terminateSession(token: string): Promise<{ terminated: boolean }>
@@ -206,6 +208,58 @@ declare module "@sentinel/db" {
     listUserTenants(
       userId: string
     ): Promise<Array<{ tenantId: string; tenantCode: string; role: string }>>
+    /* §14.28 (D-049): the re-authenticated rotation — the adapter owns the
+     * atomic unit (re-verify → policy floor → rotate → clear must_change →
+     * tombstone every OTHER session → the Class-N emission per membership). */
+    rotateCredential(args: {
+      email: string
+      currentPassword: string
+      newPassword: string
+      token: string
+      ip?: string | null
+    }): Promise<{ outcome: "REFUSED"; reason: string } | { outcome: "ROTATED"; othersTerminated: number }>
+  }
+  /* §14.28 setup surface (0010_setup + setup-adapter.js): the bootstrap, the
+   * founder door call, the account/role commands, the §16 amendment and the
+   * overview — the full decision contract lives in the pure setup module and
+   * its suites; loosely typed here on purpose, exactly like makeAuthAdapter. */
+  export function makeSetupAdapter(
+    client: unknown,
+    config: {
+      auth: ReturnType<typeof makeAuthAdapter>
+      tzList: string[]
+      ledger?: { forTenant(tenantId: string): { appendBlock(block: Record<string, unknown>): Promise<unknown> } | null }
+      now?: () => Date
+    }
+  ): {
+    bootstrapOrigin(args: {
+      email: string
+      displayName: string
+      password: string
+      tenant: { code: string; name: string; currencyCode: string; timezone: string }
+    }): Promise<{ originUserId: string; tenantId: string; tenantCode: string }>
+    createTenant(args: {
+      code: string
+      name: string
+      currencyCode: string
+      timezone: string
+      actorId: string
+    }): Promise<{ tenantId: string; tenantCode: string }>
+    createUserWithRole(args: {
+      email: string
+      displayName: string
+      password: string
+      role: string
+      tenantCode: string
+      actorId: string
+    }): Promise<{ userId: string; tenantId: string; tenantCode: string; role: string }>
+    amendLimits(args: {
+      dualThresholdAmount: number
+      limits: Array<{ role: string; maxSingleAmount: number | null }>
+      actorId: string
+      tenantId: string
+    }): Promise<{ configUpdated: boolean; limitsUpdated: number }>
+    setupOverview(args: { actorId: string }): Promise<Record<string, unknown>>
   }
   /* The SRC-05 evidence read (the Suppliers tile; the kpi-catalog's
    * evaluateSrc05 owns the formula — this adapter owns the evidence rows). */

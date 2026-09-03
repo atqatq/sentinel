@@ -30,6 +30,9 @@ importers:
       '@sentinel/module-planning-engine':
         specifier: workspace:^
         version: link:../../packages/core/modules/planning-engine
+      '@sentinel/module-setup':
+        specifier: workspace:*
+        version: link:../../packages/core/modules/setup
       '@sentinel/plan-service':
         specifier: workspace:*
         version: link:../../packages/plan-service
@@ -95,6 +98,8 @@ importers:
   packages/core/modules/ops: {}
 
   packages/core/modules/planning-engine: {}
+
+  packages/core/modules/setup: {}
 
   packages/db:
     dependencies:

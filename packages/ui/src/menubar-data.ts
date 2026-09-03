@@ -83,7 +83,14 @@ export const MENUBAR_GROUPS: readonly MenubarGroup[] = [
   },
   {
     label: "Admin",
-    entries: [e("Users & Permissions"), e("Origin Bootstrap"), e("Reference & Settings")],
+    entries: [
+      e("Users & Permissions"),
+      // §14.28 (D-049): the setup doors — Origin-only server-side; a
+      // non-Origin visit renders the SETUP_NOT_ORIGIN refusal verbatim
+      // (the honest empty state IS the 403).
+      { label: "Origin Bootstrap", route: "/setup" },
+      e("Reference & Settings"),
+    ],
   },
 ] as const
 
