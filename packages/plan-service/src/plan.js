@@ -61,6 +61,7 @@ const crypto = require('crypto');
 const E = require('../../core/modules/planning-engine');
 const KPI = require('../../core/modules/kpi-catalog');
 const CAL = require('../../core/modules/calendar');
+const OPS = require('../../core/modules/ops');
 const { parseIsoDate, seedRateInputs } = require('../../core/modules/ingestion').window;
 const { SCHEMA_VERSION } = require('../../db');
 const { canonicalJson } = require('./canonicalJson');
@@ -87,6 +88,27 @@ function assertPorts(ports) {
       typeof ports.saver.saveSeal !== 'function') {
     throw new TypeError('runPlan: ports.saver must provide saveSeal');
   }
+  /* §14.6g — the sweep port: the register is either wired or the deployment
+   * refuses loudly, never silently skipped (a register that silently missed
+   * a disclosed gap is a false register). */
+  if (typeof ports.saver.syncUnpromisedWaitingTasks !== 'function') {
+    throw new TypeError('runPlan: ports.saver must provide syncUnpromisedWaitingTasks — the §14.6g data-health sweep (the plan-adapter arms it; an unwired deployment refuses, it never skips the register)');
+  }
+}
+
+/* §14.6g — the sweep: the receipt's UNPROMISED_WAITING disclosure becomes the
+ * register. The pure derivation (ops module) yields the guards'-shape task
+ * set; the saver mirrors the register to it IN THE RUN'S TRANSACTION (a
+ * failed sync rolls the seal back with it). Returns the additive receipt
+ * leg { inserted, resolved, open }. */
+async function sweepUnpromisedWaiting(saver, refRows, asOf) {
+  const { tasks, summary } = OPS.datahealth.unpromisedWaitingTasks(refRows.map((r) => ({ ref: r.ref, supply: r.supply })));
+  const sync = await saver.syncUnpromisedWaitingTasks(tasks, { asOf });
+  if (!sync || typeof sync !== 'object'
+      || !Number.isInteger(sync.inserted) || !Number.isInteger(sync.resolved) || !Number.isInteger(sync.open)) {
+    throw new TypeError('runPlan: saver.syncUnpromisedWaitingTasks must return {inserted, resolved, open} — the register receipt the plan run discloses');
+  }
+  return { ...sync, gapped: summary.gapped, unpromisedLines: summary.unpromisedLines, unpromisedWaiting: summary.unpromisedWaiting };
 }
 
 /* ---- request-shape refusals (400-class; data refusals carry task+banner) -- */
@@ -566,6 +588,9 @@ async function runPlan(request, ports) {
       if (!applied || typeof applied !== 'object' || !Number.isSafeInteger(applied.revision) || !applied.ledger) {
         throw new TypeError('runPlan: saver.restateSeal must return {revision, prevRevision, prevPayloadHash, payloadHash, delta, ledger, seal}');
       }
+      /* §14.6g — the restated refs are the day's current truth: the register
+       * mirrors them too, in the same transaction as the restatement. */
+      const sweep = await sweepUnpromisedWaiting(ports.saver, refRows, asOfParsed.value);
       return {
         verdict: 'RESEALED', sealDate: asOfParsed.value, replayed: false,
         restated: true,
@@ -573,18 +598,27 @@ async function runPlan(request, ports) {
         payloadHash, prevPayloadHash: applied.prevPayloadHash,
         delta, reason, restatedBy,
         ledger: applied.ledger, seal: applied.seal,
+        unpromisedSweep: sweep,
       };
     }
     return {
       verdict: 'REPLAYED', sealDate: asOfParsed.value, replayed: true, divergent,
       payloadHash: saved.seal.payloadHash, requestHash: payloadHash, seal: saved.seal,
+      /* §14.6g — the replay writes NOTHING (the H6 posture verbatim); the
+       * sweep leg is named so the absence is a disclosed fact, never silence. */
+      unpromisedSweep: { synced: false, reason: 'REPLAY_WRITES_NOTHING' },
       ...(divergent ? { banner: { text: 'Replay: a seal already exists for this tenant-day; the new request diverged from it and was NOT applied — restate explicitly (restatement: true + a reason) to land it as a new version (§14.16).' } } : {}),
     };
   }
+  /* §14.6g — the fresh apply mirrors the register in the seal's transaction:
+   * a failed sync rolls the run back with it (§16.3 rule 2's posture — a
+   * register that silently missed a disclosed gap is a false register). */
+  const sweep = await sweepUnpromisedWaiting(ports.saver, refRows, asOfParsed.value);
   return {
     verdict: 'SEALED', sealDate: asOfParsed.value, replayed: false,
     payloadHash, engineVersion: E.ENGINE_VERSION, schemaVersion: SCHEMA_VERSION,
     seal: saved.seal,
+    unpromisedSweep: sweep,
   };
 }
 

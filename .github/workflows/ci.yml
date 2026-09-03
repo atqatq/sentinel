@@ -90,12 +90,14 @@ jobs:
         run: node packages/core/modules/calendar/test/dates.test.js
       - name: H9 working calendar — flat-tenant-identical + Ramadan adjustment (29)
         run: node packages/core/modules/calendar/test/calendar.test.js
-      - name: Plan service — engine live wiring + sealed snapshots + M8 restatement (57)
+      - name: Plan service — engine live wiring + sealed snapshots + M8 restatement + §14.6g sweep (63)
         run: node packages/plan-service/test/plan.test.js
       - name: Ops freshness alarm — DAT-01 SLO + missing-deliveries channel (19)
         run: node packages/core/modules/ops/test/freshness.test.js
       - name: M10 FX staleness alarm — named proof ops/fx-stale, the audit's named test (7)
         run: node packages/core/modules/ops/test/fx-stale.test.js
+      - name: §14.6g unpromised-waiting sweep — the pure derivation, named proof ops/unpromised-waiting-sweep (4)
+        run: node packages/core/modules/ops/test/datahealth.test.js
       - name: C3 approval decision layer — SoD, tiers, dual control, freeze, M7 CF governance (55)
         run: node packages/core/modules/approval/test/approval.test.js
       - name: H5 ledger module — RFC 8785 JCS vectors, §16.2 gate, keyed chain verify (50)
@@ -172,6 +174,8 @@ jobs:
         run: node packages/db/test/fx-adapter.test.js
       - name: §14.6f scorecard rollup door — statement-first refusals, Class-S SCORECARD_REBUILT via stub client (5)
         run: node packages/db/test/scorecard-adapter.test.js
+      - name: §14.6g sweep writer — the register mirror (insert / no-op / resolve) via stub client (7)
+        run: node packages/db/test/sweep-adapter.test.js
       - name: Install pg client for the matrix
         run: npm install --prefix packages/db pg@8 --no-save --no-audit --no-fund
       - name: RLS deny matrix (live)
@@ -201,6 +205,10 @@ jobs:
           SESSION_WRAP_KEY: ci-auth-live-wrap-key-0123456789abcdef-0123456789abcdef
       - name: SCORECARD live — the H2 second arm through the §14.6f door, Class-S SCORECARD_REBUILT, chain verify, RLS
         run: node packages/db/test/scorecard-live.js
+        env:
+          DATABASE_URL_ADMIN: postgres://postgres:postgres@127.0.0.1:5432/postgres
+      - name: SWEEP live — the §14.6g register mirror against real PostgreSQL (raise → no-op → resolve, tenant-fenced)
+        run: node packages/db/test/sweep-live.js
         env:
           DATABASE_URL_ADMIN: postgres://postgres:postgres@127.0.0.1:5432/postgres
       - name: DR restore-leg rehearsal — dump, checksum, DESTROY, restore, verify (H11, §14.21)

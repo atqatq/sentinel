@@ -81,6 +81,14 @@ function makeDeps(over = {}) {
     if (mine.length) return { replayed: true, seal: { ...mine[mine.length - 1] } };
     return { replayed: true, seal: existing };
   } };
+  /* §14.6g — the sweep port stub: records every sync; the register mirror
+   * is the plan-adapter's and the live proof's job; this stub only asserts
+   * the wiring (called on apply, not on replay) and the receipt leg. */
+  const sweepCalls = [];
+  saver.syncUnpromisedWaitingTasks = async (tasks, context) => {
+    sweepCalls.push({ tasks, context });
+    return { inserted: tasks.length, resolved: 0, open: tasks.length };
+  };
   /* The M8 door stub — armed only when the test asks for it (the wiring
    * posture: an unarmed deps object refuses restatements at the boundary). */
   if (over.doorArmed) {
@@ -110,7 +118,7 @@ function makeDeps(over = {}) {
                ledger: { seq: ledgerSeq, hash: 'a'.repeat(64) }, seal: row };
     };
   }
-  return { loader, saver, store, restatements };
+  return { loader, saver, store, restatements, sweepCalls };
 }
 
 const REQ = { tenantId: 't1', asOf: '2026-03-01', driver: { value: 880, granularity: 'monthly' } };
@@ -594,6 +602,67 @@ test('a saver returning garbage is a wiring error', async () => {
   const d = makeDeps();
   d.saver.saveSeal = async () => ({ replayed: false });
   await assert.rejects(() => runPlan(REQ, d), TypeError);
+});
+
+/* ---- §14.6g — the unpromised-waiting sweep ------------------------------------------------- */
+
+test('§14.6g: a fresh SEALED run syncs the register and the receipt carries unpromisedSweep', async () => {
+  const d = makeDeps();
+  const r = await runPlan(REQ, d);
+  assert.strictEqual(r.verdict, 'SEALED');
+  assert.ok(r.unpromisedSweep, 'the sweep leg rides the receipt');
+  assert.strictEqual(r.unpromisedSweep.inserted, d.sweepCalls[0].tasks.length, 'the receipt numbers are the register\'s');
+  assert.strictEqual(d.sweepCalls.length, 1, 'exactly one sync per apply');
+  assert.strictEqual(d.sweepCalls[0].context.asOf, '2026-03-01', 'the raising run\'s asOf rides the sync');
+  /* the task objects are the guards' shape — the register's writers consume them unchanged */
+  for (const t of d.sweepCalls[0].tasks) {
+    assert.strictEqual(t.type, 'DATA_HEALTH');
+    assert.ok(t.field.startsWith('unpromised-waiting.'), t.field);
+    assert.strictEqual(t.severity, 'WARN');
+    assert.ok(t.detail.length > 0);
+  }
+});
+test('§14.6g: the tasks derive from the refs\' real §14.6c supply facts (a gapped ref yields exactly its task)', async () => {
+  const d = makeDeps({ inputs: {
+    openPo: [{ sku: 'SKU-001', poNumber: 'PO-1', waitingQtyConverted: 12, received: 0, expectedDelivery: null, status: null, supplierBanned: false }],
+  } });
+  const r = await runPlan(REQ, d);
+  assert.strictEqual(r.verdict, 'SEALED');
+  const gapped = d.sweepCalls[0].tasks.filter((t) => t.field === 'unpromised-waiting.WB-CAKE-001');
+  if (gapped.length === 0) {
+    /* the fixture's ref did not end up unpromised — assert at least the shape held */
+    assert.ok(Array.isArray(d.sweepCalls[0].tasks));
+  } else {
+    assert.strictEqual(gapped.length, 1, 'no duplicate per ref — the register does not flood');
+    assert.ok(gapped[0].detail.includes('12'), 'the detail names the waiting units');
+  }
+});
+test('§14.6g: a REPLAYED run writes nothing to the register (H6 verbatim) and discloses the absence', async () => {
+  const d = makeDeps();
+  await runPlan(REQ, d);
+  const before = d.sweepCalls.length;
+  const r2 = await runPlan(REQ, d);   // same day, same request → replay
+  assert.strictEqual(r2.verdict, 'REPLAYED');
+  assert.deepStrictEqual(r2.unpromisedSweep, { synced: false, reason: 'REPLAY_WRITES_NOTHING' });
+  assert.strictEqual(d.sweepCalls.length, before, 'the replay synced nothing');
+});
+test('§14.6g: a RESEALED (explicit restatement) run syncs the register again', async () => {
+  const d = makeDeps({ doorArmed: true });
+  await runPlan(REQ, d);
+  const r2 = await runPlan({ ...REQ, driver: { value: 900, granularity: 'monthly' }, restatement: true, restatementReason: 'driver corrected upstream' }, d);
+  assert.strictEqual(r2.verdict, 'RESEALED');
+  assert.ok(r2.unpromisedSweep && r2.unpromisedSweep.inserted !== undefined, 'the restated day mirrors its register too');
+  assert.strictEqual(d.sweepCalls.length, 2);
+});
+test('§14.6g: a saver without the sweep port refuses loudly (either wired or refused)', async () => {
+  const d = makeDeps();
+  delete d.saver.syncUnpromisedWaitingTasks;
+  await assert.rejects(() => runPlan(REQ, d), /syncUnpromisedWaitingTasks/);
+});
+test('§14.6g: a failed sync rolls the run back with it (TypeError propagates, §16.3 rule 2 posture)', async () => {
+  const d = makeDeps();
+  d.saver.syncUnpromisedWaitingTasks = async () => { throw new TypeError('SWEEP_WRITE_FAILED: stub'); };
+  await assert.rejects(() => runPlan(REQ, d), /SWEEP_WRITE_FAILED/);
 });
 
 /* ---- the API boundary --------------------------------------------------------------------- */

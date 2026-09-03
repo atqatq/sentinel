@@ -1,8 +1,8 @@
 {
   "name": "@sentinel/module-ops",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
-  "description": "Sentinel module: M9 freshness SLO + missing-deliveries alarm (A11, gate 17) — pure facts producer for the kpi-catalog STALE envelope, the D-023 stale-data banner and the data-health screens. Clock always injected; DAT-01 bands bound by test to the kpi-catalog target text.",
+  "description": "Sentinel module: M9 freshness SLO + missing-deliveries alarm (A11, gate 17) — pure facts producer for the kpi-catalog STALE envelope, the D-023 stale-data banner and the data-health screens. Clock always injected; DAT-01 bands bound by test to the kpi-catalog target text. v0.5.0: + the §14.6g data-health sweep derivation (unpromisedWaitingTasks — the receipt's UNPROMISED_WAITING disclosure becomes the register's task set).",
   "main": "index.js",
   "scripts": {
     "test": "node test/freshness.test.js"

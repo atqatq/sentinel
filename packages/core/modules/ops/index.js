@@ -15,4 +15,5 @@
 module.exports = {
   freshness: require('./src/freshness.js'),
   fx: require('./src/fx.js'),
+  datahealth: require('./src/datahealth.js'),
 };

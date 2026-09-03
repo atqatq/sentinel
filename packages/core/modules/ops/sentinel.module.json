@@ -1,7 +1,7 @@
 {
   "id": "ops",
-  "version": "0.3.0",
-  "description": "M9 freshness SLO + missing-deliveries alarm. Evaluates DAT-01 (hours since the last successful per-tenant seal, worst across file types; <=26h fresh, >36h red + alarm) against injected seal stamps — a file type with no seal ever is ALARM with a null age, never fresh by silence. The deliveries dataset (the demand primitive) carries its own MISSING_DELIVERIES channel with a tenant-amendable cadence threshold (daily preferred default), because the engine's H8 gate refuses rate seeding on silent deliveries and DTA must hear it before the morning run, not from the refusal. Pure and deterministic: the clock is injected; alarms carry the DATA_HEALTH task + banner conventions verbatim; the 26/36 bands are bound by test to the kpi-catalog DAT-01 target text.",
+  "version": "0.5.0",
+  "description": "M9 freshness SLO + missing-deliveries alarm. Evaluates DAT-01 (hours since the last successful per-tenant seal, worst across file types; <=26h fresh, >36h red + alarm) against injected seal stamps — a file type with no seal ever is ALARM with a null age, never fresh by silence. The deliveries dataset (the demand primitive) carries its own MISSING_DELIVERIES channel with a tenant-amendable cadence threshold (daily preferred default), because the engine's H8 gate refuses rate seeding on silent deliveries and DTA must hear it before the morning run, not from the refusal. Pure and deterministic: the clock is injected; alarms carry the DATA_HEALTH task + banner conventions verbatim; the 26/36 bands are bound by test to the kpi-catalog DAT-01 target text. Version 0.5.0 adds the data-health sweep derivation (build spec §14.6g; D-033's named follow-on; named proof ops/unpromised-waiting-sweep): unpromisedWaitingTasks walks a plan receipt's refs and yields ONE WARN DATA_HEALTH task per ref with unpromisedLines > 0 — in the guards' verbatim shape (field unpromised-waiting.<refId>, the counts named in the detail), clean refs silent (the register carries GAPS, never confirmations), sorted, deterministic, with the REFS_MALFORMED/REF_MALFORMED refusal family — the writer side (plan-adapter's syncUnpromisedWaitingTasks) mirrors the register to this set idempotently.",
   "dependencies": [
     "kpi-catalog",
     "ingestion"
@@ -19,6 +19,10 @@
     {
       "suite": "test/freshness.test.js",
       "count": 19
+    },
+    {
+      "suite": "test/datahealth.test.js",
+      "count": 4
     }
   ]
 }

@@ -1,7 +1,7 @@
 {
   "name": "@sentinel/plan-service",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
-  "description": "Engine live wiring: assembles tenant data behind ports, drives the planning-engine canon (computeRef + portfolioKPIs) and the kpi-catalog dataState envelope, and seals the result as a hash-stamped plan snapshot (build spec §11 daily seal).",
+  "description": "Engine live wiring: assembles tenant data behind ports, drives the planning-engine canon (computeRef + portfolioKPIs) and the kpi-catalog dataState envelope, and seals the result as a hash-stamped plan snapshot (build spec §11 daily seal). v0.5.0: + the §14.6g data-health sweep wiring (the register mirrors the receipt's unpromised-waiting disclosure, in the run's transaction).",
   "main": "index.js"
 }

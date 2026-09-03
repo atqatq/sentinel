@@ -75,6 +75,13 @@ function restateError(code, detail) {
   return e;
 }
 
+/* §14.6g — the sweep's named refusals (code-carrying, never coerced). */
+function sweepError(code, detail) {
+  const e = new Error(`SWEEP_${code}: ${detail}`);
+  e.code = `SWEEP_${code}`;
+  return e;
+}
+
 function assertSealDate(v, code) {
   if (typeof v !== 'string' || !SEAL_DATE_RE.test(v)) {
     throw restateError(code || 'RESTATE_SEAL_DATE_INVALID', `sealDate must be a YYYY-MM-DD string, got ${JSON.stringify(v)}`);
@@ -266,6 +273,87 @@ function makePlanAdapter(client, tenantId, opts) {
             ORDER BY revision ASC`, [tenantId, sealDate]);
         const versions = [...seal.rows, ...rest.rows];
         return { sealDate, versions, current: versions[versions.length - 1] };
+      },
+
+      /* §14.6g — the unpromised-waiting sweep: the register MIRRORS the
+       * receipt's disclosure, idempotently, in the run's transaction:
+       *   insert   — a desired field with no OPEN row lands (WARN,
+       *              task_type DATA_HEALTH, payload carrying the field, the
+       *              counts and the asOf of the raising run);
+       *   no-op    — a desired field whose OPEN row exists is left alone
+       *              (the same gap is not re-raised, not re-dated, not
+       *              duplicated);
+       *   resolve  — an OPEN `unpromised-waiting.*` row whose field is no
+       *              longer desired RESOLVES (status RESOLVED, resolved_at
+       *              stamped); rows are never deleted — the audit trail is
+       *              the resolution.
+       * Statement-first: the task shape validates BEFORE any statement; the
+       * writer owns ONLY its field family (a foreign field refuses — the
+       * sweep does not gentrify other guards' tasks). The sync rides the
+       * caller's transaction (§16.3 rule 2's posture): a failed write rolls
+       * the seal back with it. */
+      syncUnpromisedWaitingTasks: async (tasks, context) => {
+        if (!Array.isArray(tasks)) {
+          throw sweepError('TASKS_MALFORMED', 'tasks must be the pure derivation\'s array (ops.datahealth.unpromisedWaitingTasks)');
+        }
+        const ctx = context || {};
+        if (ctx.asOf !== undefined && (typeof ctx.asOf !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(ctx.asOf))) {
+          throw sweepError('ASOF_INVALID', `context.asOf must be a canonical YYYY-MM-DD day (H4), got ${JSON.stringify(ctx.asOf)}`);
+        }
+        const fields = [];
+        const payloads = [];
+        for (const t of tasks) {
+          if (!t || typeof t !== 'object' || t.type !== 'DATA_HEALTH') {
+            throw sweepError('TASK_MALFORMED', 'every task is a { type: \'DATA_HEALTH\', field, detail, severity } guard object');
+          }
+          if (typeof t.field !== 'string' || !t.field.startsWith('unpromised-waiting.')) {
+            throw sweepError('FIELD_FOREIGN', `the sweep owns only the 'unpromised-waiting.*' family, got ${JSON.stringify(t.field)} — other guards' tasks are not gentrified`);
+          }
+          if (typeof t.detail !== 'string' || t.detail === '') {
+            throw sweepError('TASK_MALFORMED', `task ${t.field} carries no detail — the register names the gap, never a bare field`);
+          }
+          const severity = t.severity === undefined ? 'WARN' : t.severity;
+          if (severity !== 'WARN') {
+            throw sweepError('SEVERITY_INVALID', `the sweep raises WARN (a missing promise is a data gap, not an outage), got ${JSON.stringify(severity)}`);
+          }
+          fields.push(t.field);
+          const payload = { field: t.field, detail: t.detail };
+          if (ctx.asOf !== undefined) payload.raisedAsOf = ctx.asOf;
+          payloads.push(payload);
+        }
+        /* Resolve first, then insert — one direction, no re-dating of live
+         * gaps. The UPDATE's NOT-ALL keeps every still-disclosed field open. */
+        const upd = fields.length
+          ? await client.query(
+              `UPDATE data_health_task SET status = 'RESOLVED', resolved_at = now()
+                WHERE tenant_id = $1 AND status = 'OPEN' AND task_type = 'DATA_HEALTH'
+                  AND payload->>'field' LIKE 'unpromised-waiting.%'
+                  AND NOT (payload->>'field' = ANY($2::text[]))`,
+              [tenantId, fields])
+          : await client.query(
+              `UPDATE data_health_task SET status = 'RESOLVED', resolved_at = now()
+                WHERE tenant_id = $1 AND status = 'OPEN' AND task_type = 'DATA_HEALTH'
+                  AND payload->>'field' LIKE 'unpromised-waiting.%'`,
+              [tenantId]);
+        const ins = fields.length
+          ? await client.query(
+              `INSERT INTO data_health_task (tenant_id, task_type, severity, status, payload)
+               SELECT $1, 'DATA_HEALTH', 'WARN', 'OPEN', f.payload::jsonb
+                 FROM unnest($2::jsonb[]) AS f(payload)
+                WHERE NOT EXISTS (
+                  SELECT 1 FROM data_health_task d
+                   WHERE d.tenant_id = $1 AND d.status = 'OPEN'
+                     AND d.task_type = 'DATA_HEALTH'
+                     AND d.payload->>'field' = f.payload->>'field')`,
+              [tenantId, JSON.stringify(payloads)])
+          : { rowCount: 0 };
+        /* The register's open count — the receipt's number is the
+         * register's, never recomputed by the reader. */
+        const open = await client.query(
+          `SELECT count(*)::int AS n FROM data_health_task
+            WHERE tenant_id = $1 AND status = 'OPEN' AND task_type = 'DATA_HEALTH'
+              AND payload->>'field' LIKE 'unpromised-waiting.%'`, [tenantId]);
+        return { inserted: ins.rowCount, resolved: upd.rowCount, open: open.rows[0].n };
       },
     },
   };
