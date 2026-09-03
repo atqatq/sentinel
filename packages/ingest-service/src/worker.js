@@ -424,6 +424,18 @@ async function runFileToRows(deps, input) {
       }
     }
 
+    /* ---- §14.27: the suppliers seam's hold auto-staging rides the apply ---- */
+    if (applied.holds) {
+      for (const t of applied.holds.tasks) tasks.push(t); // the divergence WARN surfaces on Data Health
+      const parts = [];
+      if (applied.holds.staged > 0) parts.push(`${applied.holds.staged} staged`);
+      if (applied.holds.deduped > 0) parts.push(`${applied.holds.deduped} deduped against an open hold`);
+      if (applied.holds.diverged > 0) parts.push(`${applied.holds.diverged} diverged (nothing staged — a human reconciles)`);
+      if (parts.length > 0) {
+        disclosures.push(`supplier identity change(s) routed to the COOLING_OFF door: ${parts.join(', ')} — the stored identity keeps serving until an eligible verifier opens it (§14.27)`);
+      }
+    }
+
     if (quarantineRecords.length > 0) await ports.insertQuarantineRecords(quarantineRecords, applied.fileId);
     if (quarantineRecords.length > 0) await ports.updateQuarantinedCount(applied.fileId, quarantineRecords.length);
     await persistTasks();

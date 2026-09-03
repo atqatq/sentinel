@@ -23,9 +23,13 @@
  *        - a NEW file with overlapping keys: upsert in place, register
  *          unchanged, DAT-04 duplicateHits honest;
  *        - a FAILED file reprocesses in place (no forked history);
- *        - supplier H7 identity: same external ID, different spelling — the
- *          identity delta stages a COOLING_OFF hold (the C3 freeze refuses
- *          the direct change) and the merge lands only out-of-band verified;
+ *        - supplier H7 identity (§14.27): same external ID, different spelling —
+ *          the pipeline classifies before it writes, the REDUCED upsert keeps
+ *          the stored identity serving while the delta AUTO-STAGES a
+ *          COOLING_OFF hold (requested_by NULL); the identical re-drop
+ *          dedupes, a divergent delta stages nothing and names both deltas,
+ *          and the merge lands only out-of-band verified THROUGH the
+ *          pipeline-staged hold;
  *        - RLS: cross-tenant register reads/writes denied.
  * ==========================================================================*/
 const fs = require('fs');
@@ -41,7 +45,6 @@ const { makeProcureAdapter } = require(path.join(REPO, 'packages/db/procure-adap
 const { makeFxAdapter } = require(path.join(REPO, 'packages/db/fx-adapter'));
 const { makeLedgerAdapter } = require(path.join(REPO, 'packages/db/ledger-adapter'));
 const { normalizeMoney } = require(path.join(REPO, 'packages/core/modules/ingestion/src/normalize'));
-const { classifySupplierChange } = require(path.join(REPO, 'packages/core/modules/approval/src/freeze'));
 
 const ADMIN_URL = process.env.DATABASE_URL_ADMIN || 'postgres://postgres@127.0.0.1:5433/postgres';
 const LIVE_DB = 'sentinel_ingest_live';
@@ -284,42 +287,70 @@ async function main() {
   if (supFirst && supFirst.name === 'Gulf Foods LLC') ok('the first import CREATES the identity — creation is not frozen');
   else bad('first supplier import', JSON.stringify(supFirst));
 
-  /* The re-spelled import is an IDENTITY change: the C3 freeze refuses it
-   * outright (the H6 executor flows ride the same supplier table), and the
-   * stored identity keeps serving. */
-  let frozen = false;
-  try {
-    await tx(clientA, () => adapterA.apply(planIngestFile({
-      tenantId: T.A, kind: 'suppliers', checksum: sha('sup2'), fileName: 'suppliers-r4.xlsx', byteSize: 64, mode: 'A',
-      rows: [{ supplierExternalId: 'SUP-9', supplierName: 'Gulf Foods L.L.C. (spelled differently)' }],
-    })));
-  } catch (e) { frozen = String(e.message).includes('SUPPLIER_IDENTITY_FROZEN'); }
+  /* ---- §14.27: the re-spelled import now AUTO-STAGES through the door ----
+   * The pipeline classifies before it writes, takes the REDUCED upsert (the
+   * stored identity keeps serving) and stages a COOLING_OFF hold with
+   * requested_by NULL — the D-029 direct-write refusal retires for the
+   * ingestion path (the trigger's refusal outside the door stands, sod-live). */
+  const rH7 = await tx(clientA, () => adapterA.apply(planIngestFile({
+    tenantId: T.A, kind: 'suppliers', checksum: sha('sup2'), fileName: 'suppliers-r4.xlsx', byteSize: 64, mode: 'A',
+    rows: [{ supplierExternalId: 'SUP-9', supplierName: 'Gulf Foods L.L.C. (spelled differently)' }],
+  })));
   const supHeld = (await clientA.query(`SELECT name FROM supplier WHERE external_id = 'SUP-9'`)).rows[0];
-  if (frozen && supHeld.name === 'Gulf Foods LLC') ok('the re-spelled import is REFUSED (SUPPLIER_IDENTITY_FROZEN); the stored identity keeps serving');
-  else bad('the freeze must refuse the re-spelled import', JSON.stringify({ frozen, name: supHeld && supHeld.name }));
+  const stagedHold = (await clientA.query(
+    `SELECT id, supplier_id, changed_fields, state::text AS state, requested_by
+       FROM supplier_change_hold WHERE tenant_id = $1 AND supplier_id = $2 AND state = 'COOLING_OFF'`,
+    [T.A, supFirst.id])).rows;
+  if (rH7.holds && rH7.holds.staged === 1
+      && supHeld.name === 'Gulf Foods LLC'
+      && stagedHold.length === 1
+      && stagedHold[0].requested_by === null
+      && stagedHold[0].changed_fields.name.to.includes('spelled differently')
+      && stagedHold[0].changed_fields.external_id.from === 'SUP-9'
+      && stagedHold[0].changed_fields.external_id.to === 'SUP-9') {
+    ok('the re-spelled import APPLIES with a staged COOLING_OFF hold (requested_by NULL) — the stored name keeps serving');
+  } else bad('the auto-staging choreography', JSON.stringify({ holds: rH7.holds, name: supHeld.name, stagedHold }));
 
-  /* The pipeline stages the hold; out-of-band verification opens the door and
-   * the H7 merge completes — one row per external ID, the verified spelling. */
+  /* The identical re-drop (different checksum) hits the dedupe, not the queue:
+   * still ONE open hold, the receipt says deduped. */
+  const rH7b = await tx(clientA, () => adapterA.apply(planIngestFile({
+    tenantId: T.A, kind: 'suppliers', checksum: sha('sup3'), fileName: 'suppliers-r4-retry.xlsx', byteSize: 64, mode: 'A',
+    rows: [{ supplierExternalId: 'SUP-9', supplierName: 'Gulf Foods L.L.C. (spelled differently)' }],
+  })));
+  const holdCount = (await clientA.query(`SELECT count(*)::int AS n FROM supplier_change_hold WHERE supplier_id = $1`, [supFirst.id])).rows[0].n;
+  if (rH7b.holds && rH7b.holds.staged === 0 && rH7b.holds.deduped === 1 && holdCount === 1) {
+    ok('the identical re-drop dedupes — the daily feed never floods the cooling-off queue');
+  } else bad('the dedupe', JSON.stringify({ holds: rH7b.holds, holdCount }));
+
+  /* A DIVERGENT delta stages NOTHING and names itself: the open hold keeps
+   * its delta, the receipt carries the WARN task with both deltas. */
+  const rH7c = await tx(clientA, () => adapterA.apply(planIngestFile({
+    tenantId: T.A, kind: 'suppliers', checksum: sha('sup4'), fileName: 'suppliers-r5.xlsx', byteSize: 64, mode: 'A',
+    rows: [{ supplierExternalId: 'SUP-9', supplierName: 'Gulf Foods Holdings' }],
+  })));
+  const holdCount2 = (await clientA.query(`SELECT count(*)::int AS n FROM supplier_change_hold WHERE supplier_id = $1`, [supFirst.id])).rows[0].n;
+  if (rH7c.holds && rH7c.holds.staged === 0 && rH7c.holds.diverged === 1
+      && rH7c.holds.tasks.length === 1
+      && rH7c.holds.tasks[0].detail.includes('Gulf Foods Holdings')
+      && rH7c.holds.tasks[0].detail.includes('spelled differently')
+      && holdCount2 === 1) {
+    ok('the divergent delta stages NOTHING and names both deltas — the machine never supersedes a hold it cannot verify');
+  } else bad('the divergence', JSON.stringify({ holds: rH7c.holds, holdCount2 }));
+
+  /* Out-of-band verification opens the door through the PIPELINE-STAGED hold —
+   * the test's own staging hand-work retires: the delta is read from the hold
+   * row the pipeline wrote, the H7 merge lands verified, one row per ID. */
   const procure = makeProcureAdapter(clientA, T.A);
-  const storedRow = (await clientA.query(`SELECT external_id, name, payment_term_days, payment_terms_text, currency_code FROM supplier WHERE id = $1`, [supFirst.id])).rows[0];
-  const cls = classifySupplierChange(
-    { external_id: storedRow.external_id, name: storedRow.name, payment_term_days: storedRow.payment_term_days, payment_terms_text: storedRow.payment_terms_text, currency_code: storedRow.currency_code },
-    { external_id: storedRow.external_id, name: 'Gulf Foods L.L.C. (spelled differently)', payment_term_days: storedRow.payment_term_days, payment_terms_text: storedRow.payment_terms_text, currency_code: storedRow.currency_code });
-  if (!cls.frozen) bad('the classifier must freeze a name delta', JSON.stringify(cls));
-  else {
-    const hold = await tx(clientA, () => procure.stageSupplierHold({ supplierId: supFirst.id, changedFields: cls.delta, requestedBy: null }));
-    if (hold && hold.state === 'COOLING_OFF') ok('the identity delta stages a COOLING_OFF hold (pipeline-originated)');
-    else bad('hold staging', JSON.stringify(hold));
-    await tx(clientA, () => procure.resolveHold({
-      holdId: hold.id, supplierId: supFirst.id, changedFields: cls.delta,
-      verifiedBy: null, reference: 'OBV-2026-001 (out-of-band confirmed)', decision: 'APPLY',
-    }));
-    const sup = (await clientA.query(`SELECT count(*)::int AS n FROM supplier WHERE external_id = 'SUP-9'`)).rows[0].n;
-    const supName = (await clientA.query(`SELECT name FROM supplier WHERE external_id = 'SUP-9'`)).rows[0].name;
-    const holdState = (await clientA.query(`SELECT state::text AS s FROM supplier_change_hold WHERE id = $1`, [hold.id])).rows[0].s;
-    if (sup === 1 && supName.includes('spelled differently') && holdState === 'APPLIED') ok('one supplier row per external ID; the re-spelled merge landed THROUGH the verified hold');
-    else bad('supplier merge wrong', JSON.stringify({ sup, supName, holdState }));
-  }
+  const pipeHold = stagedHold[0];
+  await tx(clientA, () => procure.resolveHold({
+    holdId: pipeHold.id, supplierId: supFirst.id, changedFields: pipeHold.changed_fields,
+    verifiedBy: null, reference: 'OBV-2026-001 (out-of-band confirmed)', decision: 'APPLY',
+  }));
+  const sup = (await clientA.query(`SELECT count(*)::int AS n FROM supplier WHERE external_id = 'SUP-9'`)).rows[0].n;
+  const supName = (await clientA.query(`SELECT name FROM supplier WHERE external_id = 'SUP-9'`)).rows[0].name;
+  const holdState = (await clientA.query(`SELECT state::text AS s FROM supplier_change_hold WHERE id = $1`, [pipeHold.id])).rows[0].s;
+  if (sup === 1 && supName.includes('spelled differently') && holdState === 'APPLIED') ok('one supplier row per external ID; the re-spelled merge landed THROUGH the pipeline-staged hold');
+  else bad('supplier merge wrong', JSON.stringify({ sup, supName, holdState }));
 
   /* ---- 9. deliveries daily wiring + non-daily refusal ---- */
   console.log('\nDeliveries: daily rows upsert per day; other granularities refuse, named');

@@ -645,6 +645,31 @@ test('the supplier key rides the H7 name branch for current-template exports', a
   await run({}, ex, { bytes: fixture('suppliers_modeA_with_bank_columns.csv'), declaredName: 'suppliers.csv' });
   assert.deepStrictEqual(ex.calls.plans[0].rows[0].key, '["name","Supplier A"]');
 });
+test('§14.27: the executor\'s holds summary rides the run — the COOLING_OFF door disclosure, the divergence task on the register', async () => {
+  const ex = stubExecutor();
+  ex.apply = async (plan) => ({
+    fileId: 'file-uuid', appliedAt: 1756500000000, rowsApplied: plan.rows.length, keysRegistered: plan.rows.length,
+    holds: {
+      staged: 1, deduped: 1, diverged: 1,
+      tasks: [{ type: 'DATA_HEALTH', field: 'supplier_identity', severity: 'WARN', detail: 'supplier SUP-9: an OPEN COOLING_OFF hold carries a DIFFERENT identity delta — nothing staged (§14.27)' }],
+    },
+  });
+  const r = await run({}, ex, { bytes: fixture('suppliers_modeA_with_bank_columns.csv'), declaredName: 'suppliers.csv' });
+  assert.strictEqual(r.verdict, 'APPLIED');
+  assert.strictEqual(r.tasksRaised, 2); // the fixture's own task + the divergence WARN
+  assert.ok(r.disclosures.some((d) => d.includes('1 staged') && d.includes('1 deduped against an open hold') && d.includes('1 diverged (nothing staged — a human reconciles)')), JSON.stringify(r.disclosures));
+  assert.ok(r.disclosures.some((d) => d.includes('COOLING_OFF door') && d.includes('the stored identity keeps serving until an eligible verifier opens it') && d.includes('§14.27')));
+});
+test('§14.27: an all-zero holds summary is silent — no disclosure for a file that staged nothing', async () => {
+  const ex = stubExecutor();
+  ex.apply = async (plan) => ({
+    fileId: 'file-uuid', appliedAt: 1756500000000, rowsApplied: plan.rows.length, keysRegistered: plan.rows.length,
+    holds: { staged: 0, deduped: 0, diverged: 0, tasks: [] },
+  });
+  const r = await run({}, ex, { bytes: fixture('suppliers_modeA_with_bank_columns.csv'), declaredName: 'suppliers.csv' });
+  assert.ok(!r.disclosures.some((d) => d.includes('COOLING_OFF door')), JSON.stringify(r.disclosures));
+  assert.strictEqual(r.tasksRaised, 1); // only the fixture's own task
+});
 
 /* ---- deliveries: day-expansion + the A5 guard ------------------------------------ */
 console.log('\nDeliveries: coarse granularities expand to exact-sum daily rows; YTD refuses by name');

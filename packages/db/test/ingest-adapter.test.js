@@ -36,7 +36,7 @@ function test(name, fn) {
  * scripted appliedAt is a STRING — node-pg delivers int8/bigint as strings,
  * and the adapter must convert at the boundary (the live proof inherits the
  * real behavior; this stub inherits the real shape). */
-function stubClient({ prior = null, seen = [], priorCfs = {} } = {}) {
+function stubClient({ prior = null, seen = [], priorCfs = {}, storedSuppliers = [], activeHold = null } = {}) {
   const calls = [];
   return {
     calls,
@@ -52,6 +52,22 @@ function stubClient({ prior = null, seen = [], priorCfs = {} } = {}) {
       if (/FROM item WHERE tenant_id/i.test(text)) {
         return { rows: Object.entries(priorCfs).map(([sku, cf]) => ({ sku, conversion_factor: cf })), rowCount: Object.keys(priorCfs).length };
       }
+      /* §14.27: the suppliers seam's batched stored-row reads (by ext, by name)
+       * and the hold-door probe ride the same stub. */
+      if (/FROM supplier WHERE tenant_id = \$1 AND external_id = ANY/i.test(text)) {
+        const want = new Set(values[1]);
+        const rows = storedSuppliers.filter((s) => s.external_id !== null && want.has(s.external_id));
+        return { rows, rowCount: rows.length };
+      }
+      if (/FROM supplier WHERE tenant_id = \$1 AND name = ANY/i.test(text)) {
+        const want = new Set(values[1]);
+        const rows = storedSuppliers.filter((s) => want.has(s.name));
+        return { rows, rowCount: rows.length };
+      }
+      if (/FROM supplier_change_hold/i.test(text)) {
+        return activeHold ? { rows: [activeHold], rowCount: 1 } : { rows: [], rowCount: 0 };
+      }
+      if (/INSERT INTO supplier_change_hold/i.test(text)) return { rows: [{ id: 'hold-uuid' }], rowCount: 1 };
       if (/RETURNING id/i.test(text)) return { rows: [{ id: 'file-uuid', appliedAt: 1756500000000 }], rowCount: 1 };
       return { rows: [], rowCount: 1 };
     },
@@ -116,13 +132,19 @@ test('the item conflict target is the H6 unique (tenant_id, sku) with DO UPDATE'
     assert.ok(s.includes('ON CONFLICT (tenant_id, sku) DO UPDATE'), s);
   });
 });
-test('H7 two-branch supplier identity: external_id rides the partial unique; name-only rides (tenant, name)', async () => {
+test('H7 two-branch supplier identity: external_id rides the partial unique; name-only rides (tenant, name) — the seam\'s stored-row read leads the calls', async () => {
   const c = stubClient();
   await makeIngestAdapter(c, T).apply(plan({
     kind: 'suppliers',
     rows: [{ supplierExternalId: 'S1', supplierName: 'Acme LLC' }],
   }));
-  const extStmt = c.calls[1].text;
+  /* §14.27: the batched stored-row read leads (by the conflict target the row
+   * rides), THEN the file register, THEN the row upsert. */
+  assert.strictEqual(c.calls.length, 4);
+  assert.ok(c.calls[0].text.startsWith('SELECT id, external_id, name, payment_term_days, payment_terms_text, currency_code FROM supplier'), c.calls[0].text);
+  assert.ok(c.calls[0].text.includes('external_id = ANY($2::text[])'), 'the ext branch is read by external_id');
+  assert.deepStrictEqual(c.calls[0].values, [T, ['S1']]);
+  const extStmt = c.calls[2].text;
   assert.ok(extStmt.includes('ON CONFLICT (tenant_id, external_id) WHERE external_id IS NOT NULL'), extStmt);
 
   const c2 = stubClient();
@@ -130,8 +152,10 @@ test('H7 two-branch supplier identity: external_id rides the partial unique; nam
     kind: 'suppliers',
     rows: [{ supplierName: 'Beta LLC' }],
   }));
-  assert.ok(c2.calls[1].text.includes('ON CONFLICT (tenant_id, name) DO UPDATE'));
-  assert.strictEqual(c2.calls[1].values[1], null); // external_id NULL on the name branch
+  assert.ok(c2.calls[0].text.includes('name = ANY($2::text[])'), 'the name branch is read by name');
+  assert.deepStrictEqual(c2.calls[0].values, [T, ['Beta LLC']]);
+  assert.ok(c2.calls[2].text.includes('ON CONFLICT (tenant_id, name) DO UPDATE'));
+  assert.strictEqual(c2.calls[2].values[1], null); // external_id NULL on the name branch
 });
 test('open PO conflict target is (tenant, po_number, sku); consumption is (tenant, sku, period)', async () => {
   const c = stubClient();
@@ -318,6 +342,127 @@ test('a keyless plan row is refused at the executor too', async () => {
   await makeIngestAdapter(c, T).apply(p)
     .then(() => { throw new Error('no throw'); }, (e) => assert.ok(e.message.startsWith('apply: plan.rows[0] must be a { key, row } pair'), e.message));
   assert.strictEqual(c.calls.length, 0);
+});
+
+/* ---- §14.27 named proof `ingest/supplier-hold-auto-staging` ------------------
+ * The executor stub tier pins the seam's statement shapes: the batched
+ * stored-row read leading the calls; the reduced upsert's SET lacking the
+ * five frozen columns while VALUES stay whole (creation is not frozen); the
+ * hold INSERT riding the procure door with requested_by NULL; the dedupe
+ * probe and its zero-statement outcome; the divergence task naming both
+ * deltas. The live tier re-walks the H7 choreography end-to-end
+ * (ingest-replay-live.js). */
+const STORED_SUP = {
+  id: '0f0f0f0f-0f0f-4f0f-8f0f-0f0f0f0f0f0f',
+  external_id: 'SUP-9', name: 'Gulf Foods LLC',
+  payment_term_days: 30, payment_terms_text: 'Net 30', currency_code: 'KWD',
+};
+const RESPELLED = { supplierExternalId: 'SUP-9', supplierName: 'Gulf Foods L.L.C. (spelled differently)' };
+/* The classifier's delta shape, hand-written: ALL FIVE frozen fields,
+ * from/to strings (text() null-preserving), key order irrelevant. */
+const DELTA = {
+  external_id: { from: 'SUP-9', to: 'SUP-9' },
+  name: { from: 'Gulf Foods LLC', to: 'Gulf Foods L.L.C. (spelled differently)' },
+  payment_term_days: { from: '30', to: '30' },
+  payment_terms_text: { from: 'Net 30', to: 'Net 30' },
+  currency_code: { from: 'KWD', to: 'KWD' },
+};
+const holdPlan = (over = {}) => plan({ kind: 'suppliers', rows: [{ ...RESPELLED }], ...over });
+
+test('§14.27: creation is not frozen — no stored row rides the full upsert verbatim, no probe, no hold, zero holds receipt', async () => {
+  const c = stubClient(); // no storedSuppliers
+  const r = await makeIngestAdapter(c, T).apply(holdPlan());
+  assert.strictEqual(c.calls.length, 4, 'read → file → row → register; no probe without a stored row');
+  assert.ok(c.calls[2].text.includes('payment_terms_text=EXCLUDED.payment_terms_text'), 'the full upsert verbatim');
+  assert.ok(!c.calls.some((x) => /supplier_change_hold/i.test(x.text)), 'no hold door touched');
+  assert.deepStrictEqual(r.holds, { staged: 0, deduped: 0, diverged: 0, tasks: [] });
+});
+test('§14.27: the unstated is not a proposal — an omitted frozen column coalesces to the stored value in the WRITE, not just the classifier', async () => {
+  const c = stubClient({ storedSuppliers: [STORED_SUP] });
+  const r = await makeIngestAdapter(c, T).apply(holdPlan({ rows: [{ supplierExternalId: 'SUP-9', supplierName: 'Gulf Foods LLC' }] }));
+  assert.strictEqual(c.calls.length, 4, 'no probe: no delta, no hold decision');
+  const up = c.calls[2];
+  assert.ok(up.text.includes('payment_terms_text=EXCLUDED.payment_terms_text'), 'the full upsert rides');
+  assert.strictEqual(up.values[6], 'Net 30'); // payment_terms_text COALESCED — never the raw row's null
+  assert.strictEqual(up.values[7], 30);        // payment_term_days COALESCED
+  assert.strictEqual(up.values[8], 'KWD');     // currency_code COALESCED
+  assert.deepStrictEqual(r.holds, { staged: 0, deduped: 0, diverged: 0, tasks: [] });
+});
+test('§14.27: a frozen delta takes the REDUCED upsert (five frozen columns absent from SET, VALUES whole) and stages the hold through the procure door with requested_by NULL', async () => {
+  const c = stubClient({ storedSuppliers: [STORED_SUP] });
+  const r = await makeIngestAdapter(c, T).apply(holdPlan());
+  /* read → probe → file → reduced row → hold INSERT → register */
+  assert.strictEqual(c.calls.length, 6);
+  assert.ok(/FROM supplier_change_hold/i.test(c.calls[1].text), 'the dedupe probe is a READ inside the loop');
+  const up = c.calls[3].text;
+  assert.ok(up.includes('ON CONFLICT (tenant_id, external_id) WHERE external_id IS NOT NULL DO UPDATE SET is_active='), up);
+  for (const gone of ['external_id=EXCLUDED.external_id', 'name=EXCLUDED.name', 'payment_terms_text=EXCLUDED', 'payment_term_days=EXCLUDED', 'currency_code=EXCLUDED']) {
+    assert.ok(!up.includes(gone), `the frozen column never moves: ${gone}`);
+  }
+  assert.strictEqual(c.calls[3].values.length, 11, 'VALUES stay whole — the INSERT branch (creation) is untouched');
+  assert.strictEqual(c.calls[3].values[2], 'Gulf Foods L.L.C. (spelled differently)');
+  const hold = c.calls[4];
+  assert.ok(hold.text.startsWith('INSERT INTO supplier_change_hold (tenant_id, supplier_id, changed_fields, requested_by)'), hold.text);
+  assert.strictEqual(hold.values[1], STORED_SUP.id);
+  assert.deepStrictEqual(JSON.parse(hold.values[2]), DELTA);
+  assert.strictEqual(hold.values[3], null, 'requested_by NULL — pipeline-originated, any eligible verifier may verify');
+  assert.deepStrictEqual(r.holds, { staged: 1, deduped: 0, diverged: 0, tasks: [] });
+});
+test('§14.27: an ACTIVE hold with the IDENTICAL delta dedupes — zero hold statements, the daily feed never floods the queue', async () => {
+  const c = stubClient({ storedSuppliers: [STORED_SUP], activeHold: { id: 'hold-1', changedFields: DELTA, state: 'COOLING_OFF' } });
+  const r = await makeIngestAdapter(c, T).apply(holdPlan());
+  assert.strictEqual(c.calls.length, 5, 'read → probe → file → reduced row → register; NO hold INSERT');
+  assert.ok(!c.calls.some((x) => /INSERT INTO supplier_change_hold/i.test(x.text)), 'nothing staged');
+  assert.deepStrictEqual(r.holds, { staged: 0, deduped: 1, diverged: 0, tasks: [] });
+});
+test('§14.27: an ACTIVE hold with a DIFFERENT delta stages NOTHING and names itself — the WARN task carries both deltas', async () => {
+  const divergent = { ...DELTA, name: { from: 'Gulf Foods LLC', to: 'Gulf Foods Holdings' } };
+  const c = stubClient({ storedSuppliers: [STORED_SUP], activeHold: { id: 'hold-1', changedFields: divergent, state: 'COOLING_OFF' } });
+  const r = await makeIngestAdapter(c, T).apply(holdPlan());
+  assert.ok(!c.calls.some((x) => /INSERT INTO supplier_change_hold/i.test(x.text)), 'the machine never supersedes a hold it cannot verify');
+  assert.strictEqual(r.holds.staged, 0);
+  assert.strictEqual(r.holds.diverged, 1);
+  assert.strictEqual(r.holds.tasks.length, 1);
+  const t = r.holds.tasks[0];
+  assert.strictEqual(t.type, 'DATA_HEALTH');
+  assert.strictEqual(t.severity, 'WARN');
+  assert.ok(t.detail.includes(JSON.stringify(divergent)), 'the open hold\'s delta named');
+  assert.ok(t.detail.includes(JSON.stringify(DELTA)), 'the incoming delta named');
+});
+test('§14.27: two different-keyed rows resolving ONE stored supplier stage ONE hold — the second delta diverges against the first\'s queued candidate', async () => {
+  /* The planner collapses byte-identical keys, so the real within-file edge
+   * is the two-branch identity converging on one supplier row: the ext-branch
+   * rename and the name-branch days change are different keys, ONE supplier. */
+  const c = stubClient({ storedSuppliers: [STORED_SUP] });
+  const r = await makeIngestAdapter(c, T).apply(holdPlan({
+    rows: [
+      { supplierExternalId: 'SUP-9', supplierName: 'Gulf Foods L.L.C. (spelled differently)' },
+      { supplierName: 'Gulf Foods LLC', paymentTermDays: 45 },
+    ],
+  }));
+  const holdInserts = c.calls.filter((x) => /INSERT INTO supplier_change_hold/i.test(x.text));
+  assert.strictEqual(holdInserts.length, 1, 'one open hold per supplier, whatever the branch that reached it first');
+  assert.strictEqual(r.holds.staged, 1);
+  assert.strictEqual(r.holds.diverged, 1, 'the second delta stages nothing — a human reconciles');
+  assert.strictEqual(r.holds.tasks.length, 1);
+});
+test('§14.27: the name branch stages too — a stated different payment_term_days through (tenant, name) freezes, the reduced SET keeps the stored identity', async () => {
+  const stored = { ...STORED_SUP, id: '1a1a1a1a-1a1a-4a1a-8a1a-1a1a1a1a1a1a', external_id: null, name: 'Beta LLC' };
+  const c = stubClient({ storedSuppliers: [stored] });
+  const r = await makeIngestAdapter(c, T).apply(holdPlan({ rows: [{ supplierName: 'Beta LLC', paymentTermDays: 45 }] }));
+  assert.ok(c.calls[0].text.includes('name = ANY($2::text[])'));
+  const up = c.calls[3].text;
+  assert.ok(up.includes('ON CONFLICT (tenant_id, name) DO UPDATE SET is_active='), up);
+  assert.ok(!up.includes('payment_term_days=EXCLUDED'), 'the stated delta never rides the write');
+  assert.strictEqual(c.calls[4].values[1], stored.id, 'the hold names the supplier the name branch resolved');
+  assert.strictEqual(JSON.parse(c.calls[4].values[2]).payment_term_days.to, '45');
+  assert.deepStrictEqual(r.holds, { staged: 1, deduped: 0, diverged: 0, tasks: [] });
+});
+test('§14.27: the holds receipt is the suppliers seam\'s — an items apply returns none', async () => {
+  const c = stubClient();
+  const r = await makeIngestAdapter(c, T).apply(plan());
+  assert.strictEqual(r.holds, undefined);
+  assert.ok(r.cf, 'the items seam\'s own summary is unchanged');
 });
 
 (async () => {

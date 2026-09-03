@@ -45,6 +45,8 @@
  * ==========================================================================*/
 
 const CF = require('../core/modules/approval/src/cf.js');
+const FREEZE = require('../core/modules/approval/src/freeze.js');
+const { makeProcureAdapter } = require('./procure-adapter.js');
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -201,6 +203,38 @@ function upsertSupplier(t, row, where) {
     values: [t, null, name, common.isActive, common.lead, common.moq, common.terms, common.termDays, common.currency, common.country, common.banned] };
 }
 
+/* §14.27: the REDUCED supplier upsert — a frozen row's non-frozen surface
+ * still rides while the stored identity keeps serving: the five frozen
+ * columns (external_id, name, payment_term_days, payment_terms_text,
+ * currency_code) are ABSENT from the SET, so the supplier_identity_freeze
+ * trigger sees no identity movement and passes the statement without the
+ * hold door. The VALUES stay whole — the INSERT branch only executes on
+ * creation (no stored row), and creation is not frozen (bootstrap applies
+ * freely); a frozen row always has a stored row, so the INSERT branch is
+ * dead on this path. */
+function upsertSupplierKeepIdentity(t, row, where) {
+  const name = reqStr(row, 'supplierName', where);
+  const common = {
+    isActive: optBool(row, 'supplierActive', where), lead: optNum(row, 'leadTimeDays', where),
+    moq: optNum(row, 'moqValue', where), country: optStr(row, 'country', where),
+    banned: optBool(row, 'banned', where),
+  };
+  const cols = `tenant_id, external_id, name, is_active, delivery_period_days, moq_value,
+                payment_terms_text, payment_term_days, currency_code, country, is_banned`;
+  const vals = `VALUES ($1,$2,$3,COALESCE($4,true),$5,$6,$7,$8,$9,$10,COALESCE($11,false))`;
+  const keepSets = `is_active=EXCLUDED.is_active, delivery_period_days=EXCLUDED.delivery_period_days,
+                moq_value=EXCLUDED.moq_value, country=EXCLUDED.country, is_banned=EXCLUDED.is_banned`;
+  if (row.supplierExternalId !== undefined && row.supplierExternalId !== null) {
+    const ext = reqStr(row, 'supplierExternalId', where);
+    return { text: `INSERT INTO supplier (${cols}) ${vals}
+      ON CONFLICT (tenant_id, external_id) WHERE external_id IS NOT NULL DO UPDATE SET ${keepSets}`,
+      values: [t, ext, name, common.isActive, common.lead, common.moq, optStr(row, 'paymentTerms', where), optNum(row, 'paymentTermDays', where), optStr(row, 'currency', where), common.country, common.banned] };
+  }
+  return { text: `INSERT INTO supplier (${cols}) ${vals}
+    ON CONFLICT (tenant_id, name) DO UPDATE SET ${keepSets}`,
+    values: [t, null, name, common.isActive, common.lead, common.moq, optStr(row, 'paymentTerms', where), optNum(row, 'paymentTermDays', where), optStr(row, 'currency', where), common.country, common.banned] };
+}
+
 function upsertOpenPoLine(t, row, where) {
   return {
     text: `
@@ -316,6 +350,17 @@ function upsertCategoryOwner(t, row, where) {
   };
 }
 
+/* §14.27: the ONE-open-hold-per-supplier comparison — a staged hold and an
+ * incoming delta are the SAME delta when every frozen field's from/to pair
+ * matches exactly (both shapes come from classifySupplierChange: strings or
+ * null, all five fields, null-preserving; jsonb round-trips cannot reorder
+ * the field-by-field comparison away). */
+function sameSupplierDelta(a, b) {
+  if (!a || !b) return false;
+  return FREEZE.FROZEN_SUPPLIER_FIELDS.every((f) =>
+    a[f] && b[f] && a[f].from === b[f].from && a[f].to === b[f].to);
+}
+
 const UPSERTS = {
   items: upsertItem,
   suppliers: upsertSupplier,
@@ -417,34 +462,136 @@ function makeIngestAdapter(client, tenantId) {
       }
       const cfVersions = [];
       const cfSummary = { staged: 0, stagedExisting: 0, blanksKept: 0, invalidKept: 0, tasks: [] };
+      /* §14.27 (D-029's named follow-on): the suppliers seam — classify each
+       * row's identity surface against the stored row BEFORE anything writes,
+       * the M7 seam mirrored with the H7 two-branch identity: the batched
+       * stored-row read goes by the SAME conflict target each row would ride
+       * (external_id when the row states it, else name). Creation is not
+       * frozen (no stored row → the upsert verbatim — bootstrap applies
+       * freely); the unstated is not a proposal (an omitted frozen field
+       * coalesces to the stored value before classification — a feed that
+       * omits a column proposes no erasure, and the no-delta write carries
+       * the coalesced values so it never proposes one either); a frozen delta
+       * takes the REDUCED upsert (the stored identity keeps serving) while
+       * the delta stages a COOLING_OFF hold through the procure door with
+       * requestedBy NULL (pipeline-originated). One OPEN hold per supplier:
+       * an identical re-statement dedupes, a divergent one stages NOTHING and
+       * names itself (a human reconciles — the machine never supersedes a
+       * hold it cannot verify). */
+      const storedByExt = {};
+      const storedByName = {};
+      const procure = plan.kind === 'suppliers' ? makeProcureAdapter(client, t) : null;
+      if (plan.kind === 'suppliers') {
+        const exts = new Set(); const names = new Set();
+        for (let i = 0; i < plan.rows.length; i++) {
+          const where = `plan.rows[${i}] (suppliers)`;
+          if (plan.rows[i].row.supplierExternalId !== undefined && plan.rows[i].row.supplierExternalId !== null) {
+            exts.add(reqStr(plan.rows[i].row, 'supplierExternalId', where));
+          } else {
+            names.add(reqStr(plan.rows[i].row, 'supplierName', where));
+          }
+        }
+        const SUP_COLS = 'id, external_id, name, payment_term_days, payment_terms_text, currency_code';
+        if (exts.size > 0) {
+          const prior = await client.query(
+            `SELECT ${SUP_COLS} FROM supplier WHERE tenant_id = $1 AND external_id = ANY($2::text[])`,
+            [t, [...exts]]);
+          for (const r of prior.rows) storedByExt[r.external_id] = r;
+        }
+        if (names.size > 0) {
+          const prior = await client.query(
+            `SELECT ${SUP_COLS} FROM supplier WHERE tenant_id = $1 AND name = ANY($2::text[])`,
+            [t, [...names]]);
+          for (const r of prior.rows) storedByName[r.name] = r;
+        }
+      }
+      const holdCandidates = [];
+      const holdCandidateDelta = new Map(); // supplier uuid → the delta queued for it this file
+      const holdSummary = { staged: 0, deduped: 0, diverged: 0, tasks: [] };
       const stmts = [];
       for (let i = 0; i < plan.rows.length; i++) {
         const entry = plan.rows[i];
         const where = `plan.rows[${i}] (${plan.kind})`;
-        if (plan.kind !== 'items') { stmts.push(upsert(t, entry.row, where)); continue; }
-        const oldRow = Object.prototype.hasOwnProperty.call(priorCfBySku, entry.row.sku)
-          ? { sku: entry.row.sku, conversionFactor: priorCfBySku[entry.row.sku] } : null;
-        const cls = CF.classifyCfChange(oldRow, entry.row);
-        if (cls.disclosure === 'CF_BLANK_KEEPS_SERVING') cfSummary.blanksKept += 1;
-        if (cls.disclosure === 'CF_INVALID_KEPT') {
-          cfSummary.invalidKept += 1;
-          cfSummary.tasks.push({ type: 'DATA_HEALTH', field: 'conversion_factor', severity: 'WARN',
-            detail: `sku ${cls.sku}: incoming conversion factor unusable (${cls.detail}) — CF_INVALID_KEPT, the stored factor keeps serving (§14.13b)` });
-        }
-        if (cls.staged) {
-          const existingPending = await client.query(
-            `SELECT id FROM item_cf_version WHERE tenant_id = $1 AND sku = $2 AND state = 'PENDING' AND to_value = $3 LIMIT 1`,
-            [t, cls.sku, cls.toValue]);
-          if (existingPending.rows.length > 0) { cfSummary.stagedExisting += 1; }
-          else {
-            cfSummary.staged += 1;
-            cfVersions.push({ sku: cls.sku, fromValue: cls.fromValue, toValue: cls.toValue });
+        if (plan.kind === 'items') {
+          const oldRow = Object.prototype.hasOwnProperty.call(priorCfBySku, entry.row.sku)
+            ? { sku: entry.row.sku, conversionFactor: priorCfBySku[entry.row.sku] } : null;
+          const cls = CF.classifyCfChange(oldRow, entry.row);
+          if (cls.disclosure === 'CF_BLANK_KEEPS_SERVING') cfSummary.blanksKept += 1;
+          if (cls.disclosure === 'CF_INVALID_KEPT') {
+            cfSummary.invalidKept += 1;
+            cfSummary.tasks.push({ type: 'DATA_HEALTH', field: 'conversion_factor', severity: 'WARN',
+              detail: `sku ${cls.sku}: incoming conversion factor unusable (${cls.detail}) — CF_INVALID_KEPT, the stored factor keeps serving (§14.13b)` });
           }
-          stmts.push(upsertItemKeepCf(t, entry.row, where));
+          if (cls.staged) {
+            const existingPending = await client.query(
+              `SELECT id FROM item_cf_version WHERE tenant_id = $1 AND sku = $2 AND state = 'PENDING' AND to_value = $3 LIMIT 1`,
+              [t, cls.sku, cls.toValue]);
+            if (existingPending.rows.length > 0) { cfSummary.stagedExisting += 1; }
+            else {
+              cfSummary.staged += 1;
+              cfVersions.push({ sku: cls.sku, fromValue: cls.fromValue, toValue: cls.toValue });
+            }
+            stmts.push(upsertItemKeepCf(t, entry.row, where));
+            continue;
+          }
+          if (cls.apply === false) { stmts.push(upsertItemKeepCf(t, entry.row, where)); continue; } // blank/invalid keep
+          stmts.push(upsert(t, entry.row, where));
           continue;
         }
-        if (cls.apply === false) { stmts.push(upsertItemKeepCf(t, entry.row, where)); continue; } // blank/invalid keep
-        stmts.push(upsert(t, entry.row, where));
+        if (plan.kind !== 'suppliers') { stmts.push(upsert(t, entry.row, where)); continue; }
+        /* ---- the §14.27 suppliers seam ------------------------------------ */
+        const statedExt = entry.row.supplierExternalId !== undefined && entry.row.supplierExternalId !== null;
+        const stored = statedExt
+          ? storedByExt[reqStr(entry.row, 'supplierExternalId', where)]
+          : storedByName[reqStr(entry.row, 'supplierName', where)];
+        if (!stored) { stmts.push(upsert(t, entry.row, where)); continue; } // creation is not frozen
+
+        /* The effective proposal: a STATED frozen field keeps its stated value,
+         * an UNSTATED one coalesces to the stored value (§14.27 rule 2 — the
+         * classifier never sees an omission as an erasure). */
+        const eff = {
+          external_id: statedExt ? String(reqStr(entry.row, 'supplierExternalId', where)) : stored.external_id,
+          name: reqStr(entry.row, 'supplierName', where),
+          payment_term_days: entry.row.paymentTermDays !== undefined ? optNum(entry.row, 'paymentTermDays', where) : stored.payment_term_days,
+          payment_terms_text: entry.row.paymentTerms !== undefined ? optStr(entry.row, 'paymentTerms', where) : stored.payment_terms_text,
+          currency_code: entry.row.currency !== undefined ? optStr(entry.row, 'currency', where) : stored.currency_code,
+        };
+        const cls = FREEZE.classifySupplierChange(stored, eff);
+        if (!cls.frozen) {
+          /* Ride the full upsert — with the COALESCED frozen fields, so the
+           * write proposes exactly what was classified: an omitted column is
+           * written back as the stored value it coalesced to, never as the
+           * NULL the raw row would have proposed (and the freeze trigger would
+           * have refused — fail-closed, but a daily partial feed must not be a
+           * refusal factory). */
+          const coalesced = { ...entry.row };
+          if (entry.row.paymentTermDays === undefined) coalesced.paymentTermDays = stored.payment_term_days;
+          if (entry.row.paymentTerms === undefined) coalesced.paymentTerms = stored.payment_terms_text;
+          if (entry.row.currency === undefined) coalesced.currency = stored.currency_code;
+          stmts.push(upsert(t, coalesced, where));
+          continue;
+        }
+
+        /* Frozen delta: the REDUCED upsert (the non-frozen surface rides, the
+         * stored identity keeps serving) + the hold decision. The dedupe probe
+         * is a READ (the M7 pending-probe's mirror); the hold INSERT lands
+         * after the loop, in the caller's ONE transaction. */
+        stmts.push(upsertSupplierKeepIdentity(t, entry.row, where));
+        const active = await procure.loadActiveHold(stored.id);
+        const priorDelta = active ? active.changedFields : holdCandidateDelta.get(stored.id) || null;
+        if (priorDelta) {
+          if (sameSupplierDelta(priorDelta, cls.delta)) {
+            holdSummary.deduped += 1; // a daily feed re-stating its delta must not flood the cooling-off queue
+          } else {
+            holdSummary.diverged += 1; // NOTHING staged — a human reconciles
+            holdSummary.tasks.push({ type: 'DATA_HEALTH', field: 'supplier_identity', severity: 'WARN',
+              detail: `supplier ${stored.external_id || stored.name}: an OPEN COOLING_OFF hold carries a DIFFERENT identity delta — nothing staged, the machine never supersedes a hold it cannot verify (§14.27); open hold: ${JSON.stringify(priorDelta)}; incoming: ${JSON.stringify(cls.delta)}` });
+          }
+          continue;
+        }
+        holdCandidateDelta.set(stored.id, cls.delta);
+        holdSummary.staged += 1;
+        holdCandidates.push({ supplierId: stored.id, delta: cls.delta });
       }
 
       /* 1. the file register row — INSERT or UPDATE IN PLACE on the H6 unique
@@ -479,6 +626,15 @@ function makeIngestAdapter(client, tenantId) {
           [t, v.sku, v.fromValue, v.toValue]);
       }
 
+      /* 2c. the §14.27 hold staging — through the procure door, requestedBy
+       *     NULL (pipeline-originated, any eligible verifier may verify).
+       *     One candidate per supplier at most (the map deduped/diverged the
+       *     rest), every INSERT inside the caller's transaction: the file's
+       *     commit carries the holds, a rollback leaves none. */
+      for (const c of holdCandidates) {
+        await procure.stageSupplierHold({ supplierId: c.supplierId, changedFields: c.delta, requestedBy: null });
+      }
+
       /* 3. the register — the DAT-04 ledger. DO NOTHING: a reprocessed file
        *    re-registers nothing and never inflates the seen-before count. */
       const keys = await client.query(
@@ -493,6 +649,7 @@ function makeIngestAdapter(client, tenantId) {
         rowsApplied: plan.rows.length,
         keysRegistered: keys.rowCount,
         ...(plan.kind === 'items' ? { cf: cfSummary } : {}),
+        ...(plan.kind === 'suppliers' ? { holds: holdSummary } : {}),
       };
     },
 
