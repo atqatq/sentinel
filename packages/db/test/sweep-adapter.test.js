@@ -48,7 +48,14 @@ function stubClient({ rows = [] } = {}) {
         return { rowCount: n };
       }
       if (/^INSERT INTO data_health_task/.test(norm)) {
-        const payloads = JSON.parse(values[1]);
+        /* the node-pg array contract, pinned here the way real pg consumes
+         * it: the jsonb[] parameter is a JS array of JSON STRINGS (node-pg
+         * serializes it into the Postgres array literal) — a pre-stringified
+         * JSON document is the malformed-array-literal defect the live tier
+         * caught on the sweep's first CI run */
+        if (!Array.isArray(values[1])) throw new Error('SWEEP_PG_ARRAY_CONTRACT: the jsonb[] parameter must be a JS array, got a string');
+        for (const p of values[1]) JSON.parse(p);
+        const payloads = values[1].map((p) => JSON.parse(p));
         let n = 0;
         for (const p of payloads) {
           const exists = state.some((r) => r.status === 'OPEN' && r.payload.field === p.field);

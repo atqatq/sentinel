@@ -345,7 +345,12 @@ function makePlanAdapter(client, tenantId, opts) {
                    WHERE d.tenant_id = $1 AND d.status = 'OPEN'
                      AND d.task_type = 'DATA_HEALTH'
                      AND d.payload->>'field' = f.payload->>'field')`,
-              [tenantId, JSON.stringify(payloads)])
+              /* the node-pg array contract (the live tier's lesson, the
+               * ingest-worker's pattern): a JS array of JSON STRINGS —
+               * node-pg serializes the array into the Postgres array
+               * literal; a pre-stringified JSON document would be parsed
+               * AS an array literal and refuse (malformed array literal) */
+              [tenantId, payloads.map((p) => JSON.stringify(p))])
           : { rowCount: 0 };
         /* The register's open count — the receipt's number is the
          * register's, never recomputed by the reader. */
