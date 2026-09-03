@@ -19,12 +19,14 @@
  * SMOKE_BASE_URL (default the compose web service on the runner's loopback).
  * ==========================================================================*/
 import { readFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { createRequire } from 'node:module';
 
-/* scripts/e2e/smoke.mjs → two dirnames up = the repo root. */
-const REPO_ROOT = join(dirname(dirname(fileURLToPath(import.meta.url))));
+import { REPO_ROOT } from './repo-root.mjs';
+
+/* The repo root is the ONE shared definition (scripts/e2e/repo-root.mjs) —
+ * executed and tree-verified by the named proof, never a per-script
+ * dirname() ladder that can be one short. */
 /* The stamps are resolved through apps/web's dependency root — the same
  * public surfaces (ADR-0001) the running server imported. */
 const require_ = createRequire(join(REPO_ROOT, 'apps', 'web', 'package.json'));

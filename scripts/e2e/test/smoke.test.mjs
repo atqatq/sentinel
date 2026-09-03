@@ -26,13 +26,11 @@
 // up/prepare/up sequence, the teardown under if: always(), and the eight
 // prior jobs still standing (the ninth joined, none left).
 // ==========================================================================*/
-import { readFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { readFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
 import assert from 'node:assert';
 
-/* scripts/e2e/test/smoke.test.mjs → four dirnames up = the repo root. */
-const REPO_ROOT = join(dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url))))));
+import { REPO_ROOT } from '../repo-root.mjs';
 
 let passed = 0, failed = 0;
 function test(name, fn) {
@@ -104,6 +102,24 @@ test('DATABASE_URL connects as sentinel_web — the deployment shape, never the 
 });
 
 /* ------------------------------------------------------------ prepare-db -- */
+
+test('REPO_ROOT is proven by EXECUTION — the shared module resolves the real tree, not a phantom', () => {
+  /* The depth bug class, retired: a per-script dirname() ladder that is one
+   * short resolves 'scripts/packages/db/package.json' and only detonates in
+   * CI. This assertion RUNS the one shared ladder (scripts/e2e/repo-root.mjs,
+   * imported above) and checks it against the real tree. */
+  assert.ok(existsSync(join(REPO_ROOT, 'compose.yaml')), 'compose.yaml must exist at the resolved root');
+  assert.ok(existsSync(join(REPO_ROOT, '.github', 'workflows', 'ci.yml')), 'ci.yml must exist at the resolved root');
+  assert.ok(existsSync(join(REPO_ROOT, 'apps', 'web', 'package.json')), 'apps/web must exist at the resolved root');
+  assert.ok(existsSync(join(REPO_ROOT, 'packages', 'db', 'migrations')), 'packages/db/migrations must exist at the resolved root');
+});
+
+test('prepare and smoke resolve the root through the ONE shared module — no per-script dirname ladder may return', () => {
+  for (const [name, src] of [['prepare-db.mjs', PREPARE], ['smoke.mjs', SMOKE]]) {
+    assert.match(src, /import \{ REPO_ROOT \} from '\.\/repo-root\.mjs';/, `${name} must import the shared root`);
+    assert.ok(!/const REPO_ROOT = join\(dirname/.test(src), `${name} must not carry its own dirname ladder`);
+  }
+});
 
 test('prepare applies the REAL migrations — packages/db/migrations, sorted, the live proofs’ set', () => {
   assert.match(PREPARE, /readdirSync\(MIGRATIONS_DIR\)/);

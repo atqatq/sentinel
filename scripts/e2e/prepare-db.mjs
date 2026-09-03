@@ -23,12 +23,14 @@
  * packages/db (CI installs pg@8 --no-save there, the db-rls job's pattern).
  * ==========================================================================*/
 import { readFileSync, readdirSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { createRequire } from 'node:module';
 
-/* scripts/e2e/prepare-db.mjs → two dirnames up = the repo root. */
-const REPO_ROOT = join(dirname(dirname(fileURLToPath(import.meta.url))));
+import { REPO_ROOT } from './repo-root.mjs';
+
+/* The repo root is the ONE shared definition (scripts/e2e/repo-root.mjs) —
+ * executed and tree-verified by the named proof, never a per-script
+ * dirname() ladder that can be one short. */
 const require_ = createRequire(join(REPO_ROOT, 'packages', 'db', 'package.json'));
 const { Client } = require_('pg');
 
