@@ -51,7 +51,8 @@ RUN pnpm --filter @sentinel/worker deploy --prod --config.node-linker=hoisted /o
  && cp -r packages/core/modules/planning-engine /out/node_modules/@sentinel/core/modules/ \
  && cp -r packages/core/modules/approval /out/node_modules/@sentinel/core/modules/ \
  && cp -r packages/core/modules/ledger /out/node_modules/@sentinel/core/modules/ \
- && cp -r packages/core/modules/auth /out/node_modules/@sentinel/core/modules/
+ && cp -r packages/core/modules/auth /out/node_modules/@sentinel/core/modules/ \
+ && cp -r packages/core/modules/setup /out/node_modules/@sentinel/core/modules/
 
 # ---- runtime: distroless nonroot, the pruned tree only ----------------------
 FROM gcr.io/distroless/nodejs22-debian12:nonroot@sha256:13593b7570658e8477de39e2f4a1dd25db2f836d68a0ba771251572d23bb4f8e AS runtime
