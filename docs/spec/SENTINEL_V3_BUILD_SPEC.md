@@ -2180,6 +2180,117 @@ sign-in machine's assertion seam is shaped for it, the IdP itself is deployment 
 
 ---
 
+## 14.28 The setup doors — §14.10's Origin bootstrap, implemented
+
+*(§14.10 wrote the flow — no seed script, a guided Origin bootstrap, tenants → roles → users →
+first ingestion → first run — and the auth layer named its own gap twice: `AUTH_NO_TENANT`
+refuses an Origin without a role "by construction, the §14.10 bootstrap is its own named work"
+(D-031), and `controls_origin_only` seeds the first O per tenant "by the migrator path,
+disclosed in D-029". This section is that named work: the flow becomes commands, doors and
+screens. The owner's framing is the acceptance test: **initial setup is a breeze** — Origin is
+the setup account with a user/pass; Origin creates every other account, tenant, role and
+permission, and the first ingestion is done from Origin.)*
+
+**1. The bootstrap — the first Origin and the first tenant (`setup/origin-bootstrap`).**
+`scripts/setup/bootstrap-origin.mjs` rides the migrator path — `DATABASE_URL_ADMIN`, the same
+trust `prepare-db.mjs` carries, because D-029's disclosed pattern (the first O per tenant is
+seeded by the migrator path) IS this step, now scripted instead of hand-run SQL. ONE transaction:
+`app_user (is_origin = true)` → credential via the auth adapter's `registerCredential` (the pure
+policy floor runs; the generated password prints ONCE and is never stored in plaintext) with
+`must_change = true` → `tenant` → the founder `tenant_role ('O', granted_by = the origin)`.
+`--password` is accepted for scripted environments; absence generates and prints. Refusals are
+named and total: `SETUP_ORIGIN_EXISTS` (the email already exists — a bootstrap never rotates an
+existing account), `SETUP_TENANT_CODE_TAKEN`, `SETUP_SHAPE_INVALID` (every field validated before
+any statement). A failed run leaves NOTHING (one transaction), and a completed run re-refuses —
+the bootstrap is not idempotent BY DESIGN, because a second run that "succeeds" would be a
+silent no-op hiding a forgotten credential.
+
+**2. The forced change (`must_change`).** Migration `0010_setup` adds
+`user_credential.must_change BOOLEAN NOT NULL DEFAULT false` (SCHEMA_VERSION 0010, additive).
+`resolveSession` exposes it (a LEFT JOIN, one additive column); the login `ISSUE` carries it;
+a must-change session renders the change interstitial before any screen, and every `/api/setup/*`
+route refuses it with `SESSION_MUST_CHANGE` — a password the Origin has never chosen must not
+govern a setup. `POST /api/auth/password {currentPassword, newPassword}` re-verifies the current
+credential (`AUTH_PASSWORD_CURRENT_INVALID` — a rotation is a re-authentication, never a bearer
+act), runs the pure policy floor, rotates through `registerCredential`, clears the flag, and
+terminates every OTHER live session of the user (the tombstone pattern — a rotation is a
+security event, not a preference).
+
+**3. The founder door — in-app tenant creation.** The chicken-and-egg is structural:
+`controls_origin_only` requires the grantor to ALREADY hold an active O in the target tenant —
+a tenant being created has no O, so the founder grant cannot ride the app role's ordinary
+authority. The door is a SECURITY DEFINER function, `setup_create_tenant_with_founder(code,
+name, currency_code, timezone, actor_id)`, created by `0010_setup`, owned by the migrator,
+`GRANT EXECUTE` to `sentinel_app` ONLY. Inside, fail-closed: the actor must resolve to an
+`app_user` with `is_origin = true` (an unset GUC reads NULL → no row → refused; an empty one
+errors the ::uuid cast → loud deny — the mfa_gate posture verbatim), the shapes are checked
+(`SETUP_SHAPE_INVALID`), the tenant code's unique index surfaces named
+(`SETUP_TENANT_CODE_TAKEN`), and the function creates the tenant AND the founder O grant
+(`granted_by` = the actor) in ONE atomic statement. This is the repository's first SECURITY
+DEFINER, and the reason is the repo's own rule: *there is no bypass, only the door.* The
+alternatives were a CLI per tenant (setup is not a breeze) or loosening `controls_origin_only`
+(a security regression) — both rejected. The door is the migrator's authority, scoped to one
+purpose, verified at the row level, and auditable through the Class-N emission the adapter
+appends around it.
+
+**4. Accounts, roles, permissions — Origin's wizard commands.**
+- `POST /api/setup/users {email, displayName, password, role, tenantCode?}`: `app_user` INSERT
+  (the global registry — no RLS, a direct adapter statement), credential via
+  `registerCredential` with `must_change = true` (EVERY setup-created account changes its own
+  password at first sign-in — §14.10 step 1 generalized), and the `tenant_role` grant riding
+  the EXISTING RLS with zero new SQL authority: the grant's transaction sets
+  `app.tenant_id` to the TARGET tenant and `app.actor_id` to the Origin, and
+  `controls_origin_only` re-proves the O it always required (`42501` surfaces named as
+  `SETUP_TARGET_NOT_OWNED`). The role rides the `user_role` enum ladder
+  (`O | SCM | SBR | BYR | DTA | VWR` — `SETUP_ROLE_INVALID` otherwise; granting O is lawful
+  and the DB's own policy governs it, the machine adds no second opinion).
+- `GET /api/setup/overview`: tenants (code, name, the caller's role in each), the users per
+  tenant through `tenant_role`, the approval config and limits, and the per-tenant ingest
+  register summary — the wizard's state machine input, honest empties first (§14.10's
+  first-run states are DATA, not decoration).
+- `POST /api/setup/limits`: `approval_config` (the dual threshold) and `approval_limit`
+  upserts — the §16 amendment commands ride the EXISTING `controls_origin_only` policies
+  through one adapter seam (the statements live in the db package, ADR-0001), never new
+  privileges.
+- Every `/api/setup/*` route is Origin-gated at the boundary (`SETUP_NOT_ORIGIN`, 403) AND
+  re-proved by the database's own policies (the API+DB pair everywhere else in this repo;
+  the founder door is the one place the DB proves origin-ness ITSELF).
+
+**5. First ingestion from Origin.** `POST /api/setup/ingest` (multipart: the file, `mode`
+defaulting A): Origin-only, and it runs the SAME pipeline the worker runs —
+`packages/ingest-service`'s `runFileToRows` over the `makeIngestAdapter` H6 surface
+(`findFile / loadSeenKeys / apply`), in-process, under the web role's ADR-0002 fence with the
+transaction-local GUC trio. No second, softer path exists: the H6 identity, the register, the
+fence, the §14.26 fan-out, the §14.27 holds staging are the worker's own objects, because the
+endpoint IS the worker's pipeline at setup time. The AV posture is DECLARED, never silent
+(the §14.25 clause-4 posture verbatim): `SENTINEL_UPLOAD_AV_REQUIRED`, fail-closed default
+true, a deployment without a scanner says so explicitly. The receipt is the worker's own —
+verdict, counters, disclosures, holds — rendered verbatim by the wizard's ingestion step and
+linked to the register. The worker remains the day-to-day transport; this endpoint is the
+setup-time door, and the two cannot drift because they share the pipeline.
+
+**6. The screens.** `/setup` (Origin-only; the shell shows the link for `isOrigin` sessions):
+Overview (what exists / what's missing), Tenants, Users & roles, Approval limits, First
+ingestion. The forced-change interstitial gates every screen until cleared. Design-system
+tokens only (the SDS parity guard), status vocabulary bound, honest empty states per §14.10.
+
+**7. Refusals (the named family).** `SETUP_SHAPE_INVALID`, `SETUP_ORIGIN_EXISTS`,
+`SETUP_TENANT_CODE_TAKEN`, `SETUP_TENANT_UNKNOWN`, `SETUP_EMAIL_TAKEN`, `SETUP_ROLE_INVALID`,
+`SETUP_NOT_ORIGIN`, `SETUP_TARGET_NOT_OWNED`, `SETUP_UPLOAD_FILE_REQUIRED`,
+`SETUP_UPLOAD_AV_REQUIRED`, `SESSION_MUST_CHANGE`, `AUTH_PASSWORD_CURRENT_INVALID`.
+
+**8. Scope honesty.** This unit does NOT claim: the OIDC IdP wiring (D-031's deployment
+concern — the local credential remains the lab/bootstrap path); the MFA enrolment UI (the
+adapter's `enrolMfa`/`verifyTotp` exist; a screen rides them later); the IP allowlist
+confirmation (§14.10 step 1's fourth clause — deployment infrastructure); the server-side
+`SESSION_MUST_CHANGE` retrofit across the EXISTING business routes (the new setup routes
+enforce it; the interstitial gates the UI this unit; the retrofit is a named follow-on);
+§16 parameter surfaces beyond approval config/limits (the unit catalog, FX pins and fiscal
+calendar editors are DTA's data flows, not setup); the deliveries-dataset UX (the template's
+tab 6 rides Mode B as built). Named proof: `setup/origin-bootstrap`.
+
+---
+
 # 15. Audit remediation — SENT-AUDIT-002 (deep technical audit, $50M bar)
 
 An independent deep technical audit re-verified this package and raised 40 findings. **Every empirical
