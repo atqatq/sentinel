@@ -3,5 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "description": "File-to-rows worker: the production ingestion caller. Drives file bytes through the H10 gate, the text-to-grid boundary, the strict parse/normalize stages and the H6 idempotent executor, and persists what the pure layers could only return — the file register lifecycle, the quarantine ledger and the data_health_task register (D-028).",
-  "main": "index.js"
+  "main": "index.js",
+  "dependencies": {
+    "exceljs": "4.4.0"
+  }
 }

@@ -49,6 +49,7 @@ const crypto = require('crypto');
 const INGESTION = require('../../core/modules/ingestion/index.js');
 const DATES = require('../../core/modules/calendar/src/dates.js');
 const csv = require('./csv.js');
+const xlsx = require('./xlsx.js');
 const expansion = require('./expansion.js');
 const rowsLayer = require('./rows.js');
 
@@ -169,34 +170,93 @@ async function runFileToRows(deps, input) {
     };
   }
 
-  /* ---- 2. decode + grid (text payloads; workbook extraction is a named follow-on) --- */
+  /* ---- 2. decode + grid (text decode; §4.1 workbook extraction) --------------- */
+  /* The text path and the workbook path converge on ONE grid variable — from
+   * here down the pipeline is deliberately IDENTICAL for both (the workbook
+   * never gets a second, softer parser). */
   const sniff = stage.hardening.sniffBytes(bytes);
-  if (sniff.kind !== 'text') {
-    const detail = 'the workbook passed the H10 gate structurally, but XLSX byte extraction is a named follow-on unit (XLSX_EXTRACTION_NOT_WIRED) — drop the CSV export or the template tab; no hand-rolled XML parser grows inside a pure module';
-    await ports.insertDataHealthTasks([{ type: 'DATA_HEALTH', field: 'ingest', severity: 'CRITICAL', detail: `File not applied (XLSX_EXTRACTION_NOT_WIRED). ${detail}` }], taskContext);
-    return {
-      verdict: 'QUARANTINED', stage: 'grid', reason: 'XLSX_EXTRACTION_NOT_WIRED', detail,
-      fileName, checksum, byteSize, mode, source,
-      counters, disclosures, banners, tasksRaised: 1,
-    };
-  }
-  const enc = sniff.encoding === 'UTF-16LE' ? 'utf-16le' : sniff.encoding === 'UTF-16BE' ? 'utf-16be' : 'utf-8';
-  let text = new TextDecoder(enc, { fatal: true }).decode(bytes);
-  text = text.replace(/^\uFEFF/, '');
+  let grid = null;
+  let workbookSheetName = null;
 
-  const gridRes = csv.parseGrid(text, { delimiter });
-  if (!gridRes.ok) {
-    await ports.insertDataHealthTasks([{ type: 'DATA_HEALTH', field: 'ingest', severity: 'CRITICAL', detail: `File not parsed (${gridRes.reason}): ${gridRes.detail || ''}. Nothing was applied.` }], taskContext);
-    return {
-      verdict: 'QUARANTINED', stage: 'grid', reason: gridRes.reason, detail: gridRes.detail,
-      fileName, checksum, byteSize, mode, source,
-      counters, disclosures, banners, tasksRaised: 1,
-    };
+  if (sniff.kind === 'zip') {
+    /* §4.1 — the workbook boundary: a real exact-pinned reader in the worker
+     * layer (never a hand-rolled XML parser, never a dependency of the pure
+     * module), caps bounding the inflated grid memory, then the sheets bound
+     * against the kind signatures like any text grid. */
+    const wb = await (deps.xlsx ? deps.xlsx.extractWorkbook(bytes, input.caps ? { ...input.caps } : {}) : xlsx.extractWorkbook(bytes));
+    if (!wb.ok) {
+      const detail = wb.reason === 'WORKBOOK_UNREADABLE'
+        ? `${wb.detail || 'the workbook could not be read'}`
+        : wb.detail || 'the workbook exceeds the extraction caps';
+      await ports.insertDataHealthTasks([{ type: 'DATA_HEALTH', field: 'ingest', severity: 'CRITICAL', detail: `File not parsed (${wb.reason}): ${detail}. Nothing was applied.` }], taskContext);
+      return {
+        verdict: 'QUARANTINED', stage: 'grid', reason: wb.reason, detail,
+        fileName, checksum, byteSize, mode, source,
+        counters, disclosures, banners, tasksRaised: 1,
+      };
+    }
+    /* bind each sheet against the kind signatures — the register's kind
+     * column never carries a guess, so a sheet that matches nothing binds
+     * nothing. Exactly ONE bound sheet processes today; several bound sheets
+     * refuse with the sheet names (the Mode-B per-kind fan-out is a named
+     * follow-on unit, not a silent guess). */
+    const boundSheets = [];
+    for (const sheet of wb.sheets) {
+      /* bindGrid's SUCCESS return carries kind+headerRowIndex and NO `bound`
+       * field — only failures set bound:false. Match the text path's check
+       * (!bound || bound.bound === false), never `bound === true`. */
+      const b = stage.binding.bindGrid(sheet.rows);
+      if (b && b.bound !== false && b.kind) boundSheets.push({ name: sheet.name, grid: sheet.rows, bound: b });
+    }
+    if (boundSheets.length === 0) {
+      const detail = wb.sheets.length === 0
+        ? 'the workbook carries no sheets — nothing to bind'
+        : `no sheet matched any kind signature (${wb.sheets.length} sheet(s) scanned) — closest diagnostics ride the bind stage`;
+      await ports.insertDataHealthTasks([{ type: 'DATA_HEALTH', field: 'ingest', severity: 'CRITICAL', detail: `File not bound (NO_HEADER_ROW_FOUND): ${detail} Nothing was applied — the file is quarantined whole.` }], taskContext);
+      return {
+        verdict: 'QUARANTINED', stage: 'bind', reason: 'NO_HEADER_ROW_FOUND', detail,
+        fileName, checksum, byteSize, mode, source,
+        counters, disclosures, banners, tasksRaised: 1,
+      };
+    }
+    if (boundSheets.length > 1) {
+      const names = boundSheets.map((s) => `'${s.name}' (${s.bound.kind})`).join(', ');
+      const detail = `the workbook carries ${boundSheets.length} kind-bound sheets — ${names}. The Mode-B per-kind fan-out (one H6 register row per kind under the file's checksum) is a named follow-on unit (MULTI_KIND_WORKBOOK_NOT_WIRED) — drop one tab per file today; nothing was applied.`;
+      await ports.insertDataHealthTasks([{ type: 'DATA_HEALTH', field: 'ingest', severity: 'CRITICAL', detail: `File not applied (MULTI_KIND_WORKBOOK_NOT_WIRED). ${detail}` }], taskContext);
+      return {
+        verdict: 'QUARANTINED', stage: 'bind', reason: 'MULTI_KIND_WORKBOOK_NOT_WIRED', detail,
+        fileName, checksum, byteSize, mode, source,
+        counters, disclosures, banners, tasksRaised: 1,
+      };
+    }
+    grid = boundSheets[0].grid;
+    workbookSheetName = boundSheets[0].name;
+    disclosures.push(`workbook sheet '${workbookSheetName}' bound as ${boundSheets[0].bound.kind} — the extraction is the §4.1 boundary (a real reader in the worker layer), the grid rides the IDENTICAL downstream pipeline as a text file`);
+  } else if (sniff.kind === 'text') {
+    const enc = sniff.encoding === 'UTF-16LE' ? 'utf-16le' : sniff.encoding === 'UTF-16BE' ? 'utf-16be' : 'utf-8';
+    let text = new TextDecoder(enc, { fatal: true }).decode(bytes);
+    text = text.replace(/^\uFEFF/, '');
+
+    const gridRes = csv.parseGrid(text, { delimiter });
+    if (!gridRes.ok) {
+      await ports.insertDataHealthTasks([{ type: 'DATA_HEALTH', field: 'ingest', severity: 'CRITICAL', detail: `File not parsed (${gridRes.reason}): ${gridRes.detail || ''}. Nothing was applied.` }], taskContext);
+      return {
+        verdict: 'QUARANTINED', stage: 'grid', reason: gridRes.reason, detail: gridRes.detail,
+        fileName, checksum, byteSize, mode, source,
+        counters, disclosures, banners, tasksRaised: 1,
+      };
+    }
+    grid = gridRes.rows;
+  } else {
+    /* The H10 gate refuses XML and unknown binaries BEFORE this stage —
+     * reaching here means the sniff and the gate disagree, a wiring fault,
+     * refused loudly. */
+    throw new TypeError(`runFileToRows: sniff kind '${sniff.kind}' reached the grid stage — the H10 gate should have refused it`);
   }
 
   // strip tips (formula injection) at the cell level BEFORE anything reads a cell
-  const stripped = stage.hardening.stripFormulas(gridRes.rows);
-  const grid = stripped.rows;
+  const stripped = stage.hardening.stripFormulas(grid);
+  grid = stripped.rows;
   if (stripped.count > 0) disclosures.push(`${stripped.count} formula-injection cell(s) neutralized with the OWASP apostrophe escape (H10) — any that claimed a numeric column now fail the strict parser`);
 
   /* ---- 3. bind the kind + drop instruction rows ------------------------------- */

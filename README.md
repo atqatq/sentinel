@@ -95,7 +95,7 @@ Services & infrastructure:
 |---|---|
 | `packages/plan-service` | the engine-live run boundary: seals, replay, restatement, the §14.6g sweep wiring |
 | `packages/procure-service` | the §14.13c CF decide/apply API (gate → Class-D record → freeze door) |
-| `packages/ingest-service` | the file-to-rows worker: H10 gate → parse → convert → idempotent apply |
+| `packages/ingest-service` | the file-to-rows worker: H10 gate → text decode or §4.1 workbook extraction → parse → convert → idempotent apply |
 | `packages/db` | migrations + RLS (0001–0009), the plan/procure/ledger/auth/fx/scorecard/data-health adapters |
 | `packages/ui` | the vendored shadcn primitives + the SDS token theme |
 | `apps/web` | Next.js 15 app router: auth, plan, data-health, the §14.13c approvals API route |
@@ -135,7 +135,7 @@ sentinel/
 # prerequisites: Node.js ≥ 22 (core modules are zero-dependency)
 git clone https://github.com/atqatq/sentinel && cd sentinel
 
-npm run test        # the structural battery (1,138) must pass — every suite green,
+npm run test        # the structural battery (1,154) must pass — every suite green,
                     # including the §14.22 scale gate (p95 < 500 ms at 4,200 refs)
 npm run guard       # forbidden terms, SDS parity, ui scope, status binding — must always be clean
 
@@ -168,7 +168,7 @@ npm run guard       # forbidden terms, SDS parity, ui scope, status binding — 
 | **M2** Planning online | `0.3.0` | ✅ shipped |
 | **M3** SOURCE & controls | `0.4.0` | ✅ shipped |
 | **M4** Closed loop | `0.5.0` | ✅ shipped (exit review: `docs/milestones/M4-EXIT-REVIEW.md`) |
-| **M5** Hardening & release | `0.6.0 → 1.0.0-rc.N` | 🚧 in progress — M12 security gates + SBOM ✅, M13 egress allow-list ✅, M14 ladder-edge warnings ✅, H11 DR machinery ✅, the H2 second arm ✅, the data-health sweep ✅, the CF decide/apply API ✅, the §14.22 perf/load gate ✅ (p95 4,596 → 243 ms at 4,200 refs after the O(refs×rows) fix); remaining: image-build + Trivy, pen-test fixes, the XLSX reader behind H10, the UI compositions (approvals tray, time machine, SRC-05) |
+| **M5** Hardening & release | `0.6.0 → 1.0.0-rc.N` | 🚧 in progress — M12 security gates + SBOM ✅, M13 egress allow-list ✅, M14 ladder-edge warnings ✅, H11 DR machinery ✅, the H2 second arm ✅, the data-health sweep ✅, the CF decide/apply API ✅, the §14.22 perf/load gate ✅ (p95 4,596 → 243 ms at 4,200 refs), the §4.1 XLSX reader behind H10 ✅ (real exact-pinned reader in the worker layer; the Mode-B per-kind fan-out is named follow-on); remaining: image-build + Trivy, pen-test fixes, the UI compositions (approvals tray, time machine, SRC-05) |
 | Parallel run | `1.0.0` | ⏳ external — cutover W1–W13 + the ≥ 4-week parallel run (gates 19–20) |
 
 ## Docs map

@@ -187,7 +187,7 @@ test('the XML family is refused outright (XXE stance) — same gate, same honest
   assert.strictEqual(r.reason, 'XML_REJECTED');
   assert.strictEqual(ports.calls.registerQuarantine.length, 0);
 });
-test('an XLSX workbook passes the H10 gate structurally, then refuses by NAME — extraction is a follow-on unit', async () => {
+test('a structurally-gated but UNREADABLE workbook refuses WORKBOOK_UNREADABLE at the grid stage — the second fence behind the H10 gate', async () => {
   const ports = stubPorts();
   const r = await runFileToRows(
     { ports, executor: stubExecutor() },
@@ -195,9 +195,77 @@ test('an XLSX workbook passes the H10 gate structurally, then refuses by NAME �
   );
   assert.strictEqual(r.verdict, 'QUARANTINED');
   assert.strictEqual(r.stage, 'grid');
-  assert.strictEqual(r.reason, 'XLSX_EXTRACTION_NOT_WIRED');
-  assert.ok(r.detail.includes('no hand-rolled XML parser'));
+  assert.strictEqual(r.reason, 'WORKBOOK_UNREADABLE');
   assert.strictEqual(ports.calls.tasks[0].tasks[0].severity, 'CRITICAL');
+  assert.strictEqual(ports.calls.registerQuarantine.length, 0);
+});
+test('§4.1: a REAL workbook with one kind-bound sheet applies EXACTLY like its CSV twin — same kind, same rows, the sheet named in the disclosure', async () => {
+  // a workbook is a GRID, not CSV text — build the cells directly:
+  const header = ['SKU *', 'Item Name *', 'Price *', 'Currency', 'Inactive * [1=Inactive 0=Active]', 'Unit', 'Item Type *', 'Recipe Ref Name (required if the Code field is empty)', 'Conversion Factor*', 'Converted Unit Name (required if the Code field is empty)'];
+  const data = [
+    ['TS-0001', 'Test Ingredient One', 12.5, 'SAR', 0, 'kg', 'Ingredient', 'Test Ref Alpha', 1, 'kg'],
+    ['TS-0002', 'Test Ingredient Two', 3.25, 'SAR', 0, 'case', 'Ingredient', 'Test Ref Alpha', 12, 'each'],
+  ];
+  const ExcelJS = require('exceljs');
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('1_ITEMS');
+  ws.addRow(header); ws.addRow(data[0]); ws.addRow(data[1]);
+  const bytes = new Uint8Array(await wb.xlsx.writeBuffer());
+
+  const ex = stubExecutor();
+  const r = await run({}, ex, { bytes, declaredName: 'items.xlsx' });
+  assert.strictEqual(r.verdict, 'APPLIED');
+  assert.strictEqual(r.kind, 'items');
+  assert.strictEqual(r.counters.rowsApplied, 2);
+  assert.ok(r.disclosures.some((d) => d.includes("sheet '1_ITEMS' bound as items")));
+  // the identity promise: the workbook's typed rows equal the CSV twin's typed rows
+  const csvEx = stubExecutor();
+  const csvRun = await run({}, csvEx, { bytes: fixture('items_modeA.csv'), declaredName: 'items_modeA.csv' });
+  assert.strictEqual(csvRun.verdict, 'APPLIED');
+  const strip = (rowsIn) => rowsIn.map((x) => x.row);
+  const wRows = strip(ex.calls.plans[0].rows).map((x) => ({ sku: x.sku, price: x.price, unit: x.unit, recipeRef: x.recipeRef }));
+  const cRows = strip(csvEx.calls.plans[0].rows).map((x) => ({ sku: x.sku, price: x.price, unit: x.unit, recipeRef: x.recipeRef }));
+  assert.deepStrictEqual(wRows, cRows);
+});
+test('§4.1: a workbook where SEVERAL sheets bind kinds refuses MULTI_KIND_WORKBOOK_NOT_WIRED with the sheets named — the Mode-B fan-out is a named follow-on, not a guess', async () => {
+  const ExcelJS = require('exceljs');
+  const wb = new ExcelJS.Workbook();
+  const items = wb.addWorksheet('1_ITEMS');
+  items.addRow(['SKU *', 'Item Name *', 'Price *', 'Unit', 'Item Type *', 'Recipe Ref Name (required if the Code field is empty)', 'Conversion Factor*']);
+  items.addRow(['TS-0001', 'One', 1, 'kg', 'Ingredient', 'R1', 1]);
+  const dels = wb.addWorksheet('6_DELIVERIES');
+  dels.addRow(['Period Start', 'Period End', 'Granularity', 'Deliveries']);
+  dels.addRow(['2026-02-01', '2026-02-01', 'daily', 120]);
+  const bytes = new Uint8Array(await wb.xlsx.writeBuffer());
+
+  const ports = stubPorts();
+  const r = await runFileToRows(
+    { ports, executor: stubExecutor() },
+    { tenantId: TENANT, bytes, declaredName: 'template.xlsx', asOfMs: ASOF, avScan: async () => ({ clean: true, engine: 'stub-av' }) },
+  );
+  assert.strictEqual(r.verdict, 'QUARANTINED');
+  assert.strictEqual(r.stage, 'bind');
+  assert.strictEqual(r.reason, 'MULTI_KIND_WORKBOOK_NOT_WIRED');
+  assert.ok(r.detail.includes("'1_ITEMS' (items)"));
+  assert.ok(r.detail.includes("'6_DELIVERIES' (deliveries)"));
+  assert.strictEqual(ports.calls.registerQuarantine.length, 0);
+});
+test('§4.1: a workbook where NO sheet matches a signature binds no kind — NO_HEADER_ROW_FOUND, quarantined whole', async () => {
+  const ExcelJS = require('exceljs');
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('mystery');
+  ws.addRow(['a', 'b', 'c']); ws.addRow(['1', '2', '3']);
+  const bytes = new Uint8Array(await wb.xlsx.writeBuffer());
+
+  const ports = stubPorts();
+  const r = await runFileToRows(
+    { ports, executor: stubExecutor() },
+    { tenantId: TENANT, bytes, declaredName: 'mystery.xlsx', asOfMs: ASOF, avScan: async () => ({ clean: true, engine: 'stub-av' }) },
+  );
+  assert.strictEqual(r.verdict, 'QUARANTINED');
+  assert.strictEqual(r.stage, 'bind');
+  assert.strictEqual(r.reason, 'NO_HEADER_ROW_FOUND');
+  assert.ok(r.detail.includes('no sheet matched any kind signature'));
   assert.strictEqual(ports.calls.registerQuarantine.length, 0);
 });
 test('a text file with no kind signature binds nothing — quarantined whole with the closest match named', async () => {
