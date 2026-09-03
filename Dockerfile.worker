@@ -1,0 +1,54 @@
+# ============================================================================
+# sentinel-worker — the §14.25 image contract (§7.4's worker; the §14.23
+# posture verbatim, one runtime story different).
+#
+# Multi-stage, three stages, each with one job:
+#   deps    — resolve the pnpm workspace from the frozen lockfile (the same
+#             stage the web image runs: one install, the frozen lockfile)
+#   deploy  — pnpm deploy prunes the worker's PRODUCTION tree: the daemon
+#             plus @sentinel/ingest-service (exceljs 4.4.0 exact-pinned, §4.1)
+#             plus @sentinel/db (pg) — and the deploy stage then places the
+#             SIX core modules the require topology escapes into (ingestion,
+#             calendar, planning-engine, approval, ledger, auth) where the
+#             modules' relative requires resolve. Nothing else rides along.
+#   runtime — distroless nonroot; carries ONLY the pruned tree.
+#
+# Every base image is pinned BY DIGEST (the pinning gate's exactness extends
+# to base images). The image-gate proof (scripts/build/test/image-gate.test.mjs)
+# pins this file's shape alongside the web image's.
+#
+# Non-root, no shell, no package manager in runtime: distroless :nonroot runs
+# as UID 65532 and ships NO shell. There is NO EXPOSE and NO HEALTHCHECK —
+# nothing listens: the poll loop's liveness IS the process (§14.25 clause 1),
+# and the orchestrator's restart policy is the watchdog. Runtime
+# configuration (DATABASE_URL, SENTINEL_WORKER_*) rides environment at exec —
+# no secret is baked into any layer.
+# ============================================================================
+
+# ---- deps: the pnpm workspace from the frozen lockfile ---------------------
+FROM node:22.22-bookworm-slim@sha256:e21fc383b50d5347dc7a9f1cae45b8f4e2f0d39f7ade28e4eef7d2934522b752 AS deps
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
+    CI=1
+RUN corepack enable
+WORKDIR /app
+COPY . .
+RUN pnpm install --frozen-lockfile
+
+# ---- deploy: the pruned production tree, the require topology placed --------
+FROM deps AS deploy
+RUN pnpm --filter @sentinel/worker deploy --prod /out \
+ && mkdir -p /out/node_modules/@sentinel/core/modules \
+ && cp -r packages/core/modules/ingestion /out/node_modules/@sentinel/core/modules/ \
+ && cp -r packages/core/modules/calendar /out/node_modules/@sentinel/core/modules/ \
+ && cp -r packages/core/modules/planning-engine /out/node_modules/@sentinel/core/modules/ \
+ && cp -r packages/core/modules/approval /out/node_modules/@sentinel/core/modules/ \
+ && cp -r packages/core/modules/ledger /out/node_modules/@sentinel/core/modules/ \
+ && cp -r packages/core/modules/auth /out/node_modules/@sentinel/core/modules/
+
+# ---- runtime: distroless nonroot, the pruned tree only ----------------------
+FROM gcr.io/distroless/nodejs22-debian12:nonroot@sha256:13593b7570658e8477de39e2f4a1dd25db2f836d68a0ba771251572d23bb4f8e AS runtime
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=deploy --chown=nonroot:nonroot /out ./
+USER nonroot
+CMD ["index.js"]

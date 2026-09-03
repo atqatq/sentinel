@@ -17,8 +17,15 @@
 // pg external; the /health route reading its stamps through the PUBLIC
 // surfaces (ADR-0001); the CI image-build job — proof before build, Trivy
 // pinned and fail-closed on HIGH+CRITICAL, the image SBOM (SPDX-2.3)
-// attached; and the two subjects the spec names absent, absent: no worker
-// image and no compose file may exist until their own units land them.
+// attached. Pinned, per §14.25: the worker image's three stages (deps →
+// deploy → runtime), the pnpm deploy pruned tree plus the SIX core modules
+// the require topology escapes into, the same digest pins and the same
+// nonroot posture, NO EXPOSE and NO HEALTHCHECK (nothing listens — the
+// liveness IS the process), the CI job building and scanning BOTH images
+// under one gate and one waiver set, one image SBOM per subject. The one
+// named absence that remains is the compose walk's third service — the
+// worker joins the smoke stack in the e2e unit's own amendment, when the
+// smoke walks a file.
 //
 // The WAIVER DISCIPLINE (§14.23): the gate's first real run fired on six
 // libssl3 CVEs in the distroless base pending upstream's rebuild — the
@@ -42,6 +49,8 @@ function test(name, fn) {
 
 const DOCKERFILE = readFileSync(join(REPO_ROOT, 'Dockerfile'), 'utf8');
 const DF_LINES = DOCKERFILE.split('\n');
+const WORKER_DOCKERFILE = readFileSync(join(REPO_ROOT, 'Dockerfile.worker'), 'utf8');
+const WDF_LINES = WORKER_DOCKERFILE.split('\n');
 const CI = readFileSync(join(REPO_ROOT, '.github', 'workflows', 'ci.yml'), 'utf8');
 const NEXT_CONFIG = readFileSync(join(REPO_ROOT, 'apps', 'web', 'next.config.ts'), 'utf8');
 const HEALTH_ROUTE = readFileSync(join(REPO_ROOT, 'apps', 'web', 'src', 'app', 'health', 'route.ts'), 'utf8');
@@ -53,10 +62,10 @@ const TRIVYIGNORE = existsSync(join(REPO_ROOT, '.trivyignore'))
   : '';
 
 /* A stage block: from its FROM line to the next FROM line. */
-function stages() {
+function stagesOf(lines) {
   const out = [];
   let cur = null;
-  for (const line of DF_LINES) {
+  for (const line of lines) {
     if (/^FROM\s/.test(line)) {
       if (cur) out.push(cur);
       cur = { from: line.trim(), lines: [] };
@@ -67,8 +76,10 @@ function stages() {
   if (cur) out.push(cur);
   return out;
 }
-const STAGES = stages();
+const STAGES = stagesOf(DF_LINES);
 const RUNTIME = STAGES[STAGES.length - 1];
+const WSTAGES = stagesOf(WDF_LINES);
+const WRUNTIME = WSTAGES[WSTAGES.length - 1];
 
 /* The CI image-build job block: from its id line to the next job id. */
 const BUILD_JOB = (() => {
@@ -180,6 +191,69 @@ test('/health is dynamic and uncacheable — the probe must answer for the RUNNI
   assert.match(HEALTH_ROUTE, /"no-store"/, 'no cache may stand between the probe and the truth');
 });
 
+console.log('The worker image contract — Dockerfile.worker, the §14.25 posture:');
+
+function envLinesOf(lines) {
+  const envLines = [];
+  let inEnv = false;
+  for (const line of lines) {
+    if (/^ENV\s/.test(line)) { inEnv = true; envLines.push(line); if (!/\\\s*$/.test(line)) inEnv = false; continue; }
+    if (inEnv) { envLines.push(line); if (!/\\\s*$/.test(line)) inEnv = false; }
+  }
+  return envLines;
+}
+
+function assertDistrolessNonroot(stages, runtime, label) {
+  const stageNames = stages.map((s) => s.from.match(/ AS (\w+)$/)?.[1]);
+  for (const s of stages) {
+    const base = s.from.replace(/^FROM\s+/, '').replace(/\s+AS\s+\w+$/, '');
+    if (stageNames.includes(base)) continue;
+    assert.match(s.from, /@sha256:[0-9a-f]{64}(\s+AS|$)/, `${label} digest-pinned: ${s.from}`);
+    assert.ok(!/\blatest\b/.test(s.from), `${label} no floating latest: ${s.from}`);
+  }
+  assert.match(stages[stages.length - 1].from, /^FROM gcr\.io\/distroless\/nodejs22-debian12:nonroot@sha256:/, `${label} the runtime is distroless nonroot`);
+  const userLine = runtime.lines.findIndex((l) => /^USER\s+nonroot\s*$/.test(l));
+  assert.ok(userLine >= 0, `${label} USER nonroot must be explicit in the runtime stage`);
+  const lastCopy = runtime.lines.reduce((acc, l, i) => (/^COPY\s/.test(l) ? i : acc), -1);
+  assert.ok(userLine > lastCopy, `${label} USER must follow every COPY`);
+  for (const c of runtime.lines.filter((l) => /^COPY\s/.test(l))) {
+    assert.match(c, /--chown=nonroot:nonroot/, `${label} every runtime COPY carries --chown: ${c.trim()}`);
+  }
+}
+
+test('the worker image is three stages — deps → deploy → runtime (deploy prunes; runtime carries the pruned tree only)', () => {
+  assert.strictEqual(WSTAGES.length, 3, `expected 3 stages, found ${WSTAGES.length}`);
+  assert.match(WSTAGES[0].from, /^FROM .* AS deps$/);
+  assert.match(WSTAGES[1].from, /^FROM .* AS deploy$/);
+  assert.match(WSTAGES[2].from, /^FROM .* AS runtime$/);
+});
+
+test('the worker image inherits the §14.23 posture verbatim: digest pins, distroless nonroot, USER after the copies, --chown on every runtime COPY', () => {
+  assertDistrolessNonroot(WSTAGES, WRUNTIME, 'worker');
+  assert.match(WSTAGES[0].from, /^FROM node:22\.22-bookworm-slim@sha256:/, 'the SAME builder digest as the web image');
+});
+
+test('NOTHING listens: no EXPOSE, no HEALTHCHECK — the poll loop\'s liveness IS the process (§14.25 clause 1)', () => {
+  assert.deepStrictEqual(WDF_LINES.filter((l) => /^EXPOSE\s/.test(l)), [], 'the worker opens no port — an EXPOSE would be a lie about a listener that does not exist');
+  assert.ok(!/^HEALTHCHECK/m.test(WORKER_DOCKERFILE), 'no shell to exec and no HTTP surface to probe — the restart policy is the watchdog');
+});
+
+test('the CMD is exec-form node index.js — the daemon; no credential-shaped ENV in any layer', () => {
+  const cmd = WDF_LINES.filter((l) => /^CMD\s/.test(l));
+  assert.deepStrictEqual(cmd.map((l) => l.trim()), ['CMD ["index.js"]'], 'exec-form CMD, the poll loop');
+  const creds = envLinesOf(WDF_LINES).filter((l) => /\b[A-Z0-9_]*(SECRET|PASSWORD|TOKEN|DATABASE_URL|API_KEY|PRIVATE_KEY)[A-Z0-9_]*\s*=/i.test(l));
+  assert.deepStrictEqual(creds, [], 'DATABASE_URL rides environment at exec — it is never baked into a layer');
+});
+
+test('the deploy stage carries the require topology\'s SIX core modules — the pruned tree is complete, never "copied just in case"', () => {
+  const deploy = WSTAGES[1];
+  assert.match(deploy.lines.join('\n'), /pnpm --filter @sentinel\/worker deploy --prod \/out/, 'pnpm deploy is the pruner');
+  for (const mod of ['ingestion', 'calendar', 'planning-engine', 'approval', 'ledger', 'auth']) {
+    assert.match(deploy.lines.join('\n'), new RegExp(`cp -r packages/core/modules/${mod} /out/node_modules/@sentinel/core/modules/`), `the ${mod} module rides the escapee topology (db and ingest-service reach ../core)`);
+  }
+  assert.ok(!/packages\/core\/modules\/intelligence/.test(WORKER_DOCKERFILE), 'modules without a caller stay OUT of the runtime — a bigger tree is a bigger SBOM, never a safer one');
+});
+
 console.log('The CI build job — the scan gates the moment the image exists:');
 
 test('the image-build job is merge-blocking: it needs the fast gates and runs the proof BEFORE the build', () => {
@@ -193,6 +267,27 @@ test('the image-build job is merge-blocking: it needs the fast gates and runs th
 test('the docker build produces sentinel-web:ci (§6.2 naming; no push on PRs)', () => {
   assert.match(BUILD_JOB, /docker build --tag sentinel-web:ci \./, 'the release artifact is built and scanned locally in CI');
   assert.ok(!/docker push/.test(BUILD_JOB), 'pushing rides the release workflow, never the PR gate');
+});
+
+test('the worker image joins the same job: sentinel-worker:ci built from Dockerfile.worker (§14.25)', () => {
+  assert.match(BUILD_JOB, /docker build --tag sentinel-worker:ci --file Dockerfile\.worker \./, 'the worker image is built from ITS Dockerfile in the SAME merge-blocking job');
+  const webIdx = BUILD_JOB.indexOf('docker build --tag sentinel-web:ci');
+  const workerIdx = BUILD_JOB.indexOf('docker build --tag sentinel-worker:ci');
+  assert.ok(webIdx < workerIdx, 'the web image builds first — the ordering the e2e stack consumes');
+});
+
+test('the worker image is scanned under the SAME gate: Trivy pinned, HIGH+CRITICAL, exit-code 1, ignore-unfixed false', () => {
+  const workerScan = BUILD_JOB.slice(BUILD_JOB.indexOf('image-ref: sentinel-worker:ci') - 600, BUILD_JOB.indexOf('image-ref: sentinel-worker:ci') + 400);
+  assert.match(workerScan, /version: v0\.74\.0/, 'the tool version is part of the gate identity');
+  assert.match(workerScan, /exit-code: 1/, 'fail-closed');
+  assert.match(workerScan, /severity: HIGH,CRITICAL/, 'the threshold matches §14.18 high+');
+  assert.match(workerScan, /ignore-unfixed: false/, 'unfixed counts on BOTH images');
+});
+
+test('one image SBOM per subject: sentinel-web AND sentinel-worker, each named and attached', () => {
+  assert.match(BUILD_JOB, /artifact-name: sentinel-web-image-sbom/, 'the web image\'s SBOM');
+  assert.match(BUILD_JOB, /image: sentinel-worker:ci/, 'the SBOM subject is the worker image');
+  assert.match(BUILD_JOB, /artifact-name: sentinel-worker-image-sbom/, 'the worker image\'s SBOM, named and attached');
 });
 
 test('Trivy is pinned, scans the image, and is FAIL-CLOSED on HIGH+CRITICAL (unfixed counts)', () => {
@@ -211,9 +306,9 @@ test('the IMAGE SBOM (SPDX-2.3) is generated from the built image and attached t
   assert.match(BUILD_JOB, /artifact-name: sentinel-web-image-sbom/, 'the artifact is named and attached');
 });
 
-test('the two named absences HOLD: no worker image and no compose file until their units land them', () => {
-  assert.ok(!existsSync(join(REPO_ROOT, 'Dockerfile.worker')), 'a worker image with no daemon to exec is a lie in a tag (§14.23)');
-  assert.ok(!existsSync(join(REPO_ROOT, 'docker', 'compose.yaml')), 'the compose file lands with the e2e-smoke unit that exercises it (§14.23)');
+test('the worker image EXISTS now — its unit landed the daemon (§14.25); the compose stack is the e2e unit\'s (root compose.yaml)', () => {
+  assert.ok(existsSync(join(REPO_ROOT, 'Dockerfile.worker')), 'the daemon (apps/worker) exists — the image that execs it must exist; an absent image would now be the lie');
+  assert.ok(existsSync(join(REPO_ROOT, 'compose.yaml')), 'the e2e-smoke unit landed the compose file where it is exercised (§14.24)');
 });
 
 console.log('The waiver discipline — named, reasoned, retiring; never a mute button:');
