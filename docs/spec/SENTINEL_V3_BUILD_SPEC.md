@@ -2119,6 +2119,67 @@ consumers — still absent).
 
 ---
 
+### 14.27 The freeze-ingestion auto-staging — the supplier file routes identity deltas into holds (D-029's named follow-on, discharged; named proof `ingest/supplier-hold-auto-staging`)
+
+D-029 built the supplier-identity freeze as a fail-closed door: `classifySupplierChange` (the pure
+classifier), the `supplier_identity_freeze` trigger, and the ONE verified `supplier_change_hold`
+door — and named its own gap: "the ingestion-path auto-staging (worker routes identity deltas into
+holds) is the named follow-on until wired — a direct change refuses fail-closed". The M4 exit review
+scheduled the wiring for M5 ("rides the worker's staging tranche"). This unit wires it. The contract:
+
+1. **Classify before write — the M7 seam, mirrored.** The executor's suppliers path loads the stored
+   supplier rows for the batch (by the SAME conflict target each row would ride: `external_id` when
+   the row states it, else `name` — the H7 two-branch identity) and classifies every update-bearing
+   row through `approval/freeze.js`'s `classifySupplierChange` BEFORE anything writes. Creation is
+   not frozen (no stored row → the upsert verbatim — bootstrap applies freely, the live pin stands).
+2. **The unstated is not a proposal.** An incoming frozen field the row does NOT state (undefined)
+   coalesces to the stored value before classification — a feed that omits a column proposes no
+   erasure (the strict-parse discipline's mirror: the pipeline never guesses a delta). A STATED
+   different value is a delta, whatever the branch — including an `external_id` proposed through the
+   name branch, which today's upsert silently ignored (the freeze's spirit: identity statements
+   stage, never vanish).
+3. **Frozen → stage, don't fail, don't half-apply.** A row with a frozen delta takes the REDUCED
+   upsert (the five frozen columns absent from the SET — `is_active`, `delivery_period_days`,
+   `moq_value`, `country`, `is_banned` still ride; the stored identity keeps serving, D-029
+   verbatim) and the delta stages a COOLING_OFF hold through the procure door's
+   `stageSupplierHold` with `requestedBy: null` — pipeline-originated, exactly the shape
+   `verifySupplierHold` already names ("any eligible verifier may verify it"). The delta carries ALL
+   FIVE frozen fields from/to, null-preserving — the shape the trigger's apply door matches EXACTLY.
+4. **One open hold per supplier; the machine never supersedes.** An ACTIVE hold with the IDENTICAL
+   delta → deduped, no second hold (a daily feed re-stating its delta must not flood the cooling-off
+   queue). An ACTIVE hold with a DIFFERENT delta → NOTHING staged and the divergence NAMED (the
+   receipt's holds summary + a WARN data-health task carrying both deltas): a human reconciles —
+   the verifier rejects the stale hold and the next feed stages fresh; the pipeline that silently
+   replaced a hold it cannot verify would be the freeze's own bypass.
+5. **Same transaction, same fence.** The staging rides the caller's ONE transaction (§16.3 rule 2):
+   the file's commit carries the holds; a rollback leaves none — a hold that silently missed is a
+   false register. A REPLAY persists nothing (the H6 decision returns before the executor — a
+   replayed file re-stages nothing); a different-checksum file re-stating the same delta hits the
+   dedupe, not the queue.
+6. **The receipt is honest.** The executor's return grows `holds: { staged, deduped, diverged,
+   tasks }` (additive; the items seam's `cf` summary is the precedent) and the worker folds it into
+   disclosures naming the staged/deduped/diverged counts and the door (the stored identity keeps
+   serving until an eligible verifier opens it). The refusals are unchanged where they were already
+   honest: the trigger still refuses any direct identity write outside the door (sod-live's pin
+   stands), and `markFileFailed`/the fault path are untouched.
+
+**Named proof `ingest/supplier-hold-auto-staging`** — the executor stub suite pins the seam's
+statement shapes (the batched stored-row read leading the calls; the reduced upsert's SET lacking
+the five frozen columns while VALUES stay whole — creation is not frozen; the hold INSERT riding the
+procure door with `requested_by` NULL; the dedupe probe and its zero-statement outcome; the
+divergence task), and the live tier re-walks the H7 choreography end-to-end: the re-spelled import
+now APPLIES with a staged hold and the stored name still serving, the verified door completes the
+merge through the PIPELINE-staged hold (the test's own staging hand-work retires), the identical
+re-drop dedupes, and the divergent delta stages nothing and names itself.
+
+**Scope honesty.** This unit does NOT claim: the supplier-hold verification UI (the verify/reject
+actions ride the C3 doors today — `resolveHold` is the transport; a screen is a UI unit if the
+operator workflow demands it); the remittance fields' broader surface (banking fields stay
+discarded at ingestion, C4 verbatim); the OIDC IdP wiring (D-031's named deployment concern — the
+sign-in machine's assertion seam is shaped for it, the IdP itself is deployment infrastructure).
+
+---
+
 # 15. Audit remediation — SENT-AUDIT-002 (deep technical audit, $50M bar)
 
 An independent deep technical audit re-verified this package and raised 40 findings. **Every empirical

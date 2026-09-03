@@ -183,6 +183,14 @@ into grids — that is the **worker layer's** job, and the boundary rules are:
 **Idempotency:** re-importing the same file changes nothing. Keys — Item `SKU`; Inventory `SKU+Warehouse`;
 PO `PO Number+SKU`; Supplier `Supplier ID` (H7/A8 identity key; `Name` is the interim until the amended R4 ships the column); Deliveries `Tenant+Date`; Params `Recipe Ref+Tenant`.
 
+**Supplier identity deltas stage, never fail and never sneak (§14.27):** a supplier row whose frozen
+identity/remittance surface (`Supplier ID`, `Name`, `Payment Term Days`, `Payment Terms`, `Currency`)
+differs from the stored row does not fail the file and does not silently apply — the delta stages a
+COOLING_OFF hold (pipeline-originated, an eligible verifier opens the door out of band) while the
+row's non-frozen surface applies and the stored identity keeps serving. A field the row does not
+state proposes no erasure; one open hold per supplier — an identical re-statement dedupes, a
+divergent one names itself for a human to reconcile.
+
 **Day basis and canonical dates (H4/H9 — A10, normative):** the one canonical temporal form is
 **date-only, UTC, `YYYY-MM-DD`**. Date-only columns pass through unchanged; datetime columns are converted
 **at the boundary** using the **tenant timezone — an explicit tenant setting** (fixed offset or IANA), never
