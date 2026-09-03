@@ -25,8 +25,10 @@ and a per-tenant KPI surface — all governed by a strict execution boundary:
 ## Non-negotiables
 
 1. **TDD always** — no production code without a test that failed first.
-2. **Engine formulas are byte-compatible** with the company's verified workbook — guarded by 117
-   golden tests (86 engine + 31 feedback) that must never change intent.
+2. **Engine formulas are byte-compatible** with the company's verified workbook — guarded by 86
+   golden tests (plus 25 calendar/dates + supply producers) that must never change intent; the
+   structural battery beyond the golden core (matching, scorecards, efficacy, governance, ledger,
+   auth, DR, doors, workers) adds 1,000+ more assertions per push.
 3. **`packages/core` is pure** — no DB, no React, no framework imports. Unit-testable in isolation.
 4. **No Precoro write-back anywhere.** Order proposals leave as PDF/file only.
 5. **No credential literals.** Every secret comes from the environment / secret manager.
@@ -50,58 +52,93 @@ flowchart LR
 
 - **Planning engine** — decoded verbatim from the verified workbook; deliveries are the only raw
   demand primitive; consumption, cover, run-out, EOQ and reorder all derive from a per-SKU
-  consumption-per-delivery rate.
+  consumption-per-delivery rate. The workbook's verified inconsistencies are detected and named
+  beside the ladder (`LADDER_DEAD_BRANCH_7`, `REORDER_DISPLAY_TRIGGER_BAND`, `NEGATIVE_AVAILABLE`),
+  never silently fixed.
 - **Execution feedback** — the loop of record: `PROPOSAL → DECISION → COMMITMENT (PO) → RECEIPT`,
-  reconciliation of transfer plans against ingested goods-in/out (`RECONCILED | MISMATCH`),
-  lead-time learning, supplier scorecards, realized savings, double-order guard.
+  receipt→PO-line matching under normative rules (splits, amendments, cancellations, returns, merges),
+  the H2 scorecard with BOTH due arms (what arrived; what was promised and never arrived), efficacy
+  signals, realized savings, double-order guard.
+- **Controls** — the C3 decision layer (SoD spine, tiers, dual control), supplier-identity freeze,
+  versioned conversion-factor governance decided through the §14.13c API, the M10 FX fail-safe with
+  the pinned rate honestly aged, and the H5 hash-chained ledger — every Class-W/A/N/S/D write one
+  tamper-evident block, every machine write stamped `ENGINE_VERSION`/`SCHEMA_VERSION` (L-07).
+- **Operations** — the M9 freshness SLO + missing-deliveries alarm, the §14.6g data-health sweep
+  (a disclosed gap becomes a register row; a fixed gap resolves, never deletes), and the H11
+  restore-rehearsal gate (RPO 15 / RTO 240 as frozen policy data; the restore path rehearsed on
+  every CI push).
 - **Module control plane** — registry + manifests + lifecycle
   (`REGISTERED → ENABLED ⇄ DISABLED` plus `PAUSED` and `FAULTED`); Origin manages it on screen 33
   (build spec §14.15). Adding capability = adding a module, never core surgery.
 
 ## Module registry
 
-| Module | Package | Status | Provides |
-|---|---|---|---|
-| `planning-engine` | `packages/core/modules/planning-engine` | ✅ ported verbatim, 86 golden tests green | MRP board logic, proposals, cover/run-out, EOQ |
-| `execution-feedback` | `packages/core/modules/execution-feedback` | ✅ ported verbatim, 31 tests green | reconciliation, learning, scorecards, savings, guards |
-| `ingestion` | `packages/ingestion` | 🔜 M1 | file detection, validation gates, idempotency keys |
-| `kpi-catalog` | `packages/kpi` | 🔜 M4 | screen-34 KPI definitions as data + evaluators |
-| `ledger` | `packages/db` | 🔜 M1 | hash-chained append-only store, RFC 8785 canonicalization |
-| `web` | `apps/web` | 🔜 M2 | Next.js 15 + SDS UI, 34 screens |
+Core modules (pure, manifest-carried, `packages/core/modules/…`):
+
+| Module | Version | Provides |
+|---|---|---|
+| `planning-engine` | 1.2.0 | MRP board logic, proposals, cover/run-out, the status ladder + edge warnings, supply-status producers |
+| `execution-feedback` | 1.4.0 | matching canon, scorecards (H2 second arm + rebuild), efficacy, savings, double-order guard |
+| `ingestion` | 0.3.0 | strict parse, file binding, H8 window alignment, FX fail-safe inputs, H6 idempotency keys, PO-status normalization |
+| `kpi-catalog` | 0.4.0 | screen-34 KPI definitions as data + the dataState envelope |
+| `calendar` | 0.3.0 | the H4 canonical date boundary + H9 working calendars |
+| `approval` | 0.2.0 | the C3 decision layer, supplier freeze, M7 CF governance |
+| `ledger` | 0.1.0 | RFC 8785 canonicalization, the §16.2 gate, the keyed hash chain |
+| `auth` | 0.1.0 | sessions, TOTP (RFC 6238), lockout, the mfa gate |
+| `ops` | 0.5.0 | freshness SLO, FX staleness alarm, the §14.6g data-health sweep derivation |
+| `intelligence` | 0.1.0 | the egress allow-list + prompt-injection stance (policy data + verdicts) |
+| `dr` | 0.1.0 | the restore-rehearsal verdict layer (evaluateRehearsal/Restore/Archiving, closeGate) |
+
+Services & infrastructure:
+
+| Package | Provides |
+|---|---|
+| `packages/plan-service` | the engine-live run boundary: seals, replay, restatement, the §14.6g sweep wiring |
+| `packages/procure-service` | the §14.13c CF decide/apply API (gate → Class-D record → freeze door) |
+| `packages/ingest-service` | the file-to-rows worker: H10 gate → parse → convert → idempotent apply |
+| `packages/db` | migrations + RLS (0001–0009), the plan/procure/ledger/auth/fx/scorecard/data-health adapters |
+| `packages/ui` | the vendored shadcn primitives + the SDS token theme |
+| `apps/web` | Next.js 15 app router: auth, plan, data-health, the §14.13c approvals API route |
 
 ## Repository layout
 
 ```
 sentinel/
-├─ apps/                  # web (Next.js 15), worker (BullMQ) — milestone M2+
+├─ apps/
+│  └─ web/                # Next.js 15 app router (auth, plan, data-health, approvals APIs)
 ├─ packages/
-│  ├─ core/               # PURE domain. modules/ subpackage per build spec §14.15
-│  │  └─ modules/
-│  │     ├─ planning-engine/       # sentinel.module.json + src + golden tests
-│  │     └─ execution-feedback/    # sentinel.module.json + src + tests
-│  ├─ db/                 # Prisma schema, migrations, RLS policies — M1+
-│  ├─ ui/                 # vendored component library + SDS theme — M2+
-│  ├─ contracts/          # Zod schemas shared by FE/BE/worker — M1+
-│  └─ config/             # tsconfig / eslint / vitest presets — M1+
+│  ├─ core/               # PURE domain — no db, no framework, no io (checked in CI)
+│  │  └─ modules/         # one subpackage per build spec §14.15 (registry above)
+│  ├─ plan-service/       # the engine-live run boundary (seals, replay, restatement, sweep)
+│  ├─ procure-service/    # the §14.13c CF decide/apply API
+│  ├─ ingest-service/     # the file-to-rows worker (H10 gate → idempotent apply)
+│  ├─ db/                 # migrations + RLS + the SQL adapters (plan/procure/ledger/auth/fx/…)
+│  └─ ui/                 # vendored primitives + the SDS token theme
 ├─ docs/
 │  ├─ spec/               # THE CONTRACT: build, delivery, ingestion, design specs (sanitized)
 │  ├─ design/             # design handoff: final tokens, shell, 35-screen intent + prototypes
 │  ├─ atlas/              # User Workflow Atlas (W-01…W-16 + glossary + appendices)
 │  ├─ adr/                # architecture decision records (MADR)
-│  └─ ingest-contracts/   # one page per inbound report — M1+
-├─ fixtures/golden/       # synthetic / redacted extracts + checksums — M1+
-├─ scripts/guards/        # CI guard: forbidden terms + secret patterns
-└─ .github/workflows/     # CI pipeline
+│  ├─ milestones/         # the exit reviews of record (M1…M4)
+│  └─ templates/          # the sanitized ingestion workbook template
+├─ fixtures/golden/       # synthetic / redacted extracts + checksums
+├─ scripts/
+│  ├─ guards/             # forbidden terms, SDS parity, ui scope, status vocabulary
+│  ├─ security/           # the M12 gate proofs (audit, gitleaks, licence, SBOM, pinning, egress)
+│  └─ dr/                 # the H11 restore-rehearsal staging harness
+└─ .github/workflows/     # CI: 7 merge-blocking jobs
 ```
 
 ## Getting started
 
 ```bash
-# prerequisites: Node.js ≥ 22 (no package install needed — core is zero-dependency)
+# prerequisites: Node.js ≥ 22 (core modules are zero-dependency)
 git clone https://github.com/atqatq/sentinel && cd sentinel
 
-npm run test        # 117 golden tests must pass: 86 engine + 31 feedback
-npm run guard       # forbidden-term & secret scan — must always be clean
+npm run test        # the structural battery (1,133) must pass — every suite green
+npm run guard       # forbidden terms, SDS parity, ui scope, status binding — must always be clean
+
+# the live tier (RLS matrix, seals, ledger, auth, DR restore, sweeps) runs in CI on postgres 16
 ```
 
 ## Testing philosophy
@@ -121,16 +158,17 @@ npm run guard       # forbidden-term & secret scan — must always be clean
 - The ingestion workbook template ships sanitized; real files stay out of band.
 - Specs in `docs/spec/` are the sanitized contract — they describe schemas and shapes, never rows.
 
-## Roadmap (delivery-spec milestones)
+## Roadmap (delivery-spec §6.3 — where we are)
 
-| Milestone | Scope |
-|---|---|
-| **M0** | repo, docs, CI, guards, verbatim core port (this commit set) |
-| **M1** | ingestion pipeline, Prisma schema + RLS, ledger |
-| **M2** | web shell + SDS, MRP board, planning screens |
-| **M3** | execution feedback, transfers + reconciliation UI |
-| **M4** | analytics, per-tenant KPI dashboard (screen 34), Atlas-linked workflows |
-| **M5** | hardening, E2E suite, versioned release `1.0.0` |
+| Milestone | Version | State |
+|---|---|---|
+| **M0** Foundations | `0.1.0` | ✅ shipped |
+| **M1** Data foundation | `0.2.0` | ✅ shipped |
+| **M2** Planning online | `0.3.0` | ✅ shipped |
+| **M3** SOURCE & controls | `0.4.0` | ✅ shipped |
+| **M4** Closed loop | `0.5.0` | ✅ shipped (exit review: `docs/milestones/M4-EXIT-REVIEW.md`) |
+| **M5** Hardening & release | `0.6.0 → 1.0.0-rc.N` | 🚧 in progress — M12 security gates + SBOM ✅, M13 egress allow-list ✅, M14 ladder-edge warnings ✅, H11 DR machinery ✅, the H2 second arm ✅, the data-health sweep ✅, the CF decide/apply API ✅; remaining: image-build + Trivy, perf/load at the §2 profile, pen-test fixes, the XLSX reader behind H10, the UI compositions (approvals tray, time machine, SRC-05) |
+| Parallel run | `1.0.0` | ⏳ external — cutover W1–W13 + the ≥ 4-week parallel run (gates 19–20) |
 
 ## Docs map
 
