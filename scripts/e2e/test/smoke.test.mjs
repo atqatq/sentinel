@@ -162,6 +162,13 @@ test('the tenant seed is idempotent and uses the screens’ default code (D-003 
   assert.match(PREPARE, /code: 'BahrainMP'/);
 });
 
+test('prepare seeds the smoke tenant\u0027s UNIT CATALOG — the pipeline\u0027s mandatory reference dataset (validateUnitCatalog refuses an empty catalog; run 80\u0027s lesson)', () => {
+  assert.match(PREPARE, /INSERT INTO unit_catalog_entry/);
+  assert.match(PREPARE, /\$1, 'KG'|\('KG'/);
+  assert.match(PREPARE, /INSERT INTO unit_alias/);
+  assert.match(PREPARE, /ON CONFLICT \(tenant_id, code\) DO NOTHING/);
+});
+
 test('prepare verifies its own work — role shape and membership asserted, not assumed, for BOTH roles', () => {
   assert.match(PREPARE, /SELECT rolcanlogin, rolbypassrls, rolsuper FROM pg_roles/);
   assert.match(PREPARE, /pg_auth_members/);

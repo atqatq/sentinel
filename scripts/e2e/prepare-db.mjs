@@ -82,6 +82,31 @@ async function main() {
       [SMOKE_TENANT.id, SMOKE_TENANT.code, SMOKE_TENANT.name],
     );
 
+    /* ---- 3b. the smoke tenant's UNIT CATALOG — the pipeline's mandatory
+     * reference dataset (validateUnitCatalog refuses an empty catalog: a
+     * tenant without one is an unconfigurable tenant, and the refusal is
+     * the strict posture working — run 80's lesson). The codes/aliases are
+     * EXACTLY the shape the golden fixtures consume (the worker tests' stub
+     * catalog shape, now real rows); idempotent like every seed here. ---- */
+    await db.query(
+      `INSERT INTO unit_catalog_entry (tenant_id, code, name, factor, is_base)
+       VALUES
+         ($1, 'KG',   'kilogram (synthetic smoke)', 1, true),
+         ($1, 'CTN',  'carton (synthetic smoke)',   NULL, false),
+         ($1, 'EACH', 'each (synthetic smoke)',     NULL, false),
+         ($1, 'CASE', 'case (synthetic smoke)',     NULL, false)
+       ON CONFLICT (tenant_id, code) DO NOTHING`,
+      [SMOKE_TENANT.id],
+    );
+    await db.query(
+      `INSERT INTO unit_alias (tenant_id, alias, catalog_entry_id)
+       SELECT $1, a.alias, e.id
+         FROM (VALUES ('kilogram', 'KG'), ('cases', 'CASE')) AS a(alias, code)
+         JOIN unit_catalog_entry e ON e.tenant_id = $1 AND e.code = a.code
+       ON CONFLICT (tenant_id, alias) DO NOTHING`,
+      [SMOKE_TENANT.id],
+    );
+
     /* ---- 4. verify its own work — the shape is asserted, not assumed ---- */
     for (const roleName of ['sentinel_web', 'sentinel_worker']) {
       const role = await db.query(
