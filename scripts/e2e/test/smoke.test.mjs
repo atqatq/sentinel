@@ -161,9 +161,10 @@ test('the smoke asserts /health: 200, ok, service, dataState and no-store (§14.
   assert.match(SMOKE, /includes\('no-store'\)/);
 });
 
-test('the §16 stamps are EXACT matches against the real public surfaces (ADR-0001), not shape checks', () => {
-  assert.match(SMOKE, /require_\('@sentinel\/db'\)/);
-  assert.match(SMOKE, /require_\('@sentinel\/module-planning-engine'\)/);
+test('the §16 stamps are EXACT matches against the real public surfaces — loaded by path, install-free', () => {
+  assert.match(SMOKE, /packages', 'db', 'schema-version\.js'\)/);
+  assert.match(SMOKE, /packages', 'core', 'modules', 'planning-engine', 'index\.js'\)/);
+  assert.ok(!/require_\('@sentinel\//.test(SMOKE), 'the e2e job installs no workspace — a by-name require cannot resolve on the runner');
   assert.match(SMOKE, /v\.app === WEB_PKG\.version/);
   assert.match(SMOKE, /v\.engine === ENGINE\.ENGINE_VERSION/);
   assert.match(SMOKE, /v\.schema === DB\.SCHEMA_VERSION/);

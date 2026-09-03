@@ -24,14 +24,15 @@ import { createRequire } from 'node:module';
 
 import { REPO_ROOT } from './repo-root.mjs';
 
-/* The repo root is the ONE shared definition (scripts/e2e/repo-root.mjs) —
- * executed and tree-verified by the named proof, never a per-script
- * dirname() ladder that can be one short. */
-/* The stamps are resolved through apps/web's dependency root — the same
- * public surfaces (ADR-0001) the running server imported. */
-const require_ = createRequire(join(REPO_ROOT, 'apps', 'web', 'package.json'));
-const DB = require_('@sentinel/db');
-const ENGINE = require_('@sentinel/module-planning-engine');
+/* The stamps are resolved BY PATH from the zero-dependency sources: the
+ * e2e job installs NO workspace (the image is the artifact under test;
+ * the runner needs only the tree's version constants to judge it). The
+ * files are the same public surfaces the health route's packages expose
+ * (ADR-0001) — @sentinel/db's schema-version module and the planning
+ * engine's package main — read where they live. */
+const requirePath = createRequire(import.meta.url);
+const DB = requirePath(join(REPO_ROOT, 'packages', 'db', 'schema-version.js'));
+const ENGINE = requirePath(join(REPO_ROOT, 'packages', 'core', 'modules', 'planning-engine', 'index.js'));
 const WEB_PKG = JSON.parse(readFileSync(join(REPO_ROOT, 'apps', 'web', 'package.json'), 'utf8'));
 
 const BASE = process.env.SMOKE_BASE_URL || 'http://127.0.0.1:3000';
