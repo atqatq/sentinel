@@ -1388,6 +1388,119 @@ the allowance, personnel data, and unknown fields refuse).
 
 ---
 
+## 14.21 Disaster recovery — WAL archiving, the restore rehearsal, and the runbook (audit H11; named proof `dr/restore-rehearsal-gate`)
+
+The audit's finding: "The contract has no disaster-recovery layer: no RPO/RTO, no backup/restore
+requirement, no restore rehearsal. The cutover plan's rollback story ('the Excel DDS stays live for
+4 weeks') is *business* continuity, not *technical* recovery. A platform that is the sole holder of
+planning parameters, hash-chained history, and the learning corpus is a single storage accident away
+from losing all three." The required fix: DR in the Definition of Done — RPO ≤ 15 min via continuous
+WAL archiving; RTO ≤ 4 h; nightly logical backup + continuous WAL; quarterly restore rehearsal logged
+as a ledger event; backup restore tested in CI-adjacent staging at least once before cutover. The
+acceptance test: **a documented, dated restore rehearsal — not a unit test, a gate item signed by
+Origin** (delivery-spec gate 14, named proof `dr/restore-rehearsal-gate`).
+
+**The targets are normative and carried as frozen policy data**, not prose: `RPO_TARGET_MINUTES = 15`,
+`RTO_TARGET_MINUTES = 240` (four hours), `REHEARSAL_CADENCE_DAYS = 90` (quarterly, plus the one
+staging rehearsal before cutover that gate 14 requires). Loosening a target is a spec amendment,
+never a code edit.
+
+**Three layers, one gate.**
+
+1. **The posture is the deployment contract** (delivery spec §7.4): the reference cluster runs
+   `archive_mode = on` with continuous WAL archiving to durable storage (the RPO leg — worst-case
+   loss is the archive lag), plus a nightly logical dump (the belt to the WAL braces). The repository
+   owns the RUNBOOK, the gate and the harness; the deployment owns the cluster flags — the split is
+   named so that neither side can wait for the other. `pg_dumpall --roles-only` precedes any
+   cross-cluster restore: the migrations create the role floor (`sentinel_app`, `sentinel_verifier`)
+   at the cluster level, and roles are not database objects — a dump restores grants, never roles.
+2. **The gate is pure** (`packages/core/modules/dr`, dependencies: calendar — the H4 owner owns the
+   day canon): `evaluateRehearsal(evidence, config)` is the verdict layer over rehearsal evidence.
+   The evidence is injected — no IO, no env, no clock, no database — because a gate that measures
+   itself cannot be trusted to grade itself. `config.expectedSchemaVersion` is REQUIRED (the
+   unarmed-door posture: a caller that cannot say which schema it expects is a programming error,
+   a loud TypeError, never a silent pass). The module also carries the two legs separately:
+   `evaluateRestore` (the restore-path invariants — what any rehearsal, CI included, can prove) and
+   `evaluateArchiving` (the WAL invariants — what the deployment/staging rehearsal proves).
+3. **The harness is CI-adjacent staging, run on every push** (`scripts/dr/rehearsal.js`, the CI
+   db-rls job): migrations → a baseline ledger block → `pg_dump` → checksum verified → the source
+   database DESTROYED → `pg_restore` into a clean database → schema sentinel probe, RLS deny probe,
+   chain verify through the ledger door. It collects the restore-leg evidence, runs it through the
+   pure gate, and exits non-zero on any refusal — the restore path is proven on every push, so the
+   pre-cutover rehearsal rehearses a drill that already works.
+
+**The evidence schema** (all injected; `undefined` anywhere the schema names a field is
+`REHEARSAL_EVIDENCE_MALFORMED` — undefined drops silently from JSON, the honest absence is null):
+
+- `rehearsal: { day, environment, runbookVersion, executedBy }` — `day` is a canonical H4 date
+  (validated through the calendar module's strict parse; the audit's word is *dated*);
+  `environment` ∈ `staging | production` (a developer laptop is not a rehearsal venue —
+  `REHEARSAL_ENVIRONMENT_INVALID`); `runbookVersion` names the RUNBOOK version followed
+  (`REHEARSAL_RUNBOOK_UNVERSIONED` otherwise); `executedBy` names the operator or the harness job.
+- `backup: { kind, checksumVerified }` — `kind` ∈ `base-backup | logical-dump`
+  (`REHEARSAL_BACKUP_INVALID` otherwise; a "folder copy" is not a backup); the checksum must have
+  been verified before the restore (`REHEARSAL_CHECKSUM_UNVERIFIED`).
+- `wal: { archiving, continuous, rpoMinutes }` — `archiving` must be the literal `'on'`
+  (`REHEARSAL_WAL_ARCHIVING_OFF` otherwise — the evidence does not show archiving on, whatever the
+  reason); `continuous` must be `true` — no gaps in the archive between backup cut and restore point
+  (`REHEARSAL_WAL_NOT_CONTINUOUS`); `rpoMinutes` is the measured worst-case data-loss window and
+  must be ≤ 15 (`REHEARSAL_RPO_BREACH`).
+- `restore: { rtoMinutes, restoredSchemaVersion, rlsVerified, chainVerified }` — `rtoMinutes` is the
+  measured restore duration and must be ≤ 240 (`REHEARSAL_RTO_BREACH`); `restoredSchemaVersion` must
+  equal `config.expectedSchemaVersion` (`REHEARSAL_SCHEMA_MISMATCH` — the detail names both);
+  the RLS posture must have been re-proven on the restored copy (`REHEARSAL_RLS_UNVERIFIED`) and the
+  hash chain must have verified green through the read-side verifier
+  (`REHEARSAL_CHAIN_UNVERIFIED` — a restore that loses the chain's continuity has restored data, not
+  the system).
+
+**The verdict accumulates — a rehearsal report names every defect, in a normative order**
+(rehearsal metadata → backup → wal → restore; deterministic and stable across runs). A gate that
+stops at the first refusal serves nobody at 3 a.m.; the report is the fix-it list. PASS requires an
+empty refusal list; a PASS yields the canonical record — `{ id: 'dr-rehearsal-<day>-<environment>',
+day, environment, runbookVersion, executedBy, backupKind, checksumVerified, rtoMinutes,
+schemaVersion, rlsVerified, chainVerified, verdict: 'PASS', refusals: [], scope }` plus, for the full
+scope, `{ walArchiving: true, walContinuous: true, rpoMinutes }`. The record is deterministic: same
+evidence, same record, byte for byte.
+
+**The two legs and the scope rule.** The restore leg (backup + restore sections) is what any
+rehearsal can prove — the CI harness proves it on every push. The full gate adds the WAL leg, because
+RPO is a property of the *deployment's archiving cadence*, and only the staging/production rehearsal
+can measure it honestly. `closeGate` accepts ONLY a full-scope PASS record: a restore-only record
+refuses `GATE_SCOPE_INCOMPLETE` (the CI leg proves the drill works; it cannot close gate 14), a
+non-PASS record refuses `GATE_REHEARSAL_NOT_PASSED`.
+
+**The gate closure — the signed record is the ledger event.** `closeGate(record, signoff)` requires
+the Origin signature: `signoff = { signedBy, signedRole, signedAt }` with `signedBy` a principal
+uuid (never the literal `'system'`), `signedRole` exactly the Origin role code (`O` — the audit:
+"a gate item signed by Origin"; anything else refuses `GATE_ROLE_INVALID`), and `signedAt` a
+canonical UTC instant. A missing signoff refuses `GATE_NOT_SIGNED`. A closed gate yields the §16.2
+event payload — `{ class: 'W', entity: 'dr_rehearsal', entityId: record.id,
+action: 'RESTORE_REHEARSAL_RECORDED', outcome: 'success', before: null,
+after: { record, signedBy, signedRole, signedAt }, reason: null }` — ONE block appended through the
+ledger's append door (§16.3 rule 2 posture; the actor/role/session envelope rides the signer's
+session at the door, and the ledger's §16.2 gate re-proves what this module checked). The rehearsal
+is thus answerable by the same tamper-evident chain it just proved it can restore.
+
+**The RUNBOOK — `docs/RUNBOOK.md`, `RUNBOOK_VERSION`-stamped.** The restore-rehearsal procedure is
+the go-live gate's document: the pre-flight (archiving on via `pg_stat_archiver`, backup located and
+checksummed), the timed restore into a clean staging cluster, the post-restore verification probes,
+the evidence collection, the evaluation, the Origin signature and the single ledger event. The
+freshness-alarm triage (M9), the quarantine review flow (C4/H10) and the ingestion incident playbook
+live beside it, as the delivery spec's docs table requires. A rehearsal evidence set carries the
+RUNBOOK version it followed — an unversioned procedure is not a procedure (`REHEARSAL_RUNBOOK_UNVERSIONED`).
+
+**Named proof `dr/restore-rehearsal-gate`** — pins: the audit's acceptance shape (a full valid
+evidence set passes and yields the deterministic record); both targets at their boundaries (15/240
+pass; 15.01/240.01 breach, the detail naming the target); every refusal verdict including the
+ordering pin (archiving-off is named before the RPO breach when both are wrong) and the accumulation
+semantics (multiple defects, stable order, deterministic); the undefined-drops lesson
+(`REHEARSAL_EVIDENCE_MALFORMED`); the two-leg scope rule (the CI's restore-only record is honest and
+passes `evaluateRestore`, and cannot close the gate); the closure family (unsigned → `GATE_NOT_SIGNED`,
+non-Origin → `GATE_ROLE_INVALID`, non-PASS → `GATE_REHEARSAL_NOT_PASSED`) and the exact event payload
+that lands as `RESTORE_REHEARSAL_RECORDED`; the frozen targets and the unarmed-config TypeError.
+
+---
+
 # 15. Audit remediation — SENT-AUDIT-002 (deep technical audit, $50M bar)
 
 An independent deep technical audit re-verified this package and raised 40 findings. **Every empirical
