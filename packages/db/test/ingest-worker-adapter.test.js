@@ -269,6 +269,16 @@ rejects('updateQuarantinedCount refuses a fractional count',
   () => makeIngestWorkerAdapter(stubClient(), T).updateQuarantinedCount(FILE_ID, 1.5),
   'quarantinedCount must be a non-negative integer');
 
+test('insertDataHealthTasks casts the unnested severity to the ENUM in the SQL text itself — a bare text expression into data_health_severity refuses at real PostgreSQL (the walk\u0027s run-81 lesson; the procure door already cast, the worker adapter now matches)', async () => {
+  const c = stubClient();
+  await makeIngestWorkerAdapter(c, T).insertDataHealthTasks([
+    { type: 'DATA_HEALTH', field: 'probe', detail: 'the pinned cast', severity: 'WARN' },
+  ], { fileName: 'probe.csv', checksum: 'a'.repeat(64) });
+  const stmt = c.calls.find((q) => q.text.includes('INSERT INTO data_health_task'));
+  assert.ok(stmt, 'the task INSERT ran against the stub');
+  assert.match(stmt.text, /f\.severity::data_health_severity/, 'the explicit cast rides the SQL — INSERT...SELECT\u0027s text column needs it, and only a live PostgreSQL run could catch its absence');
+});
+
 (async () => {
   await Promise.all(pending);
   console.log(`\n  ingest-worker-adapter (stub): ${passed} passed, ${failed} failed`);

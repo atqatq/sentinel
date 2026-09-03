@@ -304,7 +304,7 @@ function makeIngestWorkerAdapter(client, tenantId) {
       });
       const r = await client.query(
         `INSERT INTO data_health_task (tenant_id, task_type, severity, status, payload)
-         SELECT $1, 'DATA_HEALTH', f.severity, 'OPEN', f.payload::jsonb
+         SELECT $1, 'DATA_HEALTH', f.severity::data_health_severity, 'OPEN', f.payload::jsonb
            FROM unnest($2::text[], $3::jsonb[]) AS f(severity, payload)`,
         [t, rows.map((r2) => r2.severity), rows.map((r2) => JSON.stringify(r2.payload))]);
       return r.rowCount;
