@@ -135,7 +135,8 @@ sentinel/
 # prerequisites: Node.js ≥ 22 (core modules are zero-dependency)
 git clone https://github.com/atqatq/sentinel && cd sentinel
 
-npm run test        # the structural battery (1,133) must pass — every suite green
+npm run test        # the structural battery (1,138) must pass — every suite green,
+                    # including the §14.22 scale gate (p95 < 500 ms at 4,200 refs)
 npm run guard       # forbidden terms, SDS parity, ui scope, status binding — must always be clean
 
 # the live tier (RLS matrix, seals, ledger, auth, DR restore, sweeps) runs in CI on postgres 16
@@ -167,7 +168,7 @@ npm run guard       # forbidden terms, SDS parity, ui scope, status binding — 
 | **M2** Planning online | `0.3.0` | ✅ shipped |
 | **M3** SOURCE & controls | `0.4.0` | ✅ shipped |
 | **M4** Closed loop | `0.5.0` | ✅ shipped (exit review: `docs/milestones/M4-EXIT-REVIEW.md`) |
-| **M5** Hardening & release | `0.6.0 → 1.0.0-rc.N` | 🚧 in progress — M12 security gates + SBOM ✅, M13 egress allow-list ✅, M14 ladder-edge warnings ✅, H11 DR machinery ✅, the H2 second arm ✅, the data-health sweep ✅, the CF decide/apply API ✅; remaining: image-build + Trivy, perf/load at the §2 profile, pen-test fixes, the XLSX reader behind H10, the UI compositions (approvals tray, time machine, SRC-05) |
+| **M5** Hardening & release | `0.6.0 → 1.0.0-rc.N` | 🚧 in progress — M12 security gates + SBOM ✅, M13 egress allow-list ✅, M14 ladder-edge warnings ✅, H11 DR machinery ✅, the H2 second arm ✅, the data-health sweep ✅, the CF decide/apply API ✅, the §14.22 perf/load gate ✅ (p95 4,596 → 243 ms at 4,200 refs after the O(refs×rows) fix); remaining: image-build + Trivy, pen-test fixes, the XLSX reader behind H10, the UI compositions (approvals tray, time machine, SRC-05) |
 | Parallel run | `1.0.0` | ⏳ external — cutover W1–W13 + the ≥ 4-week parallel run (gates 19–20) |
 
 ## Docs map

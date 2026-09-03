@@ -141,6 +141,11 @@ test('canonicalJson: rejects non-JSON values loudly', () => {
 
 /* ---- the sealed run ---------------------------------------------------------- */
 
+test('byte-compatibility pin: the standard fixture seals to the frozen payload hash — orchestration refactors must never move a byte (the perf-gate lesson, §14.22)', async () => {
+  const r = await runPlan(REQ, makeDeps());
+  assert.strictEqual(r.payloadHash, '4e87eb32e245f1fd8f1a57b644a71ae52f4087cb9499f932f12e65e5b6fa6447');
+});
+
 test('a planned tenant-day SEALS: full receipt with stamps and seal', async () => {
   const d = makeDeps();
   const r = await runPlan(REQ, d);

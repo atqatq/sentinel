@@ -256,10 +256,19 @@ const unconvertible = (c) => refused(
 );
 
 /* Assemble + compute ONE ref. Every engine formula stays in the engine — this
- * function only aggregates tenant rows into the canon's input shapes. */
+ * function only aggregates tenant rows into the canon's input shapes.
+ *
+ * §14.22 (perf/mrp-scale): the tenant rows arrive PRE-INDEXED (ctx.index —
+ * Maps built once per run from the already-sorted arrays). The naive shape —
+ * four linear `.filter()` scans inside this per-ref loop — is O(refs × rows):
+ * at the 4,200-ref profile it measured p95 ≈ 4.6 s, 9× over the DoD #8 budget
+ * (~400M comparisons per run). The Maps return the SAME rows in the SAME
+ * order (buckets built from the sorted inputs), so the payload is
+ * byte-identical — pinned by the plan suite's golden-hash test and the
+ * perf gate's run-to-run determinism pin. */
 function assembleRef(ref, ctx) {
-  const { inputs, tenant, disclosures, workingDaysOpts, dpd, asOf } = ctx;
-  const members = inputs.items.filter((it) => it.recipeRef === ref).sort(bySkuThen);
+  const { inputs, tenant, disclosures, workingDaysOpts, dpd, asOf, index } = ctx;
+  const members = (index.membersByRef.get(ref) || []).sort(bySkuThen);
   const params = E.activeParams(inputs.paramsByRef[ref]);
 
   let onHand = 0, invValue = 0;
@@ -268,7 +277,7 @@ function assembleRef(ref, ctx) {
   const poLines = [];         // §14.6c producer facts — live/dead decided in ONE place
 
   for (const m of members) {
-    for (const s of inputs.stock.filter((r) => r.sku === m.sku)) {
+    for (const s of (index.stockBySku.get(m.sku) || [])) {
       const c = planUnits(s.quantity, m, disclosures);
       if (!c.ok) return unconvertible(c);
       onHand += c.value;
@@ -278,7 +287,7 @@ function assembleRef(ref, ctx) {
         { text: 'Plan run refused: a stock row carries a non-numeric value. Named in the data-health task.' });
       invValue += v;
     }
-    for (const p of inputs.openPo.filter((r) => r.sku === m.sku)) {
+    for (const p of (index.openPoBySku.get(m.sku) || [])) {
       const w = asNum(p.waitingQtyConverted);
       if (w === null || w < 0) {
         disclosures.unconvertedOpenPo.push({ sku: p.sku, poNumber: p.poNumber });
@@ -303,7 +312,7 @@ function assembleRef(ref, ctx) {
     if (price !== null && price > 0 && (masterPrice === 0 || m.preferredForRecipeRef)) masterPrice = price;
     const sl = asNum(m.shelfLifeDays);
     if (sl !== null && sl > 0 && (shelfLifeDays === null || sl < shelfLifeDays)) shelfLifeDays = sl;
-    for (const row of inputs.consumption.filter((r) => r.sku === m.sku)) consumptionRows.push({ item: m, row });
+    for (const row of (index.consumptionBySku.get(m.sku) || [])) consumptionRows.push({ item: m, row });
   }
 
   /* H8 — rate seeding. A ref WITH consumption must have its window covered by
@@ -328,7 +337,18 @@ function assembleRef(ref, ctx) {
       T_total += c.value;
     }
     const window = { start, end };
-    const seed = seedRateInputs(window, inputs.deliveries);
+    /* §14.22 — the H8 seed guard is a pure function of (window, deliveries);
+     * the deliveries history is tenant-level — the SAME array for every ref —
+     * so identical windows recomputed per ref were the perf profile's second
+     * hotspot (4,200 × 90 validateInterval calls, the date RegExp alone 11% of
+     * JS time). Memoized by window key: identical inputs, identical result
+     * object — byte-identical payloads, pinned by the golden-hash test. */
+    const seedKey = window.start + '|' + window.end;
+    let seed = ctx.rateSeedCache.get(seedKey);
+    if (seed === undefined) {
+      seed = seedRateInputs(window, inputs.deliveries);
+      ctx.rateSeedCache.set(seedKey, seed);
+    }
     if (!seed.ok) {
       /* H8 ride-through: the guard's named reason, exact gaps/invalid rows,
        * offending index and extent all survive into the receipt — the
@@ -486,13 +506,32 @@ async function runPlan(request, ports) {
       ? (a.end < b.end ? -1 : 1) : (a.start < b.start ? -1 : 1))),
   };
 
+  /* §14.22 — the run's row index. Built ONCE from the sorted arrays; the
+   * buckets preserve the original order, so every assembleRef sees exactly
+   * the rows (and the order) the linear scans used to produce. O(refs × rows)
+   * becomes O(rows) + O(members-per-ref) — the perf/mrp-scale gate's fix. */
+  const index = {
+    membersByRef: new Map(),
+    stockBySku: new Map(),
+    openPoBySku: new Map(),
+    consumptionBySku: new Map(),
+  };
+  const push = (map, key, row) => {
+    const bucket = map.get(key);
+    if (bucket) bucket.push(row); else map.set(key, [row]);
+  };
+  for (const it of inputs.items) push(index.membersByRef, it.recipeRef, it);
+  for (const s of inputs.stock) push(index.stockBySku, s.sku, s);
+  for (const p of inputs.openPo) push(index.openPoBySku, p.sku, p);
+  for (const c of inputs.consumption) push(index.consumptionBySku, c.sku, c);
+
   /* the planned portfolio = every ref that has params OR members */
   const refNames = Array.from(new Set([
     ...Object.keys(inputs.paramsByRef),
     ...items.map((i) => i.recipeRef).filter((r) => typeof r === 'string' && r !== ''),
   ])).sort();
 
-  const ctx = { inputs, tenant, disclosures, workingDaysOpts, dpd, asOf: asOfParsed.value };
+  const ctx = { inputs, tenant, disclosures, workingDaysOpts, dpd, asOf: asOfParsed.value, index, rateSeedCache: new Map() };
   const refRows = [];
   for (const ref of refNames) {
     const r = assembleRef(ref, ctx);
