@@ -252,6 +252,16 @@ orderProposal        = available < S ? orderQty : 0
 `available < R → Below Safety` · `openPO > 0 → Follow-up with Supplier` · `reorderPct < 101% → Below Reorder` ·
 `available > U + 20% → Over Stock` · else `OK`.
 
+**Ladder edges (workbook heritage — documented, never silently fixed; §14.19):** branch 7
+(`available > U + 20%`) is algebraically identical to branch 1 (`available > U×1.2`) and unreachable —
+kept for golden compatibility with the workbook, never edited or deleted; a display/trigger band exists
+at `1.0 ≤ reorderPct < 1.01` where the status reads `Below Reorder` while the order trigger
+`orderRecQty` is 0 — `orderRecQty` is the trigger of record and raises no proposal from the band; a
+negative `available` is an impossible state the workbook classifies `Below Safety` — red, never silent,
+and additionally detected. `computeRef` returns a `warnings` array (`LADDER_DEAD_BRANCH_7`,
+`REORDER_DISPLAY_TRIGGER_BAND`, `NEGATIVE_AVAILABLE`) observing these edges beside the ladder; the
+ladder itself is untouched.
+
 **Data state (audit A1 — critical):** `reorderPct` is null both when consumption is zero *and* when planning
 parameters are absent. Since Precoro's planning fields are 100% empty, without a discriminator every active
 ref would read `Inactive` on go-live. The engine therefore returns
@@ -1222,6 +1232,72 @@ action's version input; license-checker pinned exact as a root devDependency); t
 pinned by major tag (the repo's existing practice — checkout@v4, setup-node@v4, gitleaks-action@v2,
 sbom-action). The named proof `security/gates` runs IN the security job it audits — the gate surface
 reviewing itself, machine-checked, so a removed or weakened gate fails the same push that removed it.
+
+---
+
+## 14.19 Ladder-edge semantics — the workbook's edges documented, detected and named, never silently fixed (audit M14; named proof `core/ladder-edges`)
+
+The audit's finding: "Status-ladder internal inconsistencies (workbook heritage) — document, do not
+silently fix. [E-confirmed]" Three properties were verified against the engine: branch 7
+(`available > maxStock + maxStock×0.2`) is mathematically identical to branch 1
+(`available > maxStock × 1.2`) and unreachable; a display/trigger band exists at
+`1.0 ≤ reorderPct < 1.01` where the status reads `Below Reorder` while the order trigger
+`orderRecQty` is 0; a negative `available` classifies as `Below Safety` — red, not silent, but an
+impossible state should be DETECTED, not merely classified. The fix text: keep the ladder
+byte-compatible (the golden rule), add a `warnings` array to `computeRef` output, document the band
+in §6. This section is the normative contract for that documentation layer.
+
+**The ladder is byte-compatible — the golden rule holds.** No branch is reordered, edited or
+deleted; `statusOf` is untouched and the 86 golden tests keep their intent verbatim. The workbook is
+the verified artifact and the audit's directive is documentation, not repair: an inconsistency
+inherited from the verified workbook is a documented property of the port, and "fixing" it silently
+would break the byte-compatibility the golden tests guard. Every edge below is observed by a
+warnings layer that rides BESIDE the ladder — it can never change a label, a quantity, a proposal
+or a KPI.
+
+**The three edges, normative.**
+
+1. **The dead branch.** Branch 7's predicate `available > maxStock + maxStock×0.2` is algebraically
+   identical to branch 1's `available > maxStock × 1.2` (`U + 0.2·U ≡ 1.2·U`); branch 1 always
+   evaluates first, so branch 7 can never fire. It is KEPT — golden compatibility with the workbook
+   outweighs the tidiness of deleting dead code, and the ladder must stay a verbatim port.
+2. **The display/trigger band.** At `1.0 ≤ reorderPct < 1.01` the ladder's branch 6
+   (`reorderPct < 1.01`) reads `Below Reorder` (when branches 1–5 are quiet) while the order trigger
+   `orderRecQty = available < reorder ? orderQty : 0` is 0 — the display threshold sits at 101% of
+   reorder while the trigger sits at 100%. `orderRecQty` is the trigger of record: no proposal is
+   raised from the band. The band is workbook heritage, documented here and in §6, never "fixed".
+3. **The impossible state.** A negative `available` cannot occur in physical stock; the workbook
+   ladder classifies it `Below Safety` (red, never silent). The engine keeps that classification
+   byte-compatible AND detects the impossibility explicitly — a classification the operator can see
+   is not a classification they can trust without the detection beside it.
+
+**The `warnings` array.** `computeRef` returns `warnings: string[]` — sorted, deterministic, present
+on every row (`[]` when no edge applies), additive only: every pre-existing field keeps its exact
+value and shape. The codes:
+
+- `LADDER_DEAD_BRANCH_7` — emitted when `available > maxStock × 1.2`: the ref crossed the region
+  where branch 1 fired and branch 7 (the workbook's duplicate) is shadowed. The dead-branch note
+  rides the refs that cross the region, not every ref.
+- `REORDER_DISPLAY_TRIGGER_BAND` — emitted when `reorderPct !== null && reorderPct ≥ 1.0 &&
+  reorderPct < 1.01`: inside the band `orderRecQty` is 0 while the display threshold reads
+  below-reorder.
+- `NEGATIVE_AVAILABLE` — emitted when `available < 0`: the impossible state, detected and named
+  beside its `Below Safety` classification.
+
+**The sealed-payload consequence — disclosed.** The warnings array is part of the computed state of
+a ref and enters the plan-seal payload (`refs[]`, §14.16's hash input): a day's anomalies are facts
+about that day and belong in the tamper-evident snapshot. A replay of a pre-M14 sealed day therefore
+lands `REPLAYED · divergent` with `refsChanged` naming every ref and `kpiKeysChanged` empty — the
+shape of an additive change, disclosed by design, never applied. The seals themselves are untouched
+(the past is immutable); an operator who wants the as-known-now form restates explicitly under
+§14.16's rules.
+
+**Named proof `core/ladder-edges`** — pins: the branch identity (a sweep across the boundary proves
+`available > maxStock × 1.2` ⟺ `available > maxStock + maxStock × 0.2`, so branch 7 is unreachable);
+the band (status `Below Reorder`, `orderRecQty` 0, the warning named); the impossible state (the
+`Below Safety` classification kept, the warning named); warnings determinism (sorted, deep-equal
+stable, JSON round-trip); and additive byte-compatibility (a ref's pre-existing fields identical to
+their golden values with the warnings layer present).
 
 ---
 
