@@ -98,7 +98,7 @@ Services & infrastructure:
 | `packages/ingest-service` | the file-to-rows worker: H10 gate → text decode or §4.1 workbook extraction → parse → convert → idempotent apply |
 | `packages/db` | migrations + RLS (0001–0009), the plan/procure/ledger/auth/fx/scorecard/data-health adapters |
 | `packages/ui` | the vendored shadcn primitives + the SDS token theme |
-| `apps/web` | Next.js 15 app router: auth, plan, data-health, the §14.13c approvals tray + API route, the /audit time machine |
+| `apps/web` | Next.js 15 app router: auth, plan, data-health, the §14.13c approvals tray + API route, the /audit time machine, the SRC-05 suppliers tile, /health (the L-07 stamp + the image probe target) |
 
 ## Repository layout
 
@@ -125,8 +125,9 @@ sentinel/
 ├─ scripts/
 │  ├─ guards/             # forbidden terms, SDS parity, ui scope, status vocabulary
 │  ├─ security/           # the M12 gate proofs (audit, gitleaks, licence, SBOM, pinning, egress)
+│  ├─ build/              # the §14.23 image-gate proof (the Dockerfile contract, machine-checked)
 │  └─ dr/                 # the H11 restore-rehearsal staging harness
-└─ .github/workflows/     # CI: 7 merge-blocking jobs
+└─ .github/workflows/     # CI: 8 merge-blocking jobs
 ```
 
 ## Getting started
@@ -135,7 +136,7 @@ sentinel/
 # prerequisites: Node.js ≥ 22 (core modules are zero-dependency)
 git clone https://github.com/atqatq/sentinel && cd sentinel
 
-npm run test        # the structural battery (1,178) must pass — every suite green,
+npm run test        # the structural battery (1,208) must pass — every suite green,
                     # including the §14.22 scale gate (p95 < 500 ms at 4,200 refs)
 npm run guard       # forbidden terms, SDS parity, ui scope, status binding — must always be clean
 
@@ -168,7 +169,7 @@ npm run guard       # forbidden terms, SDS parity, ui scope, status binding — 
 | **M2** Planning online | `0.3.0` | ✅ shipped |
 | **M3** SOURCE & controls | `0.4.0` | ✅ shipped |
 | **M4** Closed loop | `0.5.0` | ✅ shipped (exit review: `docs/milestones/M4-EXIT-REVIEW.md`) |
-| **M5** Hardening & release | `0.6.0 → 1.0.0-rc.N` | 🚧 in progress — M12 security gates + SBOM ✅, M13 egress allow-list ✅, M14 ladder-edge warnings ✅, H11 DR machinery ✅, the H2 second arm ✅, the data-health sweep ✅, the CF decide/apply API ✅, the §14.22 perf/load gate ✅ (p95 4,596 → 243 ms at 4,200 refs), the §4.1 XLSX reader behind H10 ✅ (real exact-pinned reader in the worker layer; the Mode-B per-kind fan-out is named follow-on), the §14.13c approvals tray ✅ (the gate's queue on screen, decide actions riding the API, the gate's refusals verbatim), screen 12 /audit ✅ (the audit chain table reading the H5 ledger + the time machine re-deriving snapshots from sealed payloads only); remaining: image-build + Trivy, pen-test fixes, the SRC-05 tile |
+| **M5** Hardening & release | `0.6.0 → 1.0.0-rc.N` | 🚧 in progress — M12 security gates + SBOM ✅, M13 egress allow-list ✅, M14 ladder-edge warnings ✅, H11 DR machinery ✅, the H2 second arm ✅, the data-health sweep ✅, the CF decide/apply API ✅, the §14.22 perf/load gate ✅ (p95 4,596 → 243 ms at 4,200 refs), the §4.1 XLSX reader behind H10 ✅ (real exact-pinned reader in the worker layer; the Mode-B per-kind fan-out is named follow-on), the §14.13c approvals tray ✅ (the gate's queue on screen, decide actions riding the API, the gate's refusals verbatim), screen 12 /audit ✅ (the audit chain table reading the H5 ledger + the time machine re-deriving snapshots from sealed payloads only), the SRC-05 suppliers tile ✅ (single-source exposure, envelope rendered verbatim), the §14.23 image build + Trivy container scan ✅ (`sentinel-web`: multi-stage distroless nonroot, bases digest-pinned, Trivy fail-closed HIGH+CRITICAL, image SBOM attached — the worker image rides the worker-runtime unit, no daemon exists to exec); remaining: pen-test fixes, the e2e-smoke compose stack, the worker image |
 | Parallel run | `1.0.0` | ⏳ external — cutover W1–W13 + the ≥ 4-week parallel run (gates 19–20) |
 
 ## Docs map

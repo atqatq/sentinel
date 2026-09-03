@@ -1,0 +1,18 @@
+# The build context is the whole repo; everything the image does not need
+# is refused here (smaller context, smaller layers, no accidental carries).
+.git
+.github
+ci
+docs
+download
+scripts
+worklog.md
+**/*.md
+CHANGELOG*
+.env*
+**/node_modules
+**/.next
+**/.turbo
+**/tsconfig.tsbuildinfo
+Dockerfile
+.dockerignore

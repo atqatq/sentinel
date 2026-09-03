@@ -27,6 +27,9 @@ importers:
       '@sentinel/module-ops':
         specifier: workspace:*
         version: link:../../packages/core/modules/ops
+      '@sentinel/module-planning-engine':
+        specifier: workspace:^
+        version: link:../../packages/core/modules/planning-engine
       '@sentinel/plan-service':
         specifier: workspace:*
         version: link:../../packages/plan-service

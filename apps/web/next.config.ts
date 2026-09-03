@@ -9,8 +9,15 @@ import type { NextConfig } from "next"
  * (owned code — there is no compiled UI artifact to depend on).
  * serverExternalPackages keeps pg a real Node dependency of the route
  * runtime (the plan route holds a pooled client, not a bundled copy).
+ *
+ * output: "standalone" is the §14.23 image contract: the runtime stage of
+ * the sentinel-web image carries ONLY the traced standalone bundle
+ * (.next/standalone + .next/static + public) — never the toolchain, never
+ * the full node_modules. The trace is the ONLY dependency story the image's
+ * runtime stage trusts.
  */
 const nextConfig: NextConfig = {
+  output: "standalone",
   transpilePackages: ["@sentinel/ui"],
   serverExternalPackages: ["pg"],
   eslint: { ignoreDuringBuilds: true },

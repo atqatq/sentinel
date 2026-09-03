@@ -276,3 +276,11 @@ declare module "@sentinel/module-ops" {
     }
   }
 }
+
+declare module "@sentinel/module-planning-engine" {
+  /* Minimal surface of the CJS planning-engine contract — the /health
+   * route's ENGINE_VERSION stamp (§14.23, §6.2 L-07). The engine's receipts
+   * are passed through verbatim elsewhere, so only the stamp is typed here:
+   * the contract lives in the module, not in a second TS copy. */
+  export const ENGINE_VERSION: string
+}

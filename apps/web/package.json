@@ -14,6 +14,7 @@
     "@sentinel/db": "workspace:*",
     "@sentinel/module-kpi-catalog": "workspace:^",
     "@sentinel/module-ops": "workspace:*",
+    "@sentinel/module-planning-engine": "workspace:^",
     "@sentinel/plan-service": "workspace:*",
     "@sentinel/procure-service": "workspace:*",
     "@sentinel/ui": "workspace:*",
