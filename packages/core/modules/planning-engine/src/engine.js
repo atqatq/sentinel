@@ -161,6 +161,25 @@ function computeRef(ref, params, deliveriesPerDay, opts) {
     : 'OK';
   const inactive = reorderPct === null;   // preserved for golden compatibility
 
+  /* ---- M14 ladder-edge warnings (§14.19) — observe, never modify ----------
+   * The workbook ladder is byte-compatible (the golden rule): the three edges
+   * below are DOCUMENTED workbook heritage, detected and named here — never
+   * "fixed" by reordering or editing a branch. The warnings array is additive,
+   * sorted, deterministic; every pre-existing field keeps its exact value.
+   *   LADDER_DEAD_BRANCH_7          branch 1 fired — branch 7 (the workbook's
+   *                                 algebraic duplicate) is shadowed, and with
+   *                                 it every deeper branch for this ref
+   *   REORDER_DISPLAY_TRIGGER_BAND  1.0 ≤ reorderPct < 1.01 — the display
+   *                                 threshold (101%) is above the trigger
+   *                                 (100%), so orderRecQty is 0 in the band
+   *   NEGATIVE_AVAILABLE            impossible state — the ladder classifies
+   *                                 it 'Below Safety'; the engine detects it  */
+  const warnings = [];
+  if (available > maxStock * 1.2) warnings.push('LADDER_DEAD_BRANCH_7');
+  if (reorderPct !== null && reorderPct >= 1.0 && reorderPct < 1.01) warnings.push('REORDER_DISPLAY_TRIGGER_BAND');
+  if (available < 0) warnings.push('NEGATIVE_AVAILABLE');
+  warnings.sort();
+
   return {
     lead, safetyDays, orderFreq, moq,
     onHand, quarantine, reserved, damaged, available, openPO, invValue, deliveriesPerDay: dpd,
@@ -172,6 +191,7 @@ function computeRef(ref, params, deliveriesPerDay, opts) {
     orderQty, orderRecQty, status, inactive, unitValueFallback,
     dataState, noUsage, noParams, noLeadTime,
     shelfLifeDays, shelfLifeCap, shelfLifeCapped, moqExceedsShelfLife,
+    warnings,   // M14 §14.19 — additive; the ladder itself is untouched
   };
 }
 

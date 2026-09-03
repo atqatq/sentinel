@@ -72,6 +72,8 @@ jobs:
         run: node packages/core/modules/planning-engine/test/engine.test.js
       - name: M5 supply-status producers — named proof ingestion/supply-status-producers (22)
         run: node packages/core/modules/planning-engine/test/supply.test.js
+      - name: M14 ladder-edge semantics — named proof core/ladder-edges (13)
+        run: node packages/core/modules/planning-engine/test/ladder-edges.test.js
       - name: Feedback suite (31)
         run: node packages/core/modules/execution-feedback/test/feedback.test.js
       - name: M6 receipt→PO-line matching — named proof feedback/matching (27)
