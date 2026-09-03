@@ -153,7 +153,7 @@ async function main() {
 
   await withCtx(probe, T1, async () => {
     const v = await ledger1.verifyChain();
-    if (v && v.valid) ok('verifyChain green across the rollup append — the score is answerable by the chain');
+    if (v && v.ok === true && v.verified === 1) ok('verifyChain green across the rollup append — the score is answerable by the chain (1 block verified)');
     else bad('verifyChain green', JSON.stringify(v));
   });
 
@@ -168,7 +168,7 @@ async function main() {
     if (rows.rows[0].n === 0) ok('T2 sees zero SCORECARD_REBUILT blocks from T1 (RLS invisible)');
     else bad('T2 sees zero blocks', `count=${rows.rows[0].n}`);
     const v = await ledger2.verifyChain();
-    if (v && v.valid) ok('T2\'s own chain verifies (empty and green) — the tenants do not touch');
+    if (v && v.ok === true && v.verified === 0) ok('T2\'s own chain verifies (empty and green) — the tenants do not touch');
     else bad('T2 chain green', JSON.stringify(v));
   });
 
