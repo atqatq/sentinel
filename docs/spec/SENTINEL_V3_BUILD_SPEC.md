@@ -1820,16 +1820,20 @@ honestly when the data is not there and stamp itself truthfully when it is?
 
 **The stack contract (normative):**
 
-1. **Two services, named honestly.** `db` and `web` — nothing else. §7.4's reference topology
-   (redis, minio, keycloak, otel-collector) has NO runtime consumer in the tree yet: no worker
-   daemon polls a queue, no IdP is wired, no collector receives spans. A service with no
-   consumer is set dressing, and the smoke does not ship set dressing; each joins when its
-   consumer lands (the worker image rides the worker-runtime unit, per §14.23's naming).
-2. **One image, one definition.** Compose declares `sentinel-web:ci` and NO build context —
-   the image is built once by the job from THE Dockerfile, and compose consumes it. Two build
-   stories are two artifacts that can drift; the smoke-tested tag is the image definition's
-   output, full stop. (The container scan is §14.23's gate on the image-build job; this job
-   rebuilds from the same definition — same Dockerfile, same pinned digests — and does not
+1. **Three services, named honestly — and no fourth.** `db`, `web` and `worker` — nothing
+   else. §7.4's reference topology (redis, minio, keycloak, otel-collector) still has NO
+   runtime consumer: no queue producer enqueues, no IdP is wired, no collector receives
+   spans. A service with no consumer is set dressing, and the smoke does not ship set
+   dressing. The `worker` service joined when its consumer landed — §14.25's watched-folder
+   daemon IS a consumer (the operator's file drop produces its work), so the smoke now
+   exercises it where a customer would run it: as a container beside the database, reading
+   files nobody hands it in-process.
+2. **Two images, one definition each.** Compose declares `sentinel-web:ci` and
+   `sentinel-worker:ci` and NO build context on either — each image is built once by the job
+   from ITS Dockerfile, and compose consumes them. Two build stories are two artifacts that
+   can drift; the smoke-tested tags are the image definitions' outputs, full stop. (The
+   container scan is §14.23/§14.25's gate on the image-build job; this job
+   rebuilds from the same definitions — same Dockerfiles, same pinned digests — and does not
    duplicate the scan.)
 3. **Every base image the stack pulls is pinned BY DIGEST.** `postgres:16` is pinned to its
    current multi-arch manifest digest — the same exactness §14.23's clause 2 demands of the
@@ -1848,11 +1852,14 @@ honestly when the data is not there and stamp itself truthfully when it is?
 6. **Migrations are the SAME files.** The prepare script applies `packages/db/migrations/` in
    sorted order — the exact set the live proofs apply. One schema truth; no compose-side
    parallel migration path exists to drift from it.
-7. **The web role is the deployment shape, not the admin shortcut.** The prepare script
-   creates `sentinel_web`: LOGIN, NOBYPASSRLS, non-superuser, member of the migrations'
-   NOLOGIN `sentinel_app` (which carries the table grants). `DATABASE_URL` connects as it. An
-   admin-connection smoke would skip the very thing §14's RLS discipline exists to prove —
-   the smoke connects the way production connects, and the GUC fence (ADR-0002) does the rest.
+7. **The service roles are the deployment shape, not the admin shortcut.** The prepare script
+   creates `sentinel_web` AND `sentinel_worker` — each LOGIN, NOBYPASSRLS, non-superuser,
+   member of the migrations' NOLOGIN `sentinel_app` (which carries the table grants). The
+   web's `DATABASE_URL` connects as the former, the worker's as the latter — one role per
+   long-running service, the way a deployment names them, so an incident's `pg_stat_activity`
+   says which process did what. An admin-connection smoke would skip the very thing §14's
+   RLS discipline exists to prove — the smoke connects the way production connects, and the
+   GUC fence (ADR-0002) does the rest.
 8. **The tenant registry is seeded, synthetically (D-003).** The smoke tenant is the screens'
    default code, so the assertion rides the URL a real user's first click produces; the
    registry insert is idempotent (`ON CONFLICT DO NOTHING`) because prepare must be re-runnable
@@ -1879,18 +1886,42 @@ honestly when the data is not there and stamp itself truthfully when it is?
 12. **The job is merge-blocking and proof-first.** No `continue-on-error`, no conditional skip;
     the named proof runs BEFORE any docker minute is spent (the §14.23 ordering, repeated),
     and the job needs the policy guard and the web shell — a red shell never reaches the stack.
+13. **The walk — the worker's file through the real stack (the §14.25 follow-on, discharged).**
+    After the HTTP assertions, the smoke drops the checksum-pinned golden suppliers fixture
+    (H12 bytes, copied under a smoke name) into the worker service's bind-mounted inbox for
+    the seeded tenant's folder, and waits for the file to settle. The assertions: (a) the file
+    settles into `done/<TENANT_CODE>/` inside the poll window — the claim, the fence and the
+    commit happened in the container, on the real database, with no test double in sight; (b)
+    the register row is read back through a FENCED runner-side connection AS `sentinel_worker`
+    (BEGIN → set_config → SELECT — the same fence the write rode, never the admin shortcut):
+    kind `suppliers`, status `APPLIED`, and the checksum EXACTLY the fixture's pinned sha256 —
+    the file that walked is byte-for-byte the file the fixture contract pins; (c) the REPLAY:
+    the same bytes are dropped again and settle `done/` with the register STILL one row, the
+    applied_at UNCHANGED — §4's "re-importing the same file changes nothing" walked live, the
+    H6 idempotency proven against the real database instead of asserted against stubs. The
+    inbox bind mount is world-writable on purpose and DISCLOSED: a CI-ephemeral directory,
+    destroyed by the teardown, so the nonroot worker (UID 65532) can claim and settle inside
+    it — the deployment's own inbox would be owned by its service user. The worker's AV
+    posture is a NAMED declaration in the compose environment
+    (`SENTINEL_WORKER_AV_REQUIRED=false` — this stack has no scanner and says so; §14.25's
+    default stays fail-closed), never a silent bypass: a smoke that smuggled a stub scanner
+    into the "real" path would prove a path nobody runs.
 
 **Named proof `e2e/smoke`** — the structural contract proven WITHOUT docker (the runtime
 environment carries no daemon; compose proves the reality in CI, the proof pins the shape):
-the compose service set exactly (`db`, `web` — and no `build` key in `web`); the postgres
+the compose service set exactly (`db`, `web`, `worker` — and no `build` key on either
+image service); the postgres
 digest pinned; loopback-only publishing; the db healthcheck and the `service_healthy` gate;
-`DATABASE_URL` connecting as `sentinel_web`; the prepare script's migrations read from the
-real directory in sorted order, the role created with the deployment shape, the membership
-grant, the idempotent tenant seed, and the script's own role-shape verification; the smoke
+`DATABASE_URL` connecting as `sentinel_web`, the worker's as `sentinel_worker`, and the
+worker's inbox mount + AV declaration in its environment; the prepare script's migrations read from the
+real directory in sorted order, BOTH roles created with the deployment shape, the membership
+grants, the idempotent tenant seed, and the script's own role-shape verification; the smoke
 script's assertion surface — every named assertion present, the version stamps asserted by
-EXACT match against the real modules, the nonzero exit on any red; and the ci.yml job text —
-job name, needs, proof step first, the build, the up/prepare/up sequence, the teardown under
-`if: always()`. A weakened or skipped smoke fails the same push that weakened it.
+EXACT match against the real modules, the walk's fixture path, settle-poll, fenced register
+read and replay-idempotency present, the nonzero exit on any red; and the ci.yml job text —
+job name, needs, proof step first, the builds, the up/prepare/up sequence, the file drop and
+the teardown under `if: always()`. A weakened or skipped smoke fails the same push that
+weakened it.
 
 The closed ecosystem is untouched: compose files and e2e scripts are tooling outside the
 egress gate's runtime surface (ADR-0003's grep scope is unchanged), and the stack's only
@@ -1955,7 +1986,10 @@ discipline that brought the scan here. D-046 records the decision.
    (ADR-0001; the worker runtime is the consumer `makeIngestWorkerAdapter` was waiting for,
    and this unit adds it to that surface) → `runFileToRows` with source `watched-folder`
    and `asOfMs = Date.now()` (the daemon is the clock's injection point; the library stays
-   clock-free) → COMMIT → the client closes. The GUC dies with the transaction; the fence
+   clock-free) and the DEPLOYMENT'S DECLARED AV POSTURE (`avRequired` — M3's fail-closed
+   default stands; a watched-folder deployment that runs no scanner declares it explicitly,
+   and the declaration rides the caller into the gate — never a silent bypass) → COMMIT →
+   the client closes. The GUC dies with the transaction; the fence
    is per file by construction.
 5. **Outcomes → folders, the COMPLETE mapping.** `APPLIED` → `done/<TENANT_CODE>/`;
    `REPLAY_NOOP` → `done/<TENANT_CODE>/` (it changed nothing — §4's posture at the runtime
@@ -2017,13 +2051,11 @@ identity rule (the folder speaks, the file's name never does); the drain (a stop
 finishes the in-flight file and starts no new cycle); and the exceljs exact pin (4.4.0)
 asserted in the worker's dependency story.
 
-**Scope honesty.** This unit does NOT claim: the compose walk of a real file through the
-real stack — the worker joins the smoke stack by AMENDING §14.24's two-service contract in
-the e2e unit's own amendment, when the smoke walks a file (a third service pinned in from
-this unit would be a service the smoke does not exercise); the BullMQ transport (arrives
-with its producer); §7.4's redis/minio/keycloak/otel services (still without consumers —
-still absent); the Mode-B per-kind fan-out (§4's named follow-on). Each is named where it
-lives.
+**Scope honesty.** This unit does NOT claim: the BullMQ transport (arrives with its producer);
+§7.4's redis/minio/keycloak/otel services (still without consumers — still absent); the
+Mode-B per-kind fan-out (§4's named follow-on). The compose walk was DISCHARGED by §14.24's
+amendment — the worker joined the smoke stack as its third service, and a real file walked
+the real fence. Each remaining item is named where it lives.
 
 ---
 
