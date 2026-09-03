@@ -2052,10 +2052,70 @@ finishes the in-flight file and starts no new cycle); and the exceljs exact pin 
 asserted in the worker's dependency story.
 
 **Scope honesty.** This unit does NOT claim: the BullMQ transport (arrives with its producer);
-§7.4's redis/minio/keycloak/otel services (still without consumers — still absent); the
-Mode-B per-kind fan-out (§4's named follow-on). The compose walk was DISCHARGED by §14.24's
-amendment — the worker joined the smoke stack as its third service, and a real file walked
-the real fence. Each remaining item is named where it lives.
+§7.4's redis/minio/keycloak/otel services (still without consumers — still absent). The compose walk
+was DISCHARGED by §14.24's amendment — the worker joined the smoke stack as its third service, and a
+real file walked the real fence. The Mode-B per-kind fan-out was named here and is now ITS OWN unit
+(§14.26 below). Each remaining item is named where it lives.
+
+---
+
+### 14.26 The Mode-B per-kind fan-out — the combined template's transport (§4's named follow-on, discharged; named proof `ingest/mode-b-fanout`)
+
+INGESTION_FILE_SPEC §1 has promised Mode B since the day it was written — one combined
+`Sentinel_Ingestion_Template.xlsx` workbook, 8 tabs, fixed headers, "Both produce identical results" —
+and §4.1's worker refused every multi-tab workbook with `MULTI_KIND_WORKBOOK_NOT_WIRED` ("drop one tab
+per file today") while the follow-on stayed named. This unit keeps the promise. The contract:
+
+1. **The shape rule.** The pipeline branches on the FILE'S SHAPE, never on the mode label: one
+   data-carrying bound sheet → the single-grid path, receipts byte-identical to the pre-fan-out
+   worker; several bound sheets → the fan-out. The mode records as declared (the watched folder still
+   runs mode 'A'; §1's modes are drop postures and §4's pipeline is identical for both).
+2. **One register row per kind.** Each bound sheet rides the IDENTICAL downstream pipeline inside the
+   SAME tenant fence — the H6 decision runs per (kind, checksum) — one H6 register row per kind under
+   the file's checksum, structurally held by the register's
+   `UNIQUE (tenant_id, kind, checksum_sha256)` (no schema change; SCHEMA_VERSION 0009 stands). Re-drops
+   replay per kind: a workbook with one fixed tab replays the seven applied kinds as `REPLAY_NOOP` and
+   applies the eighth.
+3. **The named edges.** A tab binding no kind refuses the workbook whole (`NO_HEADER_ROW_FOUND`, the
+   unbound tabs named beside the bound ones it refuses to half-serve); two data tabs binding one kind
+   refuse whole (`MULTI_SHEET_KIND_COLLISION` — a duplicated tab would silently replay its twin
+   through the shared (kind, checksum) identity); a bound tab with no data rows is the template's
+   unused state — skipped and disclosed, never registered; every bound tab headers-only →
+   `WORKBOOK_NO_DATA_ROWS`; a sheet whose rows all fail quarantines ITS kind's register row
+   (`NO_SURVIVOR_ROWS`) while the others continue.
+4. **The file's verdict aggregates honestly.** Any quarantined sheet → the file settles `quarantine/`
+   (the folder grammar must not hide a tab whose data never entered; the detail names the applied and
+   the refused kinds — re-drop after fixing the named tab, the applied kinds replay as no-ops); else
+   any applied → `APPLIED`; else → `REPLAY_NOOP`. The receipt carries `fanout: true` and the per-sheet
+   truth (`sheets: [{ sheetName, kind, verdict, … }]`); the daemon's outcome→folder mapping needs NO
+   change — the aggregated verdict is in its enum.
+5. **Transactionally whole.** One fence per FILE (ADR-0002 as written): any sheet's executor fault
+   rolls back EVERY sheet — nothing half-commits, the file lands `failed/`.
+6. **Attribution.** Data-health tasks raised inside a fan-out carry the sheet name (`payload.sheet` —
+   the worker adapter's task context grows an optional `sheetName`, additive, `@sentinel/db` minor);
+   the receipt's per-sheet entries carry each tab's counters, disclosures and banners (banners
+   aggregate to the file level prefixed with the tab's name).
+7. **The retired refusal.** `MULTI_KIND_WORKBOOK_NOT_WIRED` told operators to drop one tab per file —
+   the instruction expires with this contract; the pin that held the line becomes the fan-out's own
+   proof in the same diff.
+
+**Named proof `ingest/mode-b-fanout`** (the `ingestion-tests` job, the file-to-rows worker suite):
+the multi-kind workbook fans out with one register row per kind and the map disclosed; the
+single-tab workbook's receipt is byte-identical to the pre-fan-out worker; the unbound-tab refusal
+names both worlds; the same-kind collision refuses with the twins named and ZERO executor calls; the
+headers-only template state is skipped and disclosed; the all-headers-only workbook refuses
+`WORKBOOK_NO_DATA_ROWS`; the split outcome (one sheet applied, one quarantined) aggregates to
+`QUARANTINED` with the split named in the detail and exactly one register row per kind; the
+all-replay workbook aggregates `REPLAY_NOOP`; an executor fault on a later sheet propagates (the
+caller's rollback is the contract's, not this unit's); and the `sheetName` attribution lands in the
+task payload.
+
+**Scope honesty.** This unit does NOT claim: the `Tenant` column split (§3.3 — "one workbook per
+tenant, or add a `Tenant` column and the importer splits"; the watched folder's identity rule is the
+folder speaks, the file's name never does — a tenant column needs a producer-side contract the tree
+does not have, and the folder-per-tenant layout already serves the transport that exists); the
+BullMQ transport (rides its producer); §7.4's redis/minio/keycloak/otel services (still without
+consumers — still absent).
 
 ---
 

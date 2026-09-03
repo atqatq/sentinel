@@ -7,7 +7,8 @@ Two supported modes. **Both produce identical results** — the pipeline normali
   units, and upserts idempotently.
 - **Mode B:** one combined workbook, **`Sentinel_Ingestion_Template.xlsx`** (provided) — 8 tabs, fixed
   headers. Use for initial load, for QatarMP until its Precoro exports exist, and for the data Precoro
-  cannot produce (deliveries, planning params, category owners).
+  cannot produce (deliveries, planning params, category owners). The worker's fan-out contract for
+  this workbook is §4.1: one H6 register row per kind under the file's checksum.
 
 ---
 
@@ -138,13 +139,37 @@ into grids — that is the **worker layer's** job, and the boundary rules are:
 - **Memory is bounded by caps, not by the byte cap.** The 64 MB H10 byte cap inflates to far more
   grid than 64 MB, so extraction carries its own caps: per-sheet rows, sheet count, total cells —
   a breach refuses `GRID_CAPS_EXCEEDED` (the CSV path's `ROWS_EXCEEDED` posture, D-028).
-- **One workbook, one bound sheet, today.** Each sheet is bound against the kind signatures
-  independently. A workbook with exactly one signature-matching sheet processes through the normal
-  pipeline (the single-tab drop the `XLSX_EXTRACTION_NOT_WIRED` message told operators to make). A
-  workbook where several sheets match signatures refuses `MULTI_KIND_WORKBOOK_NOT_WIRED` with the
-  sheet names disclosed — the Mode-B per-kind fan-out (eight tabs, eight H6 register rows under one
-  checksum) is a named follow-on unit, not a silent guess. A workbook where NOTHING matches binds no
-  kind and quarantines whole (`NO_HEADER_ROW_FOUND`, the register never carries a guess).
+- **One workbook, one H6 register row per kind (the Mode-B fan-out).** Each sheet is bound against
+  the kind signatures independently, and the pipeline branches on the FILE'S SHAPE, never on the
+  declared mode label. A workbook with exactly one data-carrying bound sheet processes through the
+  normal pipeline exactly as the single-tab drop always did. A workbook where several sheets bind
+  DISTINCT kinds fans out: each bound sheet rides the IDENTICAL downstream pipeline (bind →
+  allow-list → strict parse → enrichment → H6 → executor) inside the SAME tenant fence, producing one
+  H6 register row per kind under the file's checksum — the register's
+  `UNIQUE (tenant_id, kind, checksum_sha256)` is the fan-out's structural basis, and the schema never
+  changed for this. A re-drop replays per kind: a workbook with one fixed tab replays the applied
+  kinds as `REPLAY_NOOP` and applies only the fixed tab's kind. The edges are named:
+  a tab that binds NO kind refuses the workbook whole (`NO_HEADER_ROW_FOUND`, every unbound tab named
+  beside the bound ones it refuses to half-serve — the strict-parse discipline applied to the sheet
+  set); two data-carrying tabs binding the SAME kind refuse whole (`MULTI_SHEET_KIND_COLLISION` — one
+  register row per kind under one checksum is the contract, and a duplicated tab would silently replay
+  its twin through the shared (kind, checksum) identity); a tab that binds a kind but carries NO data
+  rows is the template's unused state (the fixed-header template keeps all 8 headers) — skipped and
+  disclosed, never registered; a workbook where every bound tab is headers-only refuses
+  (`WORKBOOK_NO_DATA_ROWS` — nothing to ingest, nothing applied); a sheet whose rows all fail the
+  pipeline quarantines THAT KIND's register row (`NO_SURVIVOR_ROWS`) while the other sheets continue.
+  **The file's verdict aggregates honestly:** any quarantined sheet → the file settles `quarantine/`
+  (the folder grammar must not hide a tab whose data never entered; the detail names exactly which
+  kinds applied and which refused — re-drop the workbook after fixing the named tab, and the applied
+  kinds replay as no-ops); otherwise any applied sheet → `APPLIED`; otherwise every sheet replayed →
+  `REPLAY_NOOP`. The fan-out is transactionally whole: one fence per FILE (ADR-0002 as written) — any
+  sheet's executor fault rolls back EVERY sheet, the file lands `failed/`, nothing half-commits. The
+  mode label records as declared (§1's modes are drop postures; §4's pipeline is identical for both);
+  data-health tasks raised inside a fan-out carry the sheet name in their payload, so a 3 a.m.
+  operator reads WHICH tab spoke. A workbook where NOTHING matches binds no kind and quarantines
+  whole (`NO_HEADER_ROW_FOUND`, the register never carries a guess). The retired refusal
+  `MULTI_KIND_WORKBOOK_NOT_WIRED` told operators to "drop one tab per file today" — that instruction
+  expires with this contract.
 
 **Validation gates (a failing file is quarantined whole, never half-applied):**
 - required columns present; row count within ±40% of the previous run for that kind
