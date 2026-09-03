@@ -45,8 +45,35 @@ async function get(pathname) {
   return { status: res.status, text, headers: res.headers };
 }
 
+/* The readiness poll — the container has NO compose-side healthcheck (the
+ * distroless runtime ships no shell, so a container healthcheck cannot be a
+ * shell exec; the orchestrator's probe is this loop). The smoke waits for
+ * /health to answer before it asserts, so a slow boot is a wait, not a red. */
+async function waitForServer(timeoutMs = 60_000) {
+  const deadline = Date.now() + timeoutMs;
+  let lastError = 'no attempt';
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetch(BASE + '/health', { signal: AbortSignal.timeout(2_000) });
+      if (res.ok) return true;
+      lastError = `HTTP ${res.status}`;
+    } catch (e) {
+      lastError = (e && e.message) || String(e);
+    }
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  return `server not ready within ${timeoutMs}ms: ${lastError}`;
+}
+
 async function main() {
   console.log(`\n§14.24 e2e-smoke against ${BASE}\n`);
+
+  const ready = await waitForServer();
+  if (ready !== true) {
+    console.error('  ✗ readiness: ' + ready);
+    process.exit(1);
+  }
+  ok('/health answers — the container is up and serving');
 
   /* ---- (a) /health — the §16 stamps, exact against this tree ---- */
   const h = await get('/health');

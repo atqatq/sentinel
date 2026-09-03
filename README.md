@@ -137,7 +137,7 @@ sentinel/
 # prerequisites: Node.js ≥ 22 (core modules are zero-dependency)
 git clone https://github.com/atqatq/sentinel && cd sentinel
 
-npm run test        # the structural battery (1,237) must pass — every suite green,
+npm run test        # the structural battery (1,238) must pass — every suite green,
                     # including the §14.22 scale gate (p95 < 500 ms at 4,200 refs)
 npm run guard       # forbidden terms, SDS parity, ui scope, status binding — must always be clean
 

@@ -175,6 +175,12 @@ test('the smoke fails loud — any red assertion (or a crash) exits nonzero', ()
   assert.match(SMOKE, /process\.exit\(1\);\n\}\);/);
 });
 
+test('the smoke waits for the container to boot — a readiness poll against /health, never a single-shot race', () => {
+  assert.match(SMOKE, /waitForServer/);
+  assert.match(SMOKE, /AbortSignal\.timeout\(2_000\)/);
+  assert.match(SMOKE, /server not ready within/);
+});
+
 test('the smoke’s network story is the loopback — SMOKE_BASE_URL defaults to 127.0.0.1, no egress', () => {
   assert.match(SMOKE, /process\.env\.SMOKE_BASE_URL \|\| 'http:\/\/127\.0\.0\.1:3000'/);
 });
