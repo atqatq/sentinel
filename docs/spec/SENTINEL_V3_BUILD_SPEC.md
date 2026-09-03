@@ -1301,6 +1301,93 @@ their golden values with the warnings layer present).
 
 ---
 
+## 14.20 Intelligence egress allow-list & prompt-injection stance — the outbound door, fail-closed (audit M13; named proof `intelligence/egress-allowlist`)
+
+The audit's finding: "The Intelligence node needs a data-egress classification and a prompt-injection
+stance. [S] Sending procurement data to a third-party LLM is an egress boundary in a 'closed
+ecosystem.' No field allow-list, no cross-tenant prompt policy, no injection stance (supplier/item
+names and task comments are attacker-influencable text; generated tasks are approval-gated — good —
+state it as the *designed* containment)." The fix text: an egress allow-list (aggregates and
+item/ref names only; no prices-per-supplier beyond what the analysis requires, no personnel data),
+tenant-scoped prompts unless Origin explicitly consolidates, and a documented injection threat-model
+entry. This section is that contract; the acceptance test is `intelligence/egress-allowlist` — **a
+prompt containing a disallowed field is rejected before the API call.**
+
+**The posture: default-deny holds; the door is the one named exception.** The closed ecosystem keeps
+its §14.18 gate-6 posture — no egress call lands silently, the grep runs per commit. The Intelligence
+node (screen 27, origin-only) is the ONE governed exception: an explicit allow-list door through
+which every outbound request must pass, fail-closed, with the transport itself UNWIRED in this unit —
+no HTTP client exists in the runtime surface, and the moment the Intelligence runtime lands, its
+client goes through this door or does not go out at all. The door is a PURE decision layer (the
+ledger/auth posture: the decision is unit-testable, the transport is the adapter's problem); it never
+reads the network, never reads env, never stores a credential.
+
+**The allow-list is policy data, not code.** The door carries an explicit outbound set — structured
+entries, each: `id` (a stable name), `purpose` (what the call is for), `host` (the EXACT hostname the
+transport must present — a hostname, never a URL literal, so gate 6's URL-literal rule keeps holding
+over the runtime surface), `credentialSource` (the NAME of the env/secret-manager slot that holds the
+key — never the value), and `fieldAllowList` (the exact data-field names that may leave). The initial
+set is ONE entry — the LLM analysis call — whose field allow-list encodes the audit's data
+classification: aggregates and item/ref names only; no prices-per-supplier beyond what the analysis
+requires; no personnel data, ever. A field name not on the list does not leave — fail-closed, no
+operator override, no "just this once".
+
+**The door — `classifyEgress`, normative verdicts.** Every outbound request presents: the resolved
+target host, the requested data-field names, the prompt envelope (operator-authored `instructions`
+separated from ingested `dataFields`), the tenant scope, and the caller's role. The door refuses,
+loudly and by name, BEFORE any transport can exist:
+
+- `EGRESS_PROMPT_MALFORMED` — the prompt envelope does not separate instructions from data fields
+  (the separation is the injection stance's structural core; a merged blob refuses).
+- `EGRESS_HOST_NOT_ALLOW_LISTED` — the resolved host is not an exact match of an entry's host.
+- `EGRESS_ORIGIN_ONLY` — the caller is not Origin (screen 27 is origin-only; §4's permission matrix
+  holds at the egress boundary too).
+- `EGRESS_CROSS_TENANT_REFUSED` — the request spans tenants without the explicit Origin
+  consolidation flag. Prompts are tenant-scoped by default; consolidation is an explicit,
+  logged act — never a silent aggregate.
+- `EGRESS_FIELD_NOT_ALLOW_LISTED` — ANY requested data field is not on the entry's field
+  allow-list. One disallowed field refuses the whole request — the audit's acceptance scenario,
+  rejected before the API call, never redacted-after-the-fact.
+
+An allowed request yields the **log envelope**: `{ host, purpose, fields (sorted), promptHash,
+tenantScope, consolidation }` — and NOTHING else. `promptHash` is the SHA-256 hex of the RFC 8785
+canonical form of the exact payload that would leave (§16.4: "Log a **prompt hash + field
+allow-list** for Intelligence egress, not the content"). The prompt text never enters the envelope,
+the log, or the ledger — the exfiltration path is auditable without copying the payload.
+
+**The prompt-injection stance — the threat model entry, stated as design.** Ingested text (supplier
+names, item names, task comments) is attacker-influenceable: a supplier can name itself
+"ignore previous instructions" and the name is data Sentinel legitimately holds. The containment is
+layered, and each layer is a named surface:
+
+1. **Structural separation** — the envelope splits operator-authored `instructions` from ingested
+   `dataFields`; the field allow-list bounds what data can ride at all; a malformed envelope refuses
+   (`EGRESS_PROMPT_MALFORMED`).
+2. **The output is a draft, never an actuator** — the Intelligence node produces versioned `.md`
+   documents read in a reader pane (screen 27). Its output is never parsed as an instruction, never
+   auto-applied to planning parameters, never converted into a proposal or task without the human
+   approval doors (C3's SoD spine) that govern every other act. A prompt-injected sentence in a
+   generated document is, at worst, text a human reads — the designed containment, now stated.
+3. **The payload is hashed, not stored** — a breach of the Intelligence surface leaks no procurement
+   content, because the content never rested anywhere: it left through the door, hashed into the log.
+4. **Cross-tenant contamination is structurally refused** — tenant-scoped prompts mean an injected
+   name from tenant A cannot ride a prompt about tenant B; consolidation is explicit and logged.
+
+**Purity and wiring.** The module is pure (no IO, no env, no fetch — the host list and credential
+slot NAMES are data, the transport arrives with the Intelligence runtime unit and goes through the
+door). The door composes the ledger module's RFC 8785 canonicalization for the hash (the same JCS
+the H5 chain uses — one canonicalization per system).
+
+**Named proof `intelligence/egress-allowlist`** — pins: the audit's acceptance scenario (a prompt
+carrying a disallowed field is refused `EGRESS_FIELD_NOT_ALLOW_LISTED` before any call); every
+refusal verdict, including the malformed-envelope and cross-tenant cases; origin-only gating;
+exact-host matching (a lookalike host refuses); the envelope's hash-only property (the prompt text is
+absent from the envelope and unrecoverable from it); hash determinism (same payload → same hash,
+JCS-canonical); and the allow-list's data classification (aggregates and names ride; prices beyond
+the allowance, personnel data, and unknown fields refuse).
+
+---
+
 # 15. Audit remediation — SENT-AUDIT-002 (deep technical audit, $50M bar)
 
 An independent deep technical audit re-verified this package and raised 40 findings. **Every empirical
