@@ -416,15 +416,96 @@ export function SetupWizard() {
       ) : null}
 
       <Card title="First ingestion">
-        <p className="max-w-[70ch] font-sans text-[12.5px] leading-[18px] text-text-2">
-          The first ingestion rides the worker&rsquo;s own pipeline: drop the combined template
-          workbook (or the raw Precoro exports) into the tenant&rsquo;s watched-folder inbox —
-          <span className="font-mono text-[12px]"> &lt;inbox&gt;/&lt;TenantCode&gt;/ </span>
-          — and watch the file settle done/ or quarantine/. The register, the fence, the
-          fan-out and the holds staging are the same objects the daemon serves. The Origin-only
-          upload door lands with the next unit; the folder is the day-to-day transport either way.
+        <p className="mb-3 max-w-[70ch] font-sans text-[12.5px] leading-[18px] text-text-2">
+          Upload the combined template workbook (Mode B) or a raw Precoro export (Mode A) —
+          the worker&rsquo;s own pipeline runs in-process under the same fence, so the receipt,
+          the register, the fan-out and the holds staging are the daemon&rsquo;s own objects.
+          The watched-folder inbox remains the day-to-day transport.
         </p>
+        <UploadForm tenants={o.tenants} onDone={() => { setState({ phase: "loading" }); void load() }} />
       </Card>
     </div>
+  )
+}
+
+/* The §14.28 clause-5 upload — the first ingestion from Origin. The receipt
+ * renders verbatim: verdict, counters, disclosures, holds. A pipeline fault
+ * is a 500 with the phase named — the transaction rolled back, the register
+ * carries no guess. */
+function UploadForm({ tenants, onDone }: { tenants: Overview["tenants"]; onDone: () => void }) {
+  const [file, setFile] = React.useState<File | null>(null)
+  const [mode, setMode] = React.useState<"A" | "B">("A")
+  const [busy, setBusy] = React.useState(false)
+  const [refusal, setRefusal] = React.useState<{ reason: string; detail?: string } | null>(null)
+  const [receipt, setReceipt] = React.useState<Record<string, unknown> | null>(null)
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!file) return
+    setBusy(true)
+    setRefusal(null)
+    setReceipt(null)
+    const fd = new FormData()
+    fd.append("file", file)
+    fd.append("mode", mode)
+    const res = await fetch("/api/setup/ingest", { method: "POST", body: fd })
+    const body = await res.json().catch(() => ({}))
+    setBusy(false)
+    if (res.ok && body.verdict === "OK") {
+      setReceipt(body.receipt || {})
+      onDone()
+      return
+    }
+    setRefusal({ reason: String(body.reason || body.verdict || "ERROR"), detail: body.detail || body.message })
+  }
+
+  const counters = receipt ? (receipt.counters as Record<string, number> | undefined) : undefined
+  const disclosures = receipt ? (receipt.disclosures as string[] | undefined) : undefined
+  const holds = receipt ? (receipt.holds as Record<string, number> | undefined) : undefined
+
+  return (
+    <form onSubmit={submit} className="flex max-w-[560px] flex-col gap-3">
+      <Field label="File (.xlsx workbook or .csv export, ≤ 64 MB)">
+        <input
+          className={INPUT}
+          type="file"
+          accept=".xlsx,.csv"
+          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+          required
+        />
+      </Field>
+      <Field label="Mode">
+        <select className={INPUT} value={mode} onChange={(e) => setMode(e.target.value === "B" ? "B" : "A")}>
+          <option value="A">A — raw Precoro export (header-signature auto-detect)</option>
+          <option value="B">B — the combined 8-tab template workbook</option>
+        </select>
+      </Field>
+      {refusal ? <Refusal reason={refusal.reason} detail={refusal.detail} /> : null}
+      <div><Button busy={busy}>Run the pipeline</Button></div>
+      {receipt ? (
+        <div className="mt-1 flex flex-col gap-1 rounded-sm border border-line bg-canvas p-3">
+          <p className="font-mono text-[12px] leading-[17px] text-text">
+            verdict: <span style={{ color: receipt.verdict === "APPLIED" ? "var(--ok)" : receipt.verdict === "QUARANTINED" ? "var(--critical)" : "var(--warn)" }}>{String(receipt.verdict)}</span>
+          </p>
+          {counters ? (
+            <p className="font-mono text-[11px] leading-[16px] text-text-2">
+              read {counters.rowsRead} · applied {counters.rowsApplied} · quarantined {counters.rowsQuarantined} · unresolved units {counters.unresolvedUnits}
+            </p>
+          ) : null}
+          {holds && Object.keys(holds).length > 0 ? (
+            <p className="font-mono text-[11px] leading-[16px] text-text-2">
+              holds: staged {holds.staged} · deduped {holds.deduped} · diverged {holds.diverged} · tasks {holds.tasks}
+            </p>
+          ) : null}
+          {disclosures && disclosures.length > 0 ? (
+            <ul className="flex flex-col gap-0.5">
+              {disclosures.map((d, i) => (
+                <li key={i} className="font-mono text-[10.5px] leading-[15px] text-text-3">{d}</li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
+    </form>
   )
 }

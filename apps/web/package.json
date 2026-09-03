@@ -21,7 +21,8 @@
     "next": "15.5.24",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "@sentinel/module-setup": "workspace:*"
+    "@sentinel/module-setup": "workspace:*",
+    "@sentinel/ingest-service": "workspace:*"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.1.18",

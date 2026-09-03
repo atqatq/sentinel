@@ -263,6 +263,11 @@ declare module "@sentinel/db" {
   }
   /* The SRC-05 evidence read (the Suppliers tile; the kpi-catalog's
    * evaluateSrc05 owns the formula — this adapter owns the evidence rows). */
+  /* §14.28: the upload seam's executor/ports (the worker's own surfaces —
+   * makeIngestAdapter(client, tenantId) is the H6 executor; the worker-adapter
+   * is the SQL ports surface). Loosely typed like the rest of this file. */
+  export function makeIngestAdapter(client: unknown, tenantId: string): Record<string, unknown>
+  export function makeIngestWorkerAdapter(client: unknown, tenantId: string): Record<string, unknown>
   export function makeSourcingAdapter(
     client: import("pg").PoolClient,
     tenantId: string
@@ -337,4 +342,14 @@ declare module "@sentinel/module-planning-engine" {
    * are passed through verbatim elsewhere, so only the stamp is typed here:
    * the contract lives in the module, not in a second TS copy. */
   export const ENGINE_VERSION: string
+}
+
+declare module "@sentinel/ingest-service" {
+  /* The §14.28 upload seam's loose surface (the worker's own pipeline —
+   * runFileToRows + the H6 executor/ports; the receipt contract lives in
+   * the ingest-service suites, never in a second TS copy). */
+  export function runFileToRows(
+    deps: { ports: unknown; executor: unknown; hardening?: unknown; binding?: unknown; parse?: unknown; normalize?: unknown; idempotency?: unknown; dates?: unknown },
+    input: { tenantId: string; bytes: Uint8Array; declaredName?: string; source?: string; mode?: "A" | "B"; delimiter?: string; asOfMs: number; avRequired?: boolean }
+  ): Promise<Record<string, unknown>>
 }
