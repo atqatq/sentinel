@@ -14,6 +14,7 @@
     "@sentinel/db": "workspace:*",
     "@sentinel/module-ops": "workspace:*",
     "@sentinel/plan-service": "workspace:*",
+    "@sentinel/procure-service": "workspace:*",
     "@sentinel/ui": "workspace:*",
     "next": "15.5.24",
     "react": "19.2.8",

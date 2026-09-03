@@ -27,6 +27,9 @@ importers:
       '@sentinel/plan-service':
         specifier: workspace:*
         version: link:../../packages/plan-service
+      '@sentinel/procure-service':
+        specifier: workspace:*
+        version: link:../../packages/procure-service
       '@sentinel/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -64,9 +67,13 @@ importers:
 
   packages/core: {}
 
+  packages/core/modules/dr: {}
+
   packages/core/modules/execution-feedback: {}
 
   packages/core/modules/ingestion: {}
+
+  packages/core/modules/intelligence: {}
 
   packages/core/modules/ops: {}
 
@@ -85,6 +92,8 @@ importers:
   packages/ingest-service: {}
 
   packages/plan-service: {}
+
+  packages/procure-service: {}
 
   packages/ui:
     dependencies:

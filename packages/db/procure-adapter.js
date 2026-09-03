@@ -31,6 +31,15 @@
 
 const { deriveRederiveTasks: CF_DERIVE } = require('../core/modules/approval/src/cf.js');
 
+const UUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+
+/* §14.13c — the API's read ports refuse by name (code-carrying, never coerced). */
+function cfError(code, detail) {
+  const e = new Error(`${code}: ${detail}`);
+  e.code = code;
+  return e;
+}
+
 const PROPOSAL_COLS = `id, tenant_id AS "tenantId", code, state, raised_by AS "raisedBy",
     supplier_id AS "supplierId", currency_code AS "currencyCode", total_amount AS "totalAmount",
     note, created_at AS "createdAt", updated_at AS "updatedAt"`;
@@ -261,6 +270,35 @@ function makeProcureAdapter(client, tenantId) {
       const from = row.from_value === null ? null : Number(row.from_value);
       const to = Number(row.to_value);
       return { ...row, fromValue: from, toValue: to, from: from === null ? null : String(from), to: String(to) };
+    },
+
+    /* ---- §14.13c: the API's read ports ----------------------------------
+     * The decision boundary loads the version BY ID (the state re-proved,
+     * not assumed — the loaded row is what the gate judges) and the latest
+     * seal PAYLOAD (the APPLY leg's re-derivation walk — the §14.13b third
+     * audit leg needs the sizing basis, never just the hash). RLS scopes
+     * both: another tenant's version is indistinguishable from no version. */
+    loadCfVersionById: async (versionId) => {
+      if (typeof versionId !== 'string' || !UUID_RE.test(versionId)) {
+        throw cfError('CF_VERSION_ID_INVALID', `versionId must be the version uuid, got ${JSON.stringify(versionId)}`);
+      }
+      const r = await q(
+        `SELECT id, tenant_id AS "tenantId", sku, version, from_value, to_value, state::text AS state, requested_by AS "requestedBy"
+           FROM item_cf_version
+          WHERE tenant_id = $1 AND id = $2 AND state = 'PENDING'`, [tenantId, versionId]);
+      if (!r.rows[0]) return null;
+      const row = r.rows[0];
+      const from = row.from_value === null ? null : Number(row.from_value);
+      const to = Number(row.to_value);
+      return { ...row, fromValue: from, toValue: to, from: from === null ? null : String(from), to: String(to) };
+    },
+
+    loadLatestSealPayload: async () => {
+      const r = await q(
+        `SELECT payload FROM plan_seal
+          WHERE tenant_id = $1
+          ORDER BY seal_date DESC LIMIT 1`, [tenantId]);
+      return r.rows[0] ? r.rows[0].payload : null;
     },
 
     resolveCfVersion: async ({ versionId, decidedBy, decision, reason, latestSeal }) => {

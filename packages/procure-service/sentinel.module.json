@@ -1,0 +1,22 @@
+{
+  "id": "procure-service",
+  "version": "0.1.0",
+  "description": "The sourcing-controls decision API (build spec §14.13c; D-036's scheduled follow-on; named proof governance/cf-api): handleCfDecision is the HTTP-agnostic boundary of the §14.13b conversion-factor decision gate — the pure gate (approval.cf.decideCfVersion) UNCHANGED, every refusal yielding its Class-D denial record through the ledger's append door UNCHANGED (the D-029 consumption posture; the ledger armed only by the deployment's HMAC key + the session's envelope — UNARMED the API refuses loudly, a denial never leaves no trace), then the SQL door (procure-adapter.resolveCfVersion — the ONLY path through the item_cf_freeze) UNCHANGED, the latest seal payload riding the APPLY leg (the re-derivation walk is the third audit leg). Identity is the SESSION's, never the request body's (a body-carried actor is the plan route's retired interim — the SoD spine is only as honest as the identity being judged); statuses mapped adversarially: 200 the decision receipt · 400 request-shape (and IDENTITY_NOT_CARRIED for retired fields) · 403 a gate denial with its record returned for the tray · 404 CF_VERSION_NOT_FOUND (RLS makes another tenant's version indistinguishable from no version) · 500 wiring. The API composes gate → record → door in the caller's transaction; it owns NO governance arithmetic — no denominator, gate, or trigger is re-implemented here.",
+  "purity": "no-react, no-framework",
+  "dependencies": ["approval", "db"],
+  "permissionScopes": ["approval:decide"],
+  "ingestionKinds": [],
+  "uiSurfacePoints": [
+    "approvals-tray"
+  ],
+  "ledgerEventTypes": [
+    "ITEM_CF_VERSION_APPLY",
+    "ITEM_CF_VERSION_REJECT"
+  ],
+  "goldenTests": [
+    {
+      "suite": "test/cf-api.test.js",
+      "count": 13
+    }
+  ]
+}

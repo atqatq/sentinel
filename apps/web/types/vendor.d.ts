@@ -14,9 +14,43 @@ declare module "@sentinel/plan-service" {
   export function canonicalJson(value: unknown): string
 }
 
+declare module "@sentinel/procure-service" {
+  /* Minimal surface of the CJS procure-service contract (packages/procure-service).
+   * Receipts are plain JSON in documented shapes; they are passed through to
+   * the HTTP response verbatim, so they stay loosely typed here on purpose —
+   * the API contract lives in the module, not in a second TS copy. */
+  export function handleCfDecision(
+    request: unknown,
+    deps: unknown
+  ): Promise<{ status: number; json: Record<string, unknown> }>
+}
+
 declare module "@sentinel/db" {
   /* Minimal surface of the CJS db package contract (packages/db). */
   export const SCHEMA_VERSION: string
+  /* The sourcing-controls decision adapter (C3 workflow executor; the CF
+   * door lives here — loosely typed on purpose, the contract is the module's). */
+  export function makeProcureAdapter(
+    client: import("pg").PoolClient,
+    tenantId: string
+  ): {
+    loadCfVersionById(versionId: string): Promise<Record<string, unknown> | null>
+    loadLatestSealPayload(): Promise<Record<string, unknown> | null>
+    resolveCfVersion(input: Record<string, unknown>): Promise<Record<string, unknown>>
+  }
+  /* The H5 ledger executor (appendBlock / appendDenialRecord / verifyChain). */
+  export function makeLedgerAdapter(
+    client: import("pg").PoolClient,
+    tenantId: string,
+    config: {
+      hmacKey: string
+      actor: string
+      role?: string | null
+      sessionId?: string | null
+      sourceIp?: string | null
+      onBehalfOf?: string | null
+    }
+  ): Record<string, unknown>
   export function makePlanAdapter(
     client: import("pg").PoolClient,
     tenantId: string,

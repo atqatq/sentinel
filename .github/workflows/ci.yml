@@ -108,6 +108,8 @@ jobs:
         run: node packages/core/modules/intelligence/test/policy.test.js
       - name: H11 DR restore-rehearsal gate — named proof dr/restore-rehearsal-gate (25)
         run: node packages/core/modules/dr/test/rehearsal.test.js
+      - name: §14.13c the CF decide/apply API — named proof governance/cf-api (12)
+        run: node packages/procure-service/test/cf-api.test.js
 
   ingestion-tests:
     name: Ingestion boundary suites (strict parse + file binding)
@@ -176,6 +178,8 @@ jobs:
         run: node packages/db/test/scorecard-adapter.test.js
       - name: §14.6g sweep writer — the register mirror (insert / no-op / resolve) via stub client (7)
         run: node packages/db/test/sweep-adapter.test.js
+      - name: §14.13c CF read ports — version by id + latest seal payload via stub client (3)
+        run: node packages/db/test/cf-read-ports.test.js
       - name: Install pg client for the matrix
         run: npm install --prefix packages/db pg@8 --no-save --no-audit --no-fund
       - name: RLS deny matrix (live)

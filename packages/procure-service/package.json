@@ -1,0 +1,10 @@
+{
+  "name": "@sentinel/procure-service",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Sentinel service: the sourcing-controls decision API (build spec §14.13c; D-036's scheduled follow-on) — handleCfDecision, the HTTP-agnostic boundary of the §14.13b conversion-factor decision gate. Composes gate → record → door in the caller's transaction: the pure gate (approval.cf.decideCfVersion) UNCHANGED, every refusal yielding its Class-D denial record through the ledger's append door UNCHANGED (D-029 posture; the ledger armed only by the deployment key + the session's envelope — unarmed the API refuses loudly), then the SQL door (procure-adapter.resolveCfVersion — the ONLY path through the item_cf_freeze) UNCHANGED. Identity is the session's, never the request body's; statuses mapped adversarially (200 receipt · 400 shape · 403 denial · 404 not-found · 500 wiring).",
+  "main": "index.js",
+  "scripts": {
+    "test": "node test/cf-api.test.js"
+  }
+}
