@@ -1,0 +1,49 @@
+# ============================================================================
+# The §14.24 e2e-smoke stack — ephemeral, two services, one image.
+#
+#   db   — PostgreSQL 16 pinned BY DIGEST (the §14.23 clause-2 exactness
+#          extends to every base this stack pulls); published to the RUNNER'S
+#          loopback only, for the migration/seed script (scripts/e2e/prepare-db.mjs).
+#   web  — sentinel-web:ci, the §14.23 Dockerfile's output, built by the CI
+#          job BEFORE compose runs. Compose declares NO build context on
+#          purpose: one image, one definition — the smoke-tested tag is that
+#          definition's output, never a second variant that can drift.
+#
+# The credentials below are NOT a secret: an ephemeral throwaway database
+# that exists for one CI job, published to loopback, destroyed by the
+# teardown (`down -v`, under if: always()). The role the WEB service
+# connects as is created by scripts/e2e/prepare-db.mjs with the deployment
+# shape — LOGIN, NOBYPASSRLS, non-superuser, member of the migrations'
+# NOLOGIN sentinel_app — because an admin-connection smoke would skip the
+# very thing the RLS discipline exists to prove.
+#
+# §7.4's reference topology (redis, minio, keycloak, otel-collector) is
+# deliberately absent: no runtime consumer exists in the tree yet. A service
+# with no consumer is set dressing; each joins when its consumer lands.
+# ============================================================================
+name: sentinel-smoke
+
+services:
+  db:
+    image: postgres:16@sha256:f1c3376c26f2609ab9f29f71f824103fe2fcd8ee0346485cb6122a4f93df6f94
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: sentinel
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d sentinel"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    ports:
+      - "127.0.0.1:5433:5432"
+
+  web:
+    image: sentinel-web:ci
+    environment:
+      DATABASE_URL: postgres://sentinel_web:smoke-only@db:5432/sentinel
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3000:3000"

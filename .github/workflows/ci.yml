@@ -293,3 +293,34 @@ jobs:
           image: sentinel-web:ci
           format: spdx-json
           artifact-name: sentinel-web-image-sbom.spdx.json
+
+  e2e-smoke:
+    name: "e2e-smoke — the §14.24 ephemeral compose stack (real image · real migrations · the fence on screen)"
+    runs-on: ubuntu-latest
+    needs: [guard, web-shell]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Named proof e2e/smoke — the smoke contract, no docker needed (§14.24)
+        run: node scripts/e2e/test/smoke.test.mjs
+      - name: Build the smoke image — the §14.23 Dockerfile, compose consumes what this builds
+        run: docker build --tag sentinel-web:ci .
+      - name: Bring up the database (digest-pinned postgres 16, loopback only)
+        run: docker compose up -d --wait db
+      - name: Install pg for the runner-side database preparation
+        run: npm install --prefix packages/db pg@8 --no-save --no-audit --no-fund
+      - name: Prepare the database — the migrations + the smoke tenant + the web role
+        run: node scripts/e2e/prepare-db.mjs
+        env:
+          DATABASE_URL_ADMIN: postgres://postgres:postgres@127.0.0.1:5433/sentinel
+      - name: Bring up the web image
+        run: docker compose up -d web
+      - name: The smoke — the §16 stamps and the fence's honest states, over HTTP
+        run: node scripts/e2e/smoke.mjs
+        env:
+          SMOKE_BASE_URL: http://127.0.0.1:3000
+      - name: Teardown — the stack is ephemeral, always
+        if: always()
+        run: docker compose down -v --remove-orphans
