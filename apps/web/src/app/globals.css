@@ -1,8 +1,28 @@
 /*
- * Sentinel global stylesheet — the SDS theme is imported from packages/ui
- * (A12: tokens.css is the single source of truth; this file must never
- * restate a token value). Fonts are self-hosted (OFL) via the theme package.
+ * Sentinel global stylesheet — the composition contract is TWO imports
+ * (the contract is written in packages/ui/theme/build-check.css's header):
+ *   1. "tailwindcss"        — preflight, default theme, the utilities layer;
+ *   2. "@sentinel/ui/theme" — SDS tokens + the @theme inline mapping.
+ * The framework import was missing once and EVERY gate stayed green —
+ * typecheck, the 1,354-assertion battery, the guards — because none of them
+ * renders: the app served browser-default HTML while the tokens' raw custom
+ * properties (plain CSS) kept the status colours alive, which made the
+ * breakage look like "the app is just plain" instead of "the SDS is absent".
+ * The app-css-utilities guard now compiles THIS file and refuses any state
+ * without preflight, utilities, and the live token binding.
+ *
+ * The SDS theme is imported from packages/ui (A12: tokens.css is the single
+ * source of truth; this file must never restate a token value). Fonts are
+ * self-hosted (OFL) via the theme package.
  */
+@import "tailwindcss";
+
+/* Scan the app's own sources explicitly: the guard's CLI compile runs from
+ * packages/ui's cwd, and the utilities layer must not depend on where the
+ * compiler happens to stand (next dev auto-detects from the app root —
+ * this line makes the app's utilities deterministic in BOTH paths). */
+@source "../";
+
 @import "@sentinel/ui/theme";
 @import "@sentinel/ui/theme/fonts.css";
 
