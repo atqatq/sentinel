@@ -41,6 +41,24 @@ docker run -d --name sentinel-db \
 
 Postgres 16 is a multi-arch image — Docker pulls the **arm64 variant** on your M3 automatically.
 
+### If this step trips — the three states cover everything you'll see
+
+| Symptom | What it means | Fix |
+|---|---|---|
+| `failed to connect to the docker API … docker.sock: no such file or directory` | Docker Desktop isn't running — the CLI is on PATH but the daemon that executes `run` isn't | Start Docker Desktop, wait until it reports running, then run the command again |
+| `The container name "/sentinel-db" is already in use` | An earlier attempt already registered the container (the typical shape when Desktop was mid-start) | **Do not re-run `docker run`** — a second run can only collide. `docker start sentinel-db` |
+| The next step answers `connect ECONNREFUSED 127.0.0.1:5433` | The container exists but isn't up (created-never-started, stopped, or started-and-died) | `docker ps -a --filter name=sentinel-db` names the state; `docker start sentinel-db` for a stopped one; if it keeps dying, `docker logs --tail 20 sentinel-db` names the cause — the honest last resort is `docker rm -f sentinel-db` then the `docker run` above, fresh |
+
+The gate before §3 (run it once, read it once):
+
+```bash
+docker exec sentinel-db pg_isready -U postgres -d sentinel
+# → ... accepting connections
+```
+
+After a laptop reboot the whole dance is: start Docker Desktop, then `docker start sentinel-db`
+(the container and its data persist across reboots — only the daemon needs waking).
+
 ## 3. Apply schema, service roles and the smoke tenant
 
 The repo ships one script that brings a database to the exact deployment shape (same files CI uses):
@@ -99,7 +117,8 @@ and the first ingestion (Mode A raw exports or the Mode B template, receipt verb
 ## 6. Run the web app
 
 ```bash
-# generate ONCE (restarts keep their sessions); .env.local is gitignored:
+# generate ONCE, never rotate: this key wraps sessions AND TOTP secrets at
+# enrollment — a later rotation strands both. .env.local is gitignored:
 printf 'SESSION_WRAP_KEY=%s\n' "$(openssl rand -hex 32)" >> apps/web/.env.local
 printf 'DATABASE_URL=%s\n' "postgres://sentinel_web:smoke-only@127.0.0.1:5433/sentinel" >> apps/web/.env.local
 
@@ -158,7 +177,7 @@ inbox dir (`chmod -R 777 e2e-inbox` — the nonroot worker runs as UID 65532), t
 ## 9. Run the test battery locally
 
 ```bash
-npm test            # 1,304 assertions across 30+ suites (pure core: no DB needed)
+npm test            # 1,348 assertions across 30+ suites (pure core: no DB needed)
 npm run guard       # forbidden-terms / token-parity / UI-scope / status-vocabulary guards
 pnpm --filter @sentinel/web typecheck
 ```
@@ -181,7 +200,7 @@ Work top to bottom; every box is a real, observable behavior.
 
 ## Phase A — Toolchain sanity
 - [ ] `node -v` ≥ 22; `pnpm install` completes clean
-- [ ] `npm test` → **1,304 assertions, all suites green** (includes the perf gate: plan p95 ≈ 243 ms at 4,200 refs, limit 500 ms)
+- [ ] `npm test` → **1,348 assertions, all suites green** (includes the perf gate: plan p95 ≈ 252 ms at 4,200 refs, limit 500 ms)
 - [ ] `npm run guard` → clean · `pnpm --filter @sentinel/web typecheck` → clean
 
 ## Phase B — Database
