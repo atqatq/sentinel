@@ -334,6 +334,10 @@ export function SetupWizard() {
       <section className={`${SURFACE} p-4`}>
         <p className="font-sans text-[13px] leading-[18px] text-text">Sign in first.</p>
         <p className="mt-1 font-mono text-[11px] leading-[16px] text-text-3">SESSION_REQUIRED — the wizard rides the Origin&rsquo;s own session.</p>
+        <p className="mt-2 font-sans text-[12.5px] leading-[18px] text-text-2">
+          The door is <a className="underline underline-offset-2" href="/signin">/signin</a> — sign
+          in there and this wizard resumes where the session lands it.
+        </p>
       </section>
     )
   }

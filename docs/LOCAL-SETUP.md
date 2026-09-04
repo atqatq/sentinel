@@ -125,10 +125,12 @@ printf 'DATABASE_URL=%s\n' "postgres://sentinel_web:smoke-only@127.0.0.1:5433/se
 pnpm --filter @sentinel/web dev
 ```
 
-- Open **http://localhost:3000**
-- Sign in with the bootstrapped Origin email + the printed password. The first visit forces
-  the password rotation (the interstitial), then the /setup wizard takes over. (No MFA is
-  enrolled for local users, so the login returns `ISSUE` directly.)
+- Open **http://localhost:3000/signin** and sign in with the bootstrapped Origin email + the
+  printed password. (No MFA is enrolled for local users, so the login answers `OK` directly;
+  a wrong password renders `REFUSED` verbatim, five fast failures engage `AUTH_LOCKED`.)
+- The origin lands on **/setup**: the first visit forces the password rotation (the
+  interstitial), then the wizard takes over. Arriving at the wizard without a session shows
+  `SESSION_REQUIRED` — with the door linked (`/signin`) — instead of a dead end.
 - `SESSION_WRAP_KEY` must be **≥ 32 chars** or the auth boundary refuses to boot (by design).
 
 ## 7. Run the ingestion worker
