@@ -8,7 +8,7 @@
 -- Tenant alpha (synthetic) ----------------------------------------------------
 INSERT INTO tenant (id, code, name, currency_code, timezone)
 VALUES ('11111111-1111-4111-8111-111111111111', 'tenant-alpha', 'Tenant Alpha (synthetic)', 'BHD', 'Asia/Bahrain')
-ON CONFLICT (code) DO NOTHING;
+ON CONFLICT DO NOTHING; -- no target: covers the PK (id) AND the code unique
 
 BEGIN;
 SELECT set_config('app.tenant_id', '11111111-1111-4111-8111-111111111111', true);
@@ -35,7 +35,7 @@ COMMIT;
 -- Tenant beta (synthetic) -------------------------------------------------------
 INSERT INTO tenant (id, code, name, currency_code, timezone)
 VALUES ('22222222-2222-4222-8222-222222222222', 'tenant-beta', 'Tenant Beta (synthetic)', 'AED', 'Asia/Dubai')
-ON CONFLICT (code) DO NOTHING;
+ON CONFLICT DO NOTHING; -- no target: covers the PK (id) AND the code unique
 
 BEGIN;
 SELECT set_config('app.tenant_id', '22222222-2222-4222-8222-222222222222', true);
