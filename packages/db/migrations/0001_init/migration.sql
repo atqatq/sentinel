@@ -15,12 +15,42 @@
 
 -- ---- Enums -----------------------------------------------------------------
 
-CREATE TYPE "warehouse_kind" AS ENUM ('COMPANY', '3PL', 'STAGING', 'QUARANTINE', 'CONSIGNMENT', 'VIRTUAL', 'INACTIVE');
-CREATE TYPE "delivery_granularity" AS ENUM ('daily', 'weekly', 'monthly', 'quarterly', 'ytd');
-CREATE TYPE "planning_param_source" AS ENUM ('manual', 'calculated', 'override');
-CREATE TYPE "ingest_file_status" AS ENUM ('RECEIVED', 'QUARANTINED', 'APPLIED', 'FAILED');
-CREATE TYPE "data_health_severity" AS ENUM ('INFO', 'WARN', 'CRITICAL');
-CREATE TYPE "data_health_status" AS ENUM ('OPEN', 'ACKNOWLEDGED', 'RESOLVED');
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'warehouse_kind') THEN
+    CREATE TYPE "warehouse_kind" AS ENUM ('COMPANY', '3PL', 'STAGING', 'QUARANTINE', 'CONSIGNMENT', 'VIRTUAL', 'INACTIVE');
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'delivery_granularity') THEN
+    CREATE TYPE "delivery_granularity" AS ENUM ('daily', 'weekly', 'monthly', 'quarterly', 'ytd');
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'planning_param_source') THEN
+    CREATE TYPE "planning_param_source" AS ENUM ('manual', 'calculated', 'override');
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'ingest_file_status') THEN
+    CREATE TYPE "ingest_file_status" AS ENUM ('RECEIVED', 'QUARANTINED', 'APPLIED', 'FAILED');
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'data_health_severity') THEN
+    CREATE TYPE "data_health_severity" AS ENUM ('INFO', 'WARN', 'CRITICAL');
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'data_health_status') THEN
+    CREATE TYPE "data_health_status" AS ENUM ('OPEN', 'ACKNOWLEDGED', 'RESOLVED');
+  END IF;
+END $$;
 
 -- ---- Tenancy ----------------------------------------------------------------
 

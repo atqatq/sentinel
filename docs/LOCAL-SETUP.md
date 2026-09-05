@@ -68,10 +68,11 @@ DATABASE_URL_ADMIN='postgres://postgres:postgres@127.0.0.1:5433/sentinel' \
   node scripts/e2e/prepare-db.mjs
 ```
 
-This applies all migrations `0001 → 0009` in sorted order, creates the two service roles
+This applies all migrations `0001 → 0010` in sorted order, creates the two service roles
 (`sentinel_web`, `sentinel_worker` — LOGIN, **NOBYPASSRLS**, non-superuser, members of the
 `sentinel_app` grant role, password `smoke-only`), and seeds the `BahrainMP` smoke tenant.
-It is **idempotent** — re-running it is always safe.
+It targets a **fresh database** (CI creates one per run) — re-running it against an
+already-migrated database is not supported; drop and recreate the database instead.
 
 ## 4. Seed reference data
 

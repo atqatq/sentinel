@@ -518,6 +518,7 @@ test('the pre-tenant membership door is scoped, fail-closed, and app-role-only (
   assert.ok(/tr\.user_id = p_user_id/.test(body), 'the scope is the argument — nothing more');
   assert.ok(/tr\.revoked_at IS NULL/.test(body), 'only ACTIVE memberships leave the door');
   assert.ok(body.includes('ORDER BY tr.granted_at ASC'), 'granted_at order is the login resolution\u2019s determinism');
+  assert.ok(/"out_tenant_id"/.test(body) && /"out_tenant_code"/.test(body) && /"out_role"/.test(body), 'the door returns the D-050 out_ contract — the adapter SELECTs out_tenant_id/out_tenant_code/out_role and no test ever ran the door live (the shipped column names tenant_id/tenant_code/role made every login die at first sign-in)');
   assert.ok(/REVOKE ALL ON FUNCTION "auth_user_tenants"\(UUID\) FROM PUBLIC;/.test(migration0010), 'the REVOKE from PUBLIC missing');
   assert.ok(/GRANT EXECUTE ON FUNCTION "auth_user_tenants"\(UUID\) TO "sentinel_app";/.test(migration0010), 'the GRANT EXECUTE to sentinel_app missing');
 });

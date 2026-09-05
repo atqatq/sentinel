@@ -301,7 +301,7 @@ function makeAuthAdapter(client, config) {
         `SELECT s.id, s.user_id AS "userId", s.tenant_id AS "tenantId", s.role, s.mfa_ok AS "mfaOk",
                 s.created_at AS "createdAt", s.last_seen_at AS "lastSeenAt",
                 s.absolute_expires_at AS "absoluteExpiresAt", s.terminated_at AS "terminatedAt",
-                u.is_origin AS "isOrigin", t.code AS "tenantCode",
+                u.is_origin AS "isOrigin", u.email AS "email", t.code AS "tenantCode",
                 c.must_change AS "mustChange"
            FROM user_session s JOIN app_user u ON u.id = s.user_id
            JOIN tenant t ON t.id = s.tenant_id
@@ -314,6 +314,7 @@ function makeAuthAdapter(client, config) {
         mfaOk: row.mfaOk === true,
         isOrigin: row.isOrigin === true,
         mustChange: row.mustChange === true,
+        email: row.email,
         tenantCode: row.tenantCode,
         createdAt: new Date(row.createdAt).getTime(),
         lastSeenAt: new Date(row.lastSeenAt).getTime(),

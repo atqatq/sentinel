@@ -125,10 +125,10 @@ COMMENT ON FUNCTION "setup_create_tenant_with_founder"(TEXT, TEXT, TEXT, TEXT, T
 
 CREATE OR REPLACE FUNCTION "auth_user_tenants"(p_user_id UUID)
 RETURNS TABLE (
-  "tenant_id" UUID,
-  "tenant_code" TEXT,
-  "role" "user_role",
-  "granted_at" TIMESTAMPTZ
+  "out_tenant_id" UUID,
+  "out_tenant_code" TEXT,
+  "out_role" "user_role",
+  "out_granted_at" TIMESTAMPTZ
 ) AS $$
   SELECT tr.tenant_id, t.code, tr.role, tr.granted_at
     FROM tenant_role tr
